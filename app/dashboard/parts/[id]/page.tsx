@@ -32,6 +32,21 @@ export default async function PartDetailPage({ params }: PageProps) {
     .eq("part_id", id)
     .order("created_at", { ascending: false });
 
+  const filesWithUrls = files
+    ? await Promise.all(
+        files.map(async (file) => {
+          const { data } = await supabase.storage
+            .from("part-files")
+            .createSignedUrl(file.storage_path, 60 * 10);
+
+          return {
+            ...file,
+            signedUrl: data?.signedUrl || null,
+          };
+        })
+      )
+    : [];
+
   if (error || !part) {
     return (
       <main className="min-h-screen bg-white text-gray-900">
@@ -119,9 +134,9 @@ export default async function PartDetailPage({ params }: PageProps) {
             <div className="rounded-3xl border border-gray-200 p-6 shadow-sm">
               <h2 className="text-xl font-semibold">Attached Files</h2>
 
-              {files && files.length > 0 ? (
+              {filesWithUrls.length > 0 ? (
                 <div className="mt-6 space-y-4">
-                  {files.map((file) => (
+                  {filesWithUrls.map((file) => (
                     <div
                       key={file.id}
                       className="flex items-center justify-between rounded-2xl border border-gray-200 px-4 py-3"
@@ -134,6 +149,21 @@ export default async function PartDetailPage({ params }: PageProps) {
                           {file.asset_category} · {file.file_type || "unknown"}
                         </p>
                       </div>
+
+                      {file.signedUrl ? (
+                        <a
+                          href={file.signedUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="rounded-xl border border-gray-300 px-4 py-2 text-sm font-medium text-gray-900 transition hover:bg-gray-50"
+                        >
+                          Download
+                        </a>
+                      ) : (
+                        <span className="text-sm text-gray-400">
+                          Unavailable
+                        </span>
+                      )}
                     </div>
                   ))}
                 </div>

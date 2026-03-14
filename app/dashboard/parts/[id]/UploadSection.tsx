@@ -48,10 +48,10 @@ export default function UploadSection({ partId }: UploadSectionProps) {
       .upload(filePath, file);
 
     if (uploadError) {
-      setError(uploadError.message);
-      setLoading(false);
-      return;
-    }
+  setError(`Storage upload failed: ${uploadError.message}`);
+  setLoading(false);
+  return;
+}
 
     const { error: insertError } = await supabase.from("part_files").insert({
       part_id: partId,
@@ -95,14 +95,22 @@ export default function UploadSection({ partId }: UploadSectionProps) {
           </select>
         </div>
 
-        <div>
-          <label className="mb-2 block text-sm font-medium">Choose File</label>
-          <input
-            type="file"
-            onChange={(e) => setFile(e.target.files?.[0] || null)}
-            className="block w-full text-sm text-gray-600"
-          />
-        </div>
+       <div>
+  <label className="mb-2 block text-sm font-medium">Choose File</label>
+
+  <label className="inline-flex cursor-pointer items-center rounded-2xl border border-gray-300 px-4 py-3 text-sm font-medium text-gray-900 transition hover:bg-gray-50">
+    Select File
+    <input
+      type="file"
+      onChange={(e) => setFile(e.target.files?.[0] || null)}
+      className="hidden"
+    />
+  </label>
+
+  <p className="mt-2 text-sm text-gray-600">
+    {file ? file.name : "No file selected"}
+  </p>
+</div>
 
         <button
           type="submit"
