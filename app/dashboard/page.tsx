@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "../../lib/supabase/server";
 import Navbar from "../../components/Navbar";
 import Footer from "../../components/Footer";
-import LogoutButton from "./logout-button";
+import LogoutButton from "./LogoutButton";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
