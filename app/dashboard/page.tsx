@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "../../lib/supabase/server";
 import Navbar from "../../components/Navbar";
@@ -31,6 +32,13 @@ export default async function DashboardPage() {
             <p className="mt-2 text-sm text-gray-500">
               Signed in as {user.email}
             </p>
+
+            <Link
+              href="/dashboard/parts"
+              className="mt-8 inline-flex rounded-2xl bg-gray-900 px-5 py-3 text-sm font-medium text-white transition hover:opacity-90"
+            >
+              Open Parts Vault
+            </Link>
           </div>
 
           <LogoutButton />
