@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import { createClient } from "../../lib/supabase/server";
 import Navbar from "../../components/Navbar";
 import Footer from "../../components/Footer";
-import LogoutButton from "./LogoutButton";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -21,7 +20,7 @@ export default async function DashboardPage() {
       <Navbar />
 
       <section className="mx-auto max-w-7xl px-6 py-20">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-4">
           <div>
             <h1 className="text-4xl font-bold">Dashboard</h1>
 
@@ -40,8 +39,6 @@ export default async function DashboardPage() {
               Open Parts Vault
             </Link>
           </div>
-
-          <LogoutButton />
         </div>
       </section>
 

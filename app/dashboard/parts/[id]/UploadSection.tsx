@@ -48,10 +48,10 @@ export default function UploadSection({ partId }: UploadSectionProps) {
       .upload(filePath, file);
 
     if (uploadError) {
-  setError(`Storage upload failed: ${uploadError.message}`);
-  setLoading(false);
-  return;
-}
+      setError(`Storage upload failed: ${uploadError.message}`);
+      setLoading(false);
+      return;
+    }
 
     const { error: insertError } = await supabase.from("part_files").insert({
       part_id: partId,
@@ -63,7 +63,7 @@ export default function UploadSection({ partId }: UploadSectionProps) {
     });
 
     if (insertError) {
-      setError(insertError.message);
+      setError(`Database insert failed: ${insertError.message}`);
       setLoading(false);
       return;
     }
@@ -76,11 +76,13 @@ export default function UploadSection({ partId }: UploadSectionProps) {
 
   return (
     <div className="rounded-3xl border border-gray-200 p-6 shadow-sm">
-      <h2 className="text-xl font-semibold">Files</h2>
+      <h2 className="text-xl font-semibold">Upload File</h2>
 
       <form onSubmit={handleUpload} className="mt-6 space-y-4">
         <div>
-          <label className="mb-2 block text-sm font-medium">Asset Category</label>
+          <label className="mb-2 block text-sm font-medium">
+            Asset Category
+          </label>
           <select
             value={assetCategory}
             onChange={(e) => setAssetCategory(e.target.value)}
@@ -95,22 +97,22 @@ export default function UploadSection({ partId }: UploadSectionProps) {
           </select>
         </div>
 
-       <div>
-  <label className="mb-2 block text-sm font-medium">Choose File</label>
+        <div>
+          <label className="mb-2 block text-sm font-medium">Choose File</label>
 
-  <label className="inline-flex cursor-pointer items-center rounded-2xl border border-gray-300 px-4 py-3 text-sm font-medium text-gray-900 transition hover:bg-gray-50">
-    Select File
-    <input
-      type="file"
-      onChange={(e) => setFile(e.target.files?.[0] || null)}
-      className="hidden"
-    />
-  </label>
+          <label className="inline-flex cursor-pointer items-center rounded-2xl border border-gray-300 px-4 py-3 text-sm font-medium text-gray-900 transition hover:bg-gray-50">
+            Select File
+            <input
+              type="file"
+              onChange={(e) => setFile(e.target.files?.[0] || null)}
+              className="hidden"
+            />
+          </label>
 
-  <p className="mt-2 text-sm text-gray-600">
-    {file ? file.name : "No file selected"}
-  </p>
-</div>
+          <p className="mt-2 text-sm text-gray-600">
+            {file ? file.name : "No file selected"}
+          </p>
+        </div>
 
         <button
           type="submit"
