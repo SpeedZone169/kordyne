@@ -231,6 +231,7 @@ export default async function PartDetailPage({ params }: PageProps) {
                                 fileName={file.file_name}
                                 storagePath={file.storage_path}
                                 signedUrl={file.signedUrl}
+                                assetCategory={file.asset_category}
                               />
                             </div>
                           ))}

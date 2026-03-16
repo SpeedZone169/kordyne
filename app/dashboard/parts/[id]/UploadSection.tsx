@@ -25,7 +25,7 @@ const ALLOWED_EXTENSIONS_BY_CATEGORY: Record<string, string[]> = {
   image: ["png", "jpg", "jpeg"],
   manufacturing_doc: ["pdf", "doc", "docx", "xls", "xlsx", "csv"],
   quality_doc: ["pdf", "doc", "docx", "xls", "xlsx", "csv"],
-  other: ["pdf", "png", "jpg", "jpeg", "csv", "txt", "zip"],
+  other: ["pdf", "png", "jpg", "jpeg", "csv", "txt"],
 };
 
 function getFileExtension(fileName: string) {
