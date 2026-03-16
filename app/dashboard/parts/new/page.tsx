@@ -6,6 +6,12 @@ import { createClient } from "../../../../lib/supabase/client";
 import Navbar from "../../../../components/Navbar";
 import Footer from "../../../../components/Footer";
 
+const STATUS_OPTIONS = [
+  { value: "draft", label: "Draft" },
+  { value: "active", label: "Active" },
+  { value: "archived", label: "Archived" },
+];
+
 export default function NewPartPage() {
   const router = useRouter();
   const supabase = createClient();
@@ -147,12 +153,17 @@ export default function NewPartPage() {
 
             <div>
               <label className="mb-2 block text-sm font-medium">Status</label>
-              <input
-                type="text"
+              <select
                 value={status}
                 onChange={(e) => setStatus(e.target.value)}
                 className="w-full rounded-2xl border border-gray-300 px-4 py-3"
-              />
+              >
+                {STATUS_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 

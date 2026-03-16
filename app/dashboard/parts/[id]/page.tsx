@@ -4,6 +4,7 @@ import Navbar from "../../../../components/Navbar";
 import Footer from "../../../../components/Footer";
 import UploadSection from "./UploadSection";
 import FileActions from "./FileActions";
+import PartStatusEditor from "./PartStatusEditor";
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -178,9 +179,10 @@ export default async function PartDetailPage({ params }: PageProps) {
 
               <div>
                 <p className="text-gray-500">Status</p>
-                <p className="font-medium text-gray-900">
-                  {part.status || "-"}
-                </p>
+                <PartStatusEditor
+                  partId={part.id}
+                  currentStatus={part.status}
+                />
               </div>
             </div>
           </div>
