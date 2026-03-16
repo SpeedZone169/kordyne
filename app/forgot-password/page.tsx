@@ -1,32 +1,58 @@
 "use client";
 
 import { useState } from "react";
-import { createClient } from "../../lib/supabase/client";
 import Navbar from "../../components/Navbar";
 import Footer from "../../components/Footer";
+import TurnstileWidget from "../../components/TurnstileWidget";
 
 export default function ForgotPasswordPage() {
-  const supabase = createClient();
-
   const [email, setEmail] = useState("");
+  const [turnstileToken, setTurnstileToken] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   async function handleReset(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setMessage("");
     setError("");
 
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: "http://localhost:3000/reset-password",
-    });
-
-    if (error) {
-      setError(error.message);
+    if (!turnstileToken) {
+      setError("Please complete the verification.");
       return;
     }
 
-    setMessage("Password reset email sent. Please check your inbox.");
+    setLoading(true);
+
+    try {
+      const res = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email,
+          turnstileToken,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || "Unable to send reset email.");
+        return;
+      }
+
+      setMessage(
+        "If an account exists for that email, we’ve sent password reset instructions."
+      );
+      setEmail("");
+      setTurnstileToken("");
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -49,8 +75,14 @@ export default function ForgotPasswordPage() {
             required
           />
 
-          <button className="w-full rounded-xl bg-gray-900 py-3 text-white">
-            Send Reset Link
+          <TurnstileWidget onVerify={setTurnstileToken} />
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full rounded-xl bg-gray-900 py-3 text-white disabled:opacity-60"
+          >
+            {loading ? "Sending..." : "Send Reset Link"}
           </button>
 
           {message ? <p className="text-green-700">{message}</p> : null}

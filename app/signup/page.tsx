@@ -1,7 +1,7 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
-import { createClient } from "../../lib/supabase/client";
 import { useRouter } from "next/navigation";
 import Navbar from "../../components/Navbar";
 import Footer from "../../components/Footer";
@@ -9,7 +9,6 @@ import TurnstileWidget from "../../components/TurnstileWidget";
 
 export default function SignupPage() {
   const router = useRouter();
-  const supabase = createClient();
 
   const [fullName, setFullName] = useState("");
   const [company, setCompany] = useState("");
@@ -17,7 +16,9 @@ export default function SignupPage() {
   const [password, setPassword] = useState("");
   const [repeatPassword, setRepeatPassword] = useState("");
   const [turnstileToken, setTurnstileToken] = useState("");
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   async function handleSignup(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -28,44 +29,49 @@ export default function SignupPage() {
       return;
     }
 
+    if (!acceptedTerms) {
+      setError("You must agree to the Terms and Conditions.");
+      return;
+    }
+
     if (!turnstileToken) {
-      setError("Please complete the bot check.");
+      setError("Please complete the verification.");
       return;
     }
 
-    const verifyRes = await fetch("/api/verify-turnstile", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ token: turnstileToken }),
-    });
+    setLoading(true);
 
-    const verifyData = await verifyRes.json();
-
-    if (!verifyData.success) {
-      setError("Turnstile verification failed. Please try again.");
-      return;
-    }
-
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          full_name: fullName,
-          company,
+    try {
+      const res = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
-      },
-    });
+        body: JSON.stringify({
+          fullName,
+          company,
+          email,
+          password,
+          repeatPassword,
+          turnstileToken,
+          acceptedTerms,
+        }),
+      });
 
-    if (error) {
-      setError(error.message);
-      return;
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || "Unable to create account.");
+        return;
+      }
+
+      router.push("/dashboard");
+      router.refresh();
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
     }
-
-    router.push("/dashboard");
-    router.refresh();
   }
 
   return (
@@ -121,10 +127,41 @@ export default function SignupPage() {
             required
           />
 
+          <div className="rounded-xl border p-4 text-sm text-gray-700">
+            <label className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={acceptedTerms}
+                onChange={(e) => setAcceptedTerms(e.target.checked)}
+                required
+              />
+              <span>
+                I agree to the{" "}
+                <Link href="/terms" className="underline hover:no-underline">
+                  Terms and Conditions
+                </Link>
+                .
+              </span>
+            </label>
+
+            <p className="mt-3 text-gray-600">
+              Please also review our{" "}
+              <Link href="/privacy" className="underline hover:no-underline">
+                Privacy Policy
+              </Link>
+              .
+            </p>
+          </div>
+
           <TurnstileWidget onVerify={setTurnstileToken} />
 
-          <button className="w-full rounded-xl bg-gray-900 py-3 text-white">
-            Sign Up
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full rounded-xl bg-gray-900 py-3 text-white disabled:opacity-60"
+          >
+            {loading ? "Creating account..." : "Sign Up"}
           </button>
 
           {error ? <p className="text-red-600">{error}</p> : null}
