@@ -3,6 +3,7 @@ import { createClient } from "../../../../lib/supabase/server";
 import Navbar from "../../../../components/Navbar";
 import Footer from "../../../../components/Footer";
 import UploadSection from "./UploadSection";
+import FileActions from "./FileActions";
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -225,20 +226,12 @@ export default async function PartDetailPage({ params }: PageProps) {
                                 </p>
                               </div>
 
-                              {file.signedUrl ? (
-                                <a
-                                  href={file.signedUrl}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="rounded-xl border border-gray-300 px-4 py-2 text-sm font-medium text-gray-900 transition hover:bg-gray-50"
-                                >
-                                  Download
-                                </a>
-                              ) : (
-                                <span className="text-sm text-gray-400">
-                                  Unavailable
-                                </span>
-                              )}
+                              <FileActions
+                                fileId={file.id}
+                                fileName={file.file_name}
+                                storagePath={file.storage_path}
+                                signedUrl={file.signedUrl}
+                              />
                             </div>
                           ))}
                         </div>
