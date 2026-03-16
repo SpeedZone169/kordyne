@@ -8,6 +8,60 @@ type PageProps = {
   params: Promise<{ id: string }>;
 };
 
+const CATEGORY_ORDER = [
+  "cad_3d",
+  "drawing_2d",
+  "image",
+  "manufacturing_doc",
+  "quality_doc",
+  "other",
+] as const;
+
+const CATEGORY_LABELS: Record<string, string> = {
+  cad_3d: "CAD 3D",
+  drawing_2d: "2D Drawings",
+  image: "Images",
+  manufacturing_doc: "Manufacturing Docs",
+  quality_doc: "Quality Docs",
+  other: "Other",
+};
+
+type PartFile = {
+  id: string;
+  part_id: string;
+  file_name: string;
+  file_type: string | null;
+  storage_path: string;
+  asset_category: string | null;
+  created_at: string;
+};
+
+type PartFileWithUrl = PartFile & {
+  signedUrl: string | null;
+};
+
+function groupFilesByCategory(files: PartFileWithUrl[]) {
+  const grouped: Record<string, PartFileWithUrl[]> = {
+    cad_3d: [],
+    drawing_2d: [],
+    image: [],
+    manufacturing_doc: [],
+    quality_doc: [],
+    other: [],
+  };
+
+  for (const file of files) {
+    const category =
+      file.asset_category && CATEGORY_LABELS[file.asset_category]
+        ? file.asset_category
+        : "other";
+
+    grouped[category].push(file);
+  }
+
+  return grouped;
+}
+
 export default async function PartDetailPage({ params }: PageProps) {
   const { id } = await params;
   const supabase = await createClient();
@@ -32,9 +86,9 @@ export default async function PartDetailPage({ params }: PageProps) {
     .eq("part_id", id)
     .order("created_at", { ascending: false });
 
-  const filesWithUrls = files
+  const filesWithUrls: PartFileWithUrl[] = files
     ? await Promise.all(
-        files.map(async (file) => {
+        (files as PartFile[]).map(async (file) => {
           const { data } = await supabase.storage
             .from("part-files")
             .createSignedUrl(file.storage_path, 60 * 10);
@@ -46,6 +100,8 @@ export default async function PartDetailPage({ params }: PageProps) {
         })
       )
     : [];
+
+  const groupedFiles = groupFilesByCategory(filesWithUrls);
 
   if (error || !part) {
     return (
@@ -135,37 +191,60 @@ export default async function PartDetailPage({ params }: PageProps) {
               <h2 className="text-xl font-semibold">Attached Files</h2>
 
               {filesWithUrls.length > 0 ? (
-                <div className="mt-6 space-y-4">
-                  {filesWithUrls.map((file) => (
-                    <div
-                      key={file.id}
-                      className="flex items-center justify-between rounded-2xl border border-gray-200 px-4 py-3"
-                    >
-                      <div>
-                        <p className="font-medium text-gray-900">
-                          {file.file_name}
-                        </p>
-                        <p className="text-sm text-gray-500">
-                          {file.asset_category} · {file.file_type || "unknown"}
-                        </p>
-                      </div>
+                <div className="mt-6 space-y-6">
+                  {CATEGORY_ORDER.map((category) => {
+                    const categoryFiles = groupedFiles[category];
 
-                      {file.signedUrl ? (
-                        <a
-                          href={file.signedUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="rounded-xl border border-gray-300 px-4 py-2 text-sm font-medium text-gray-900 transition hover:bg-gray-50"
-                        >
-                          Download
-                        </a>
-                      ) : (
-                        <span className="text-sm text-gray-400">
-                          Unavailable
-                        </span>
-                      )}
-                    </div>
-                  ))}
+                    if (!categoryFiles || categoryFiles.length === 0) {
+                      return null;
+                    }
+
+                    return (
+                      <div key={category}>
+                        <div className="mb-3 flex items-center justify-between">
+                          <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-gray-500">
+                            {CATEGORY_LABELS[category]}
+                          </h3>
+                          <span className="text-sm text-gray-400">
+                            {categoryFiles.length}
+                          </span>
+                        </div>
+
+                        <div className="space-y-3">
+                          {categoryFiles.map((file) => (
+                            <div
+                              key={file.id}
+                              className="flex items-center justify-between rounded-2xl border border-gray-200 px-4 py-3"
+                            >
+                              <div>
+                                <p className="font-medium text-gray-900">
+                                  {file.file_name}
+                                </p>
+                                <p className="text-sm text-gray-500">
+                                  {file.file_type || "unknown"}
+                                </p>
+                              </div>
+
+                              {file.signedUrl ? (
+                                <a
+                                  href={file.signedUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="rounded-xl border border-gray-300 px-4 py-2 text-sm font-medium text-gray-900 transition hover:bg-gray-50"
+                                >
+                                  Download
+                                </a>
+                              ) : (
+                                <span className="text-sm text-gray-400">
+                                  Unavailable
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               ) : (
                 <p className="mt-4 text-sm text-gray-600">
