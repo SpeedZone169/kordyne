@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "../../../../lib/supabase/client";
 
@@ -47,6 +47,7 @@ function formatBytes(bytes: number) {
 export default function UploadSection({ partId }: UploadSectionProps) {
   const supabase = createClient();
   const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [file, setFile] = useState<File | null>(null);
   const [assetCategory, setAssetCategory] = useState("cad_3d");
@@ -111,7 +112,6 @@ export default function UploadSection({ partId }: UploadSectionProps) {
 
       if (!user) {
         setError("You must be logged in.");
-        setLoading(false);
         return;
       }
 
@@ -128,7 +128,6 @@ export default function UploadSection({ partId }: UploadSectionProps) {
 
       if (uploadError) {
         setError(`Storage upload failed: ${uploadError.message}`);
-        setLoading(false);
         return;
       }
 
@@ -139,16 +138,21 @@ export default function UploadSection({ partId }: UploadSectionProps) {
         file_type: fileExt,
         asset_category: assetCategory,
         storage_path: filePath,
+        file_size_bytes: selectedFile.size,
       });
 
       if (insertError) {
         setError(`Database insert failed: ${insertError.message}`);
-        setLoading(false);
         return;
       }
 
       setSuccess("File uploaded successfully.");
       setFile(null);
+
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+
       router.refresh();
     } catch {
       setError("Something went wrong during upload.");
@@ -223,6 +227,7 @@ export default function UploadSection({ partId }: UploadSectionProps) {
           <label className="inline-flex cursor-pointer items-center rounded-2xl border border-gray-300 px-4 py-3 text-sm font-medium text-gray-900 transition hover:bg-gray-50">
             Select File
             <input
+              ref={fileInputRef}
               type="file"
               onChange={handleFileChange}
               className="hidden"
