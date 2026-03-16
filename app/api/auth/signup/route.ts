@@ -88,7 +88,7 @@ export async function POST(req: Request) {
 
     const supabase = await createClient();
 
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -108,6 +108,24 @@ export async function POST(req: Request) {
         { error: error.message || "Unable to create account." },
         { status: 400 }
       );
+    }
+
+    const userId = data.user?.id;
+
+    if (userId) {
+      const { error: profileError } = await supabase.from("profiles").upsert({
+        user_id: userId,
+        email,
+        full_name: fullName,
+        company,
+      });
+
+      if (profileError) {
+        return NextResponse.json(
+          { error: `Profile creation failed: ${profileError.message}` },
+          { status: 400 }
+        );
+      }
     }
 
     return NextResponse.json({ success: true });

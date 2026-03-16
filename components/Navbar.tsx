@@ -67,14 +67,6 @@ export default function Navbar() {
           <Link href="/contact" className="transition hover:text-gray-900">
             Contact
           </Link>
-          {user ? (
-            <Link
-              href="/dashboard"
-              className="transition hover:text-gray-900"
-            >
-              Dashboard
-            </Link>
-          ) : null}
         </nav>
 
         <div className="flex items-center gap-3">
@@ -110,6 +102,13 @@ export default function Navbar() {
                 className="rounded-2xl border border-gray-300 px-4 py-2 text-sm font-medium text-gray-900 transition hover:bg-gray-50"
               >
                 Dashboard
+              </Link>
+
+              <Link
+                href="/dashboard/account"
+                className="rounded-2xl border border-gray-300 px-4 py-2 text-sm font-medium text-gray-900 transition hover:bg-gray-50"
+              >
+                Account
               </Link>
 
               <button
