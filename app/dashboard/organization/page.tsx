@@ -3,6 +3,8 @@ import { createClient } from "../../../lib/supabase/server";
 import Navbar from "../../../components/Navbar";
 import Footer from "../../../components/Footer";
 import OrganizationSettingsForm from "./OrganizationSettingsForm";
+import OrganizationInviteForm from "./OrganizationInviteForm";
+import PendingInvitesList from "./PendingInvitesList";
 
 type OrgMemberRow = {
   organization_id: string;
@@ -13,6 +15,14 @@ type OrgMemberRow = {
   full_name: string | null;
   email: string | null;
   joined_at: string | null;
+};
+
+type PendingInviteRow = {
+  id: string;
+  email: string;
+  role: string;
+  status: string;
+  created_at: string;
 };
 
 function formatDate(dateString: string | null) {
@@ -59,6 +69,17 @@ export default async function OrganizationPage() {
   const members = (membersData || []) as OrgMemberRow[];
   const organization = members[0] || null;
   const isAdmin = orgRole === "admin";
+
+  const { data: pendingInvitesData } = organization
+    ? await supabase
+        .from("organization_invites")
+        .select("*")
+        .eq("organization_id", organization.organization_id)
+        .eq("status", "pending")
+        .order("created_at", { ascending: false })
+    : { data: [] as PendingInviteRow[] };
+
+  const pendingInvites = (pendingInvitesData || []) as PendingInviteRow[];
 
   return (
     <main className="min-h-screen bg-white text-gray-900">
@@ -113,6 +134,18 @@ export default async function OrganizationPage() {
                   </div>
 
                   <div>
+                    <p className="text-gray-500">Plan</p>
+                    <p className="font-medium text-gray-900">starter</p>
+                  </div>
+
+                  <div>
+                    <p className="text-gray-500">Seat Limit</p>
+                    <p className="font-medium text-gray-900">
+                      {(organization as any).seat_limit ?? 5}
+                    </p>
+                  </div>
+
+                  <div>
                     <p className="text-gray-500">Member Count</p>
                     <p className="font-medium text-gray-900">
                       {members.length}
@@ -131,6 +164,30 @@ export default async function OrganizationPage() {
                     isAdmin={isAdmin}
                   />
                 </div>
+              </div>
+            </div>
+
+            <div className="mt-8 grid gap-6 md:grid-cols-2">
+              <div className="rounded-3xl border border-gray-200 p-6 shadow-sm">
+                <h2 className="text-xl font-semibold">Invite Member</h2>
+
+                <div className="mt-6">
+                  <OrganizationInviteForm
+                    organizationId={organization.organization_id}
+                    seatLimit={(organization as any).seat_limit ?? 5}
+                    activeMemberCount={members.length}
+                    pendingInviteCount={pendingInvites.length}
+                    isAdmin={isAdmin}
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-3xl border border-gray-200 p-6 shadow-sm">
+                <h2 className="text-xl font-semibold">Pending Invites</h2>
+                <PendingInvitesList
+                  invites={pendingInvites}
+                  isAdmin={isAdmin}
+                />
               </div>
             </div>
 
@@ -177,13 +234,9 @@ export default async function OrganizationPage() {
 
               {!isAdmin ? (
                 <p className="mt-4 text-sm text-gray-500">
-                  Member management will be added in a later step.
+                  Only admins can invite new members.
                 </p>
-              ) : (
-                <p className="mt-4 text-sm text-gray-500">
-                  Invite and role management can be added next.
-                </p>
-              )}
+              ) : null}
             </div>
           </>
         ) : null}

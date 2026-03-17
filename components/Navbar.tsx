@@ -111,6 +111,13 @@ export default function Navbar() {
                 Account
               </Link>
 
+              <Link
+                href="/dashboard/organization"
+                className="rounded-2xl border border-gray-300 px-4 py-2 text-sm font-medium text-gray-900 transition hover:bg-gray-50"
+              >
+                Organization
+              </Link>
+
               <button
                 onClick={handleLogout}
                 className="rounded-2xl bg-gray-900 px-4 py-2 text-sm font-medium text-white transition hover:opacity-90"
