@@ -32,35 +32,59 @@ export default function NewPartPage() {
     setLoading(true);
     setError("");
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-    if (!user) {
-      router.push("/login");
-      return;
-    }
+      if (!user) {
+        router.push("/login");
+        return;
+      }
 
-    const { error } = await supabase.from("parts").insert({
-      user_id: user.id,
-      name,
-      part_number: partNumber,
-      description,
-      process_type: processType,
-      material,
-      revision,
-      category,
-      status,
-    });
+      const { data: membership, error: membershipError } = await supabase
+        .from("organization_members")
+        .select("organization_id, role")
+        .eq("user_id", user.id)
+        .maybeSingle();
 
-    if (error) {
-      setError(error.message);
+      if (membershipError) {
+        setError(`Failed to load organization membership: ${membershipError.message}`);
+        setLoading(false);
+        return;
+      }
+
+      if (!membership?.organization_id) {
+        setError("No organization found for your account.");
+        setLoading(false);
+        return;
+      }
+
+      const { error } = await supabase.from("parts").insert({
+        user_id: user.id,
+        organization_id: membership.organization_id,
+        name,
+        part_number: partNumber,
+        description,
+        process_type: processType,
+        material,
+        revision,
+        category,
+        status,
+      });
+
+      if (error) {
+        setError(error.message);
+        setLoading(false);
+        return;
+      }
+
+      router.push("/dashboard/parts");
+      router.refresh();
+    } catch {
+      setError("Something went wrong while creating the part.");
       setLoading(false);
-      return;
     }
-
-    router.push("/dashboard/parts");
-    router.refresh();
   }
 
   return (

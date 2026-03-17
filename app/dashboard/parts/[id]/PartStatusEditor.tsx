@@ -39,7 +39,10 @@ export default function PartStatusEditor({
     try {
       const { error: updateError } = await supabase
         .from("parts")
-        .update({ status: selectedStatus })
+        .update({
+          status: selectedStatus,
+          updated_at: new Date().toISOString(),
+        })
         .eq("id", partId);
 
       if (updateError) {

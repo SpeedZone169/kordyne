@@ -31,8 +31,10 @@ const CATEGORY_LABELS: Record<string, string> = {
 type PartFile = {
   id: string;
   part_id: string;
+  user_id: string;
   file_name: string;
   file_type: string | null;
+  file_size_bytes: number | null;
   storage_path: string;
   asset_category: string | null;
   created_at: string;
@@ -40,6 +42,13 @@ type PartFile = {
 
 type PartFileWithUrl = PartFile & {
   signedUrl: string | null;
+  uploaderName: string | null;
+};
+
+type ProfileRow = {
+  user_id: string;
+  full_name: string | null;
+  email: string | null;
 };
 
 function groupFilesByCategory(files: PartFileWithUrl[]) {
@@ -62,6 +71,44 @@ function groupFilesByCategory(files: PartFileWithUrl[]) {
   }
 
   return grouped;
+}
+
+function formatDate(dateString: string | null) {
+  if (!dateString) return "-";
+
+  const date = new Date(dateString);
+
+  return new Intl.DateTimeFormat("en-IE", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(date);
+}
+
+function formatDateTime(dateString: string | null) {
+  if (!dateString) return "-";
+
+  const date = new Date(dateString);
+
+  return new Intl.DateTimeFormat("en-IE", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function formatBytes(bytes: number | null) {
+  if (!bytes || bytes <= 0) return "-";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function getDisplayName(profile: ProfileRow | null | undefined) {
+  if (!profile) return "-";
+  return profile.full_name || profile.email || "-";
 }
 
 export default async function PartDetailPage({ params }: PageProps) {
@@ -88,16 +135,46 @@ export default async function PartDetailPage({ params }: PageProps) {
     .eq("part_id", id)
     .order("created_at", { ascending: false });
 
+  const profileIds = Array.from(
+    new Set(
+      [
+        part?.user_id,
+        ...(files || []).map((file) => file.user_id),
+      ].filter(Boolean)
+    )
+  );
+
+  const { data: profiles } =
+    profileIds.length > 0
+      ? await supabase
+          .from("profiles")
+          .select("user_id, full_name, email")
+          .in("user_id", profileIds)
+      : { data: [] as ProfileRow[] };
+
+  const profileMap = new Map(
+    (profiles || []).map((profile) => [profile.user_id, profile])
+  );
+
+  const creatorProfile = part?.user_id ? profileMap.get(part.user_id) : null;
+
   const filesWithUrls: PartFileWithUrl[] = files
     ? await Promise.all(
         (files as PartFile[]).map(async (file) => {
-          const { data } = await supabase.storage
+          const { data, error } = await supabase.storage
             .from("part-files")
-            .createSignedUrl(file.storage_path, 60 * 10);
+            .createSignedUrl(file.storage_path, 60 * 10, {
+              download: file.file_name,
+            });
+
+          if (error) {
+            console.error("Signed URL error for file:", file.file_name, error);
+          }
 
           return {
             ...file,
             signedUrl: data?.signedUrl || null,
+            uploaderName: getDisplayName(profileMap.get(file.user_id)),
           };
         })
       )
@@ -178,6 +255,27 @@ export default async function PartDetailPage({ params }: PageProps) {
               </div>
 
               <div>
+                <p className="text-gray-500">Created By</p>
+                <p className="font-medium text-gray-900">
+                  {getDisplayName(creatorProfile)}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-gray-500">Created</p>
+                <p className="font-medium text-gray-900">
+                  {formatDate(part.created_at)}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-gray-500">Last Updated</p>
+                <p className="font-medium text-gray-900">
+                  {formatDateTime(part.updated_at || part.created_at)}
+                </p>
+              </div>
+
+              <div>
                 <p className="text-gray-500">Status</p>
                 <PartStatusEditor
                   partId={part.id}
@@ -224,7 +322,14 @@ export default async function PartDetailPage({ params }: PageProps) {
                                   {file.file_name}
                                 </p>
                                 <p className="text-sm text-gray-500">
-                                  {file.file_type || "unknown"}
+                                  {file.file_type || "unknown"} ·{" "}
+                                  {formatBytes(file.file_size_bytes)}
+                                </p>
+                                <p className="mt-1 text-xs text-gray-400">
+                                  Uploaded {formatDateTime(file.created_at)}
+                                  {file.uploaderName
+                                    ? ` by ${file.uploaderName}`
+                                    : ""}
                                 </p>
                               </div>
 

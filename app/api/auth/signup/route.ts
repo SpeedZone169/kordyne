@@ -110,23 +110,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const userId = data.user?.id;
 
-    if (userId) {
-      const { error: profileError } = await supabase.from("profiles").upsert({
-        user_id: userId,
-        email,
-        full_name: fullName,
-        company,
-      });
-
-      if (profileError) {
-        return NextResponse.json(
-          { error: `Profile creation failed: ${profileError.message}` },
-          { status: 400 }
-        );
-      }
-    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

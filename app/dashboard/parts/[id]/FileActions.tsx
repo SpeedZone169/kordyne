@@ -51,7 +51,9 @@ export default function FileActions({
 
   const allowedCategoryOptions = useMemo(() => {
     return CATEGORY_OPTIONS.filter((option) =>
-      (ALLOWED_EXTENSIONS_BY_CATEGORY[option.value] || []).includes(fileExtension)
+      (ALLOWED_EXTENSIONS_BY_CATEGORY[option.value] || []).includes(
+        fileExtension
+      )
     );
   }, [fileExtension]);
 
@@ -157,7 +159,9 @@ export default function FileActions({
         <button
           type="button"
           onClick={handleSaveCategory}
-          disabled={!canChangeCategory || !categoryChanged || savingCategory || deleting}
+          disabled={
+            !canChangeCategory || !categoryChanged || savingCategory || deleting
+          }
           className="rounded-xl border border-gray-300 px-4 py-2 text-sm font-medium text-gray-900 transition hover:bg-gray-50 disabled:opacity-50"
         >
           {savingCategory ? "Saving..." : "Save"}
@@ -166,8 +170,6 @@ export default function FileActions({
         {signedUrl ? (
           <a
             href={signedUrl}
-            target="_blank"
-            rel="noreferrer"
             className="rounded-xl border border-gray-300 px-4 py-2 text-sm font-medium text-gray-900 transition hover:bg-gray-50"
           >
             Download
