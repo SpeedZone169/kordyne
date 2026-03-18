@@ -61,26 +61,43 @@ export default function OrganizationInviteForm({
 
     setLoading(true);
 
-    const { error: insertError } = await supabase
-      .from("organization_invites")
-      .insert({
-        organization_id: organizationId,
-        email: normalizedEmail,
-        role,
-        status: "pending",
-      });
+    try {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
 
-    if (insertError) {
-      setError(insertError.message);
+      if (userError || !user) {
+        setError("You must be logged in to invite members.");
+        return;
+      }
+
+      const { error: insertError } = await supabase
+        .from("organization_invites")
+        .insert({
+          organization_id: organizationId,
+          email: normalizedEmail,
+          role,
+          status: "pending",
+          invited_by_user_id: user.id,
+        });
+
+      if (insertError) {
+        if (insertError.message.toLowerCase().includes("duplicate")) {
+          setError("An invite for this email already exists.");
+        } else {
+          setError(insertError.message);
+        }
+        return;
+      }
+
+      setSuccess("Invite created.");
+      setEmail("");
+      setRole("engineer");
+      router.refresh();
+    } finally {
       setLoading(false);
-      return;
     }
-
-    setSuccess("Invite created.");
-    setEmail("");
-    setRole("engineer");
-    setLoading(false);
-    router.refresh();
   }
 
   return (
