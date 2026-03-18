@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Navbar from "../../components/Navbar";
 import Footer from "../../components/Footer";
@@ -14,7 +14,7 @@ type InviteDetails = {
   status: string;
 };
 
-export default function SignupPage() {
+function SignupPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -36,31 +36,42 @@ export default function SignupPage() {
 
   useEffect(() => {
     async function loadInvite() {
-      if (!inviteToken) return;
+      if (!inviteToken) {
+        setInviteLoading(false);
+        return;
+      }
 
       setInviteLoading(true);
+      setError("");
 
-      const res = await fetch(`/api/invites/details?token=${inviteToken}`);
-      const data = await res.json();
+      try {
+        const res = await fetch(
+          `/api/invites/details?token=${encodeURIComponent(inviteToken)}`
+        );
+        const data = await res.json();
 
-      if (!res.ok) {
-        setError(data.error || "Unable to load invite.");
+        if (!res.ok) {
+          setError(data.error || "Unable to load invite.");
+          setInviteLoading(false);
+          return;
+        }
+
+        const invite = data.invite as InviteDetails;
+
+        if (invite.status !== "pending") {
+          setError("This invite is no longer pending.");
+          setInviteLoading(false);
+          return;
+        }
+
+        setInviteDetails(invite);
+        setCompany(invite.organization_name || "");
+        setEmail(invite.email || "");
+      } catch {
+        setError("Unable to load invite.");
+      } finally {
         setInviteLoading(false);
-        return;
       }
-
-      const invite = data.invite as InviteDetails;
-
-      if (invite.status !== "pending") {
-        setError("This invite is no longer pending.");
-        setInviteLoading(false);
-        return;
-      }
-
-      setInviteDetails(invite);
-      setCompany(invite.organization_name || "");
-      setEmail(invite.email || "");
-      setInviteLoading(false);
     }
 
     loadInvite();
@@ -108,7 +119,6 @@ export default function SignupPage() {
 
       if (!res.ok) {
         setError(data.error || "Unable to create account.");
-        setLoading(false);
         return;
       }
 
@@ -124,118 +134,130 @@ export default function SignupPage() {
   const isInviteSignup = Boolean(inviteDetails);
 
   return (
+    <>
+      <h1 className="text-3xl font-bold">
+        {isInviteSignup ? "Join Organization" : "Create Account"}
+      </h1>
+
+      {isInviteSignup ? (
+        <p className="mt-4 text-gray-600">
+          You are joining <strong>{inviteDetails?.organization_name}</strong> as{" "}
+          <strong>{inviteDetails?.role}</strong>.
+        </p>
+      ) : null}
+
+      {inviteLoading ? (
+        <p className="mt-6 text-sm text-gray-600">Loading invite...</p>
+      ) : (
+        <form onSubmit={handleSignup} className="mt-8 space-y-4">
+          <input
+            type="text"
+            placeholder="Full Name"
+            className="w-full rounded-xl border px-4 py-3"
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            required
+          />
+
+          <input
+            type="text"
+            placeholder="Company"
+            className="w-full rounded-xl border px-4 py-3 disabled:bg-gray-50 disabled:text-gray-500"
+            value={company}
+            onChange={(e) => setCompany(e.target.value)}
+            required
+            disabled={isInviteSignup}
+          />
+
+          <input
+            type="email"
+            placeholder="Email"
+            className="w-full rounded-xl border px-4 py-3 disabled:bg-gray-50 disabled:text-gray-500"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            disabled={isInviteSignup}
+          />
+
+          <input
+            type="password"
+            placeholder="Password"
+            className="w-full rounded-xl border px-4 py-3"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
+
+          <input
+            type="password"
+            placeholder="Repeat Password"
+            className="w-full rounded-xl border px-4 py-3"
+            value={repeatPassword}
+            onChange={(e) => setRepeatPassword(e.target.value)}
+            required
+          />
+
+          <label className="block rounded-xl border border-gray-200 p-4 text-sm text-gray-700">
+            <div className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                checked={acceptedTerms}
+                onChange={(e) => setAcceptedTerms(e.target.checked)}
+                className="mt-1"
+              />
+              <div>
+                <p>
+                  I agree to the{" "}
+                  <a
+                    href="/terms"
+                    className="underline underline-offset-2 hover:no-underline"
+                  >
+                    Terms and Conditions
+                  </a>
+                  .
+                </p>
+                <p className="mt-2">
+                  Please also review our{" "}
+                  <a
+                    href="/privacy"
+                    className="underline underline-offset-2 hover:no-underline"
+                  >
+                    Privacy Policy
+                  </a>
+                  .
+                </p>
+              </div>
+            </div>
+          </label>
+
+          <TurnstileWidget onVerify={setTurnstileToken} />
+
+          <button
+            type="submit"
+            disabled={loading || inviteLoading}
+            className="w-full rounded-xl bg-gray-900 py-3 text-white disabled:opacity-60"
+          >
+            {loading ? "Creating account..." : "Sign Up"}
+          </button>
+
+          {error ? <p className="text-red-600">{error}</p> : null}
+        </form>
+      )}
+    </>
+  );
+}
+
+export default function SignupPage() {
+  return (
     <main className="min-h-screen bg-white text-gray-900">
       <Navbar />
 
       <section className="mx-auto max-w-md px-6 py-20">
-        <h1 className="text-3xl font-bold">
-          {isInviteSignup ? "Join Organization" : "Create Account"}
-        </h1>
-
-        {isInviteSignup ? (
-          <p className="mt-4 text-gray-600">
-            You are joining <strong>{inviteDetails?.organization_name}</strong>{" "}
-            as <strong>{inviteDetails?.role}</strong>.
-          </p>
-        ) : null}
-
-        {inviteLoading ? (
-          <p className="mt-6 text-sm text-gray-600">Loading invite...</p>
-        ) : (
-          <form onSubmit={handleSignup} className="mt-8 space-y-4">
-            <input
-              type="text"
-              placeholder="Full Name"
-              className="w-full rounded-xl border px-4 py-3"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              required
-            />
-
-            <input
-              type="text"
-              placeholder="Company"
-              className="w-full rounded-xl border px-4 py-3 disabled:bg-gray-50 disabled:text-gray-500"
-              value={company}
-              onChange={(e) => setCompany(e.target.value)}
-              required
-              disabled={isInviteSignup}
-            />
-
-            <input
-              type="email"
-              placeholder="Email"
-              className="w-full rounded-xl border px-4 py-3 disabled:bg-gray-50 disabled:text-gray-500"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              disabled={isInviteSignup}
-            />
-
-            <input
-              type="password"
-              placeholder="Password"
-              className="w-full rounded-xl border px-4 py-3"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-
-            <input
-              type="password"
-              placeholder="Repeat Password"
-              className="w-full rounded-xl border px-4 py-3"
-              value={repeatPassword}
-              onChange={(e) => setRepeatPassword(e.target.value)}
-              required
-            />
-
-            <label className="block rounded-xl border border-gray-200 p-4 text-sm text-gray-700">
-              <div className="flex items-start gap-3">
-                <input
-                  type="checkbox"
-                  checked={acceptedTerms}
-                  onChange={(e) => setAcceptedTerms(e.target.checked)}
-                  className="mt-1"
-                />
-                <div>
-                  <p>
-                    I agree to the{" "}
-                    <a
-                      href="/terms"
-                      className="underline underline-offset-2 hover:no-underline"
-                    >
-                      Terms and Conditions
-                    </a>
-                    .
-                  </p>
-                  <p className="mt-2">
-                    Please also review our{" "}
-                    <a
-                      href="/privacy"
-                      className="underline underline-offset-2 hover:no-underline"
-                    >
-                      Privacy Policy
-                    </a>
-                    .
-                  </p>
-                </div>
-              </div>
-            </label>
-
-            <TurnstileWidget onVerify={setTurnstileToken} />
-
-            <button
-              type="submit"
-              disabled={loading || inviteLoading}
-              className="w-full rounded-xl bg-gray-900 py-3 text-white disabled:opacity-60"
-            >
-              {loading ? "Creating account..." : "Sign Up"}
-            </button>
-
-            {error ? <p className="text-red-600">{error}</p> : null}
-          </form>
-        )}
+        <Suspense
+          fallback={<p className="text-sm text-gray-600">Loading signup...</p>}
+        >
+          <SignupPageContent />
+        </Suspense>
       </section>
 
       <Footer />
