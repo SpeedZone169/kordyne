@@ -38,7 +38,7 @@ function getResetPasswordRedirectUrl() {
     process.env.NEXT_PUBLIC_APP_URL ||
     "http://localhost:3000";
 
-  return `${siteUrl}/reset-password`;
+  return `${siteUrl}/auth/callback?next=/reset-password`;
 }
 
 export async function POST(req: Request) {
