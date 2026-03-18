@@ -19,6 +19,7 @@ type OrgMemberRow = {
 
 type PendingInviteRow = {
   id: string;
+  token: string;
   email: string;
   role: string;
   status: string;

@@ -6,6 +6,7 @@ import { createClient } from "../../../lib/supabase/client";
 
 type PendingInvite = {
   id: string;
+  token: string;
   email: string;
   role: string;
   status: string;
@@ -37,6 +38,7 @@ export default function PendingInvitesList({
   const router = useRouter();
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   async function handleRevoke(inviteId: string) {
     if (!isAdmin) return;
@@ -59,12 +61,18 @@ export default function PendingInvitesList({
     router.refresh();
   }
 
+  async function handleCopy(token: string, inviteId: string) {
+    const inviteUrl = `${window.location.origin}/invite/${token}`;
+    await navigator.clipboard.writeText(inviteUrl);
+    setCopiedId(inviteId);
+
+    setTimeout(() => {
+      setCopiedId(null);
+    }, 2000);
+  }
+
   if (invites.length === 0) {
-    return (
-      <p className="mt-4 text-sm text-gray-600">
-        No pending invites.
-      </p>
-    );
+    return <p className="mt-4 text-sm text-gray-600">No pending invites.</p>;
   }
 
   return (
@@ -76,6 +84,7 @@ export default function PendingInvitesList({
             <th className="px-6 py-4 font-medium">Role</th>
             <th className="px-6 py-4 font-medium">Status</th>
             <th className="px-6 py-4 font-medium">Created</th>
+            <th className="px-6 py-4 font-medium">Link</th>
             <th className="px-6 py-4 font-medium">Action</th>
           </tr>
         </thead>
@@ -86,6 +95,15 @@ export default function PendingInvitesList({
               <td className="px-6 py-4">{invite.role}</td>
               <td className="px-6 py-4">{invite.status}</td>
               <td className="px-6 py-4">{formatDate(invite.created_at)}</td>
+              <td className="px-6 py-4">
+                <button
+                  type="button"
+                  onClick={() => handleCopy(invite.token, invite.id)}
+                  className="rounded-xl border border-gray-300 px-3 py-2 text-xs font-medium text-gray-900 transition hover:bg-gray-50"
+                >
+                  {copiedId === invite.id ? "Copied" : "Copy Link"}
+                </button>
+              </td>
               <td className="px-6 py-4">
                 {isAdmin && invite.status === "pending" ? (
                   <button
