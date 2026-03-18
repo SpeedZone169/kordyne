@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { createClient } from "../../../lib/supabase/server";
 import Navbar from "../../../components/Navbar";
 import Footer from "../../../components/Footer";
@@ -7,6 +6,13 @@ import AcceptInviteButton from "../../dashboard/organization/AcceptInviteButton"
 
 type PageProps = {
   params: Promise<{ token: string }>;
+};
+
+type InviteDetails = {
+  organization_name: string;
+  email: string;
+  role: string;
+  status: string;
 };
 
 export default async function InvitePage({ params }: PageProps) {
@@ -20,7 +26,9 @@ export default async function InvitePage({ params }: PageProps) {
     }
   );
 
-  const invite = Array.isArray(inviteData) ? inviteData[0] : inviteData;
+  const invite = (Array.isArray(inviteData) ? inviteData[0] : inviteData) as
+    | InviteDetails
+    | null;
 
   const {
     data: { user },
@@ -43,6 +51,10 @@ export default async function InvitePage({ params }: PageProps) {
 
   const isAccepted = invite.status === "accepted";
   const isPending = invite.status === "pending";
+
+  const signedInEmail = user?.email?.trim().toLowerCase() || null;
+  const invitedEmail = invite.email.trim().toLowerCase();
+  const isMatchingInviteEmail = !!signedInEmail && signedInEmail === invitedEmail;
 
   return (
     <main className="min-h-screen bg-white text-gray-900">
@@ -88,14 +100,14 @@ export default async function InvitePage({ params }: PageProps) {
 
               <div className="flex flex-wrap gap-3">
                 <Link
-                  href={`/signup?invite=${token}`}
+                  href={`/signup?invite=${encodeURIComponent(token)}`}
                   className="rounded-2xl bg-gray-900 px-5 py-3 text-sm font-medium text-white transition hover:opacity-90"
                 >
                   Create Account
                 </Link>
 
                 <Link
-                  href={`/login`}
+                  href={`/login?next=${encodeURIComponent(`/invite/${token}`)}`}
                   className="rounded-2xl border border-gray-300 px-5 py-3 text-sm font-medium text-gray-900 transition hover:bg-gray-50"
                 >
                   Log In
@@ -104,7 +116,20 @@ export default async function InvitePage({ params }: PageProps) {
             </div>
           ) : null}
 
-          {user && isPending ? (
+          {user && isPending && !isMatchingInviteEmail ? (
+            <div className="mt-8 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+              <p className="text-sm text-amber-800">
+                You are signed in as <strong>{user.email}</strong>, but this
+                invite is for <strong>{invite.email}</strong>.
+              </p>
+              <p className="mt-2 text-sm text-amber-700">
+                Please log out and sign in with the invited email address to
+                accept this invite.
+              </p>
+            </div>
+          ) : null}
+
+          {user && isPending && isMatchingInviteEmail ? (
             <div className="mt-8">
               <AcceptInviteButton inviteToken={token} />
             </div>
@@ -123,6 +148,14 @@ export default async function InvitePage({ params }: PageProps) {
                   Go to Organization
                 </Link>
               </div>
+            </div>
+          ) : null}
+
+          {invite.status !== "pending" && invite.status !== "accepted" ? (
+            <div className="mt-8">
+              <p className="text-sm text-gray-600">
+                This invite is no longer available.
+              </p>
             </div>
           ) : null}
         </div>

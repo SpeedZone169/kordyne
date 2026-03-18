@@ -10,6 +10,8 @@ type OrgMemberRow = {
   organization_id: string;
   organization_name: string;
   organization_slug: string | null;
+  organization_plan: string | null;
+  organization_seat_limit: number | null;
   member_user_id: string;
   member_role: string;
   full_name: string | null;
@@ -63,22 +65,27 @@ export default async function OrganizationPage() {
   }
 
   const { data: orgRole } = await supabase.rpc("get_current_org_role");
-  const { data: membersData, error } = await supabase.rpc(
-    "get_current_org_members"
-  );
+
+  const {
+    data: membersData,
+    error: membersError,
+  } = await supabase.rpc("get_current_org_members");
 
   const members = (membersData || []) as OrgMemberRow[];
   const organization = members[0] || null;
   const isAdmin = orgRole === "admin";
 
-  const { data: pendingInvitesData } = organization
+  const {
+    data: pendingInvitesData,
+    error: pendingInvitesError,
+  } = organization
     ? await supabase
         .from("organization_invites")
-        .select("*")
+        .select("id, token, email, role, status, created_at")
         .eq("organization_id", organization.organization_id)
         .eq("status", "pending")
         .order("created_at", { ascending: false })
-    : { data: [] as PendingInviteRow[] };
+    : { data: [] as PendingInviteRow[], error: null };
 
   const pendingInvites = (pendingInvitesData || []) as PendingInviteRow[];
 
@@ -94,13 +101,13 @@ export default async function OrganizationPage() {
           </p>
         </div>
 
-        {error ? (
+        {membersError ? (
           <p className="mt-8 text-sm text-red-600">
             Failed to load organization details.
           </p>
         ) : null}
 
-        {!organization && !error ? (
+        {!organization && !membersError ? (
           <p className="mt-8 text-sm text-gray-600">
             No organization found for your account.
           </p>
@@ -136,13 +143,15 @@ export default async function OrganizationPage() {
 
                   <div>
                     <p className="text-gray-500">Plan</p>
-                    <p className="font-medium text-gray-900">starter</p>
+                    <p className="font-medium text-gray-900">
+                      {organization.organization_plan || "starter"}
+                    </p>
                   </div>
 
                   <div>
                     <p className="text-gray-500">Seat Limit</p>
                     <p className="font-medium text-gray-900">
-                      {(organization as any).seat_limit ?? 5}
+                      {organization.organization_seat_limit ?? 5}
                     </p>
                   </div>
 
@@ -175,7 +184,7 @@ export default async function OrganizationPage() {
                 <div className="mt-6">
                   <OrganizationInviteForm
                     organizationId={organization.organization_id}
-                    seatLimit={(organization as any).seat_limit ?? 5}
+                    seatLimit={organization.organization_seat_limit ?? 5}
                     activeMemberCount={members.length}
                     pendingInviteCount={pendingInvites.length}
                     isAdmin={isAdmin}
@@ -185,10 +194,17 @@ export default async function OrganizationPage() {
 
               <div className="rounded-3xl border border-gray-200 p-6 shadow-sm">
                 <h2 className="text-xl font-semibold">Pending Invites</h2>
-                <PendingInvitesList
-                  invites={pendingInvites}
-                  isAdmin={isAdmin}
-                />
+
+                {pendingInvitesError ? (
+                  <p className="mt-4 text-sm text-red-600">
+                    Failed to load pending invites.
+                  </p>
+                ) : (
+                  <PendingInvitesList
+                    invites={pendingInvites}
+                    isAdmin={isAdmin}
+                  />
+                )}
               </div>
             </div>
 
