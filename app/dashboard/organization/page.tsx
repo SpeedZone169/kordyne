@@ -177,7 +177,7 @@ export default async function OrganizationPage() {
               </div>
             </div>
 
-            <div className="mt-8 grid gap-6 md:grid-cols-2">
+            <div className="mt-8 grid gap-6 xl:grid-cols-2">
               <div className="rounded-3xl border border-gray-200 p-6 shadow-sm">
                 <h2 className="text-xl font-semibold">Invite Member</h2>
 

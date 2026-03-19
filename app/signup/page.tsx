@@ -32,6 +32,7 @@ function SignupPageContent() {
   );
   const [inviteLoading, setInviteLoading] = useState(Boolean(inviteToken));
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -80,6 +81,7 @@ function SignupPageContent() {
   async function handleSignup(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError("");
+    setSuccess("");
 
     if (password !== repeatPassword) {
       setError("Passwords do not match.");
@@ -122,8 +124,21 @@ function SignupPageContent() {
         return;
       }
 
-      router.push(inviteToken ? `/invite/${inviteToken}` : "/dashboard");
-      router.refresh();
+      const successMessage =
+        "We’ve sent you a confirmation email. Please confirm your email before logging in.";
+
+      setSuccess(successMessage);
+
+      setTimeout(() => {
+        if (inviteToken) {
+          router.push(
+            `/login?next=${encodeURIComponent(`/invite/${inviteToken}`)}`
+          );
+        } else {
+          router.push("/login");
+        }
+        router.refresh();
+      }, 1800);
     } catch {
       setError("Something went wrong. Please try again.");
     } finally {
@@ -240,6 +255,7 @@ function SignupPageContent() {
             {loading ? "Creating account..." : "Sign Up"}
           </button>
 
+          {success ? <p className="text-green-700">{success}</p> : null}
           {error ? <p className="text-red-600">{error}</p> : null}
         </form>
       )}
