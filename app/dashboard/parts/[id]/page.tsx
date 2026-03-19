@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "../../../../lib/supabase/server";
 import Navbar from "../../../../components/Navbar";
@@ -111,6 +112,19 @@ function getDisplayName(profile: ProfileRow | null | undefined) {
   return profile.full_name || profile.email || "-";
 }
 
+function getStatusBadgeClass(status: string | null) {
+  switch (status) {
+    case "active":
+      return "bg-green-100 text-green-800";
+    case "draft":
+      return "bg-yellow-100 text-yellow-800";
+    case "archived":
+      return "bg-gray-100 text-gray-700";
+    default:
+      return "bg-gray-100 text-gray-700";
+  }
+}
+
 export default async function PartDetailPage({ params }: PageProps) {
   const { id } = await params;
   const supabase = await createClient();
@@ -122,6 +136,9 @@ export default async function PartDetailPage({ params }: PageProps) {
   if (!user) {
     redirect("/login");
   }
+
+  const { data: orgRole } = await supabase.rpc("get_current_org_role");
+  const canEditPart = orgRole === "admin" || orgRole === "engineer";
 
   const { data: part, error } = await supabase
     .from("parts")
@@ -136,12 +153,7 @@ export default async function PartDetailPage({ params }: PageProps) {
     .order("created_at", { ascending: false });
 
   const profileIds = Array.from(
-    new Set(
-      [
-        part?.user_id,
-        ...(files || []).map((file) => file.user_id),
-      ].filter(Boolean)
-    )
+    new Set([part?.user_id, ...(files || []).map((file) => file.user_id)].filter(Boolean))
   );
 
   const { data: profiles } =
@@ -212,6 +224,13 @@ export default async function PartDetailPage({ params }: PageProps) {
           <p className="text-gray-600">
             {part.description || "No description added yet."}
           </p>
+
+          {!canEditPart ? (
+            <div className="mt-2 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+              You have read-only access. Viewers can browse files and metadata
+              but cannot upload, recategorize, delete, or update part status.
+            </div>
+          ) : null}
         </div>
 
         <div className="mt-12 grid gap-6 md:grid-cols-2">
@@ -277,16 +296,36 @@ export default async function PartDetailPage({ params }: PageProps) {
 
               <div>
                 <p className="text-gray-500">Status</p>
-                <PartStatusEditor
-                  partId={part.id}
-                  currentStatus={part.status}
-                />
+
+                {canEditPart ? (
+                  <PartStatusEditor
+                    partId={part.id}
+                    currentStatus={part.status}
+                  />
+                ) : (
+                  <span
+                    className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${getStatusBadgeClass(
+                      part.status
+                    )}`}
+                  >
+                    {part.status || "-"}
+                  </span>
+                )}
               </div>
             </div>
           </div>
 
           <div className="space-y-6">
-            <UploadSection partId={part.id} />
+            {canEditPart ? (
+              <UploadSection partId={part.id} />
+            ) : (
+              <div className="rounded-3xl border border-gray-200 p-6 shadow-sm">
+                <h2 className="text-xl font-semibold">Upload Files</h2>
+                <p className="mt-4 text-sm text-gray-600">
+                  File upload is available to engineers and admins only.
+                </p>
+              </div>
+            )}
 
             <div className="rounded-3xl border border-gray-200 p-6 shadow-sm">
               <h2 className="text-xl font-semibold">Attached Files</h2>
@@ -315,7 +354,7 @@ export default async function PartDetailPage({ params }: PageProps) {
                           {categoryFiles.map((file) => (
                             <div
                               key={file.id}
-                              className="flex items-center justify-between rounded-2xl border border-gray-200 px-4 py-3"
+                              className="flex flex-col gap-4 rounded-2xl border border-gray-200 px-4 py-3 md:flex-row md:items-center md:justify-between"
                             >
                               <div>
                                 <p className="font-medium text-gray-900">
@@ -333,13 +372,26 @@ export default async function PartDetailPage({ params }: PageProps) {
                                 </p>
                               </div>
 
-                              <FileActions
-                                fileId={file.id}
-                                fileName={file.file_name}
-                                storagePath={file.storage_path}
-                                signedUrl={file.signedUrl}
-                                assetCategory={file.asset_category}
-                              />
+                              {canEditPart ? (
+                                <FileActions
+                                  fileId={file.id}
+                                  fileName={file.file_name}
+                                  storagePath={file.storage_path}
+                                  signedUrl={file.signedUrl}
+                                  assetCategory={file.asset_category}
+                                />
+                              ) : file.signedUrl ? (
+                                <Link
+                                  href={file.signedUrl}
+                                  className="inline-flex rounded-xl border border-gray-300 px-3 py-2 text-xs font-medium text-gray-900 transition hover:bg-gray-50"
+                                >
+                                  Download
+                                </Link>
+                              ) : (
+                                <span className="text-sm text-gray-400">
+                                  Download unavailable
+                                </span>
+                              )}
                             </div>
                           ))}
                         </div>

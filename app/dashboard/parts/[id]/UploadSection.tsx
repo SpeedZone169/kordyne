@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "../../../../lib/supabase/client";
 
@@ -17,7 +17,7 @@ const CATEGORY_OPTIONS = [
   { value: "other", label: "Other" },
 ] as const;
 
-const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB hard limit
+const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
 
 const ALLOWED_EXTENSIONS_BY_CATEGORY: Record<string, string[]> = {
   cad_3d: ["step", "stp", "iges", "igs", "stl"],
@@ -49,11 +49,40 @@ export default function UploadSection({ partId }: UploadSectionProps) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  const [role, setRole] = useState<string | null>(null);
+  const [roleLoading, setRoleLoading] = useState(true);
+
   const [file, setFile] = useState<File | null>(null);
   const [assetCategory, setAssetCategory] = useState("cad_3d");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+
+  const canUpload = role === "admin" || role === "engineer";
+
+  useEffect(() => {
+    async function loadRole() {
+      setRoleLoading(true);
+
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) {
+          setRole(null);
+          return;
+        }
+
+        const { data: orgRole } = await supabase.rpc("get_current_org_role");
+        setRole(orgRole || null);
+      } finally {
+        setRoleLoading(false);
+      }
+    }
+
+    loadRole();
+  }, [supabase]);
 
   const allowedExtensions = useMemo(() => {
     return ALLOWED_EXTENSIONS_BY_CATEGORY[assetCategory] || [];
@@ -95,6 +124,11 @@ export default function UploadSection({ partId }: UploadSectionProps) {
     e.preventDefault();
     setError("");
     setSuccess("");
+
+    if (!canUpload) {
+      setError("Only engineers and admins can upload files.");
+      return;
+    }
 
     const validationError = validateSelectedFile(file, assetCategory);
 
@@ -193,6 +227,12 @@ export default function UploadSection({ partId }: UploadSectionProps) {
     <div className="rounded-3xl border border-gray-200 p-6 shadow-sm">
       <h2 className="text-xl font-semibold">Upload File</h2>
 
+      {!roleLoading && !canUpload ? (
+        <p className="mt-4 text-sm text-gray-600">
+          File upload is available to engineers and admins only.
+        </p>
+      ) : null}
+
       <form onSubmit={handleUpload} className="mt-6 space-y-4">
         <div>
           <label className="mb-2 block text-sm font-medium">
@@ -201,7 +241,8 @@ export default function UploadSection({ partId }: UploadSectionProps) {
           <select
             value={assetCategory}
             onChange={handleCategoryChange}
-            className="w-full rounded-2xl border border-gray-300 px-4 py-3"
+            disabled={!canUpload || roleLoading || loading}
+            className="w-full rounded-2xl border border-gray-300 px-4 py-3 disabled:bg-gray-50 disabled:text-gray-500"
           >
             {CATEGORY_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
@@ -224,12 +265,19 @@ export default function UploadSection({ partId }: UploadSectionProps) {
         <div>
           <label className="mb-2 block text-sm font-medium">Choose File</label>
 
-          <label className="inline-flex cursor-pointer items-center rounded-2xl border border-gray-300 px-4 py-3 text-sm font-medium text-gray-900 transition hover:bg-gray-50">
+          <label
+            className={`inline-flex items-center rounded-2xl border border-gray-300 px-4 py-3 text-sm font-medium text-gray-900 transition ${
+              canUpload && !roleLoading && !loading
+                ? "cursor-pointer hover:bg-gray-50"
+                : "cursor-not-allowed bg-gray-50 text-gray-500"
+            }`}
+          >
             Select File
             <input
               ref={fileInputRef}
               type="file"
               onChange={handleFileChange}
+              disabled={!canUpload || roleLoading || loading}
               className="hidden"
             />
           </label>
@@ -243,10 +291,10 @@ export default function UploadSection({ partId }: UploadSectionProps) {
 
         <button
           type="submit"
-          disabled={loading || !file}
+          disabled={roleLoading || loading || !file || !canUpload}
           className="rounded-2xl bg-gray-900 px-5 py-3 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50"
         >
-          {loading ? "Uploading..." : "Upload File"}
+          {roleLoading ? "Loading access..." : loading ? "Uploading..." : "Upload File"}
         </button>
 
         {error ? <p className="text-sm text-red-600">{error}</p> : null}

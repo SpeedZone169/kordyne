@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "../../../lib/supabase/client";
 
 type OrganizationInviteFormProps = {
   organizationId: string;
@@ -24,7 +23,6 @@ export default function OrganizationInviteForm({
   pendingInviteCount,
   isAdmin,
 }: OrganizationInviteFormProps) {
-  const supabase = createClient();
   const router = useRouter();
 
   const [email, setEmail] = useState("");
@@ -62,39 +60,36 @@ export default function OrganizationInviteForm({
     setLoading(true);
 
     try {
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
-
-      if (userError || !user) {
-        setError("You must be logged in to invite members.");
-        return;
-      }
-
-      const { error: insertError } = await supabase
-        .from("organization_invites")
-        .insert({
-          organization_id: organizationId,
+      const res = await fetch("/api/organization/invite", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          organizationId,
           email: normalizedEmail,
           role,
-          status: "pending",
-          invited_by_user_id: user.id,
-        });
+        }),
+      });
 
-      if (insertError) {
-        if (insertError.message.toLowerCase().includes("duplicate")) {
-          setError("An invite for this email already exists.");
-        } else {
-          setError(insertError.message);
-        }
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || "Unable to create invite.");
         return;
       }
 
-      setSuccess("Invite created.");
+      setSuccess(
+        data.emailSent
+          ? "Invite created and email sent."
+          : "Invite created. Email was not sent, so use Copy Link from Pending Invites."
+      );
+
       setEmail("");
       setRole("engineer");
       router.refresh();
+    } catch {
+      setError("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }

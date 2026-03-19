@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "../../../../lib/supabase/client";
 
@@ -46,6 +46,9 @@ export default function FileActions({
   const supabase = createClient();
   const router = useRouter();
 
+  const [role, setRole] = useState<string | null>(null);
+  const [roleLoading, setRoleLoading] = useState(true);
+
   const initialCategory = assetCategory || "other";
   const fileExtension = getFileExtension(fileName);
 
@@ -69,12 +72,43 @@ export default function FileActions({
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
+  const canManageFile = role === "admin" || role === "engineer";
   const categoryChanged = selectedCategory !== safeInitialCategory;
   const canChangeCategory = allowedCategoryOptions.length > 1;
+
+  useEffect(() => {
+    async function loadRole() {
+      setRoleLoading(true);
+
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) {
+          setRole(null);
+          return;
+        }
+
+        const { data: orgRole } = await supabase.rpc("get_current_org_role");
+        setRole(orgRole || null);
+      } finally {
+        setRoleLoading(false);
+      }
+    }
+
+    loadRole();
+  }, [supabase]);
 
   async function handleSaveCategory() {
     setError("");
     setSuccess("");
+
+    if (!canManageFile) {
+      setError("Only engineers and admins can update file categories.");
+      return;
+    }
+
     setSavingCategory(true);
 
     try {
@@ -98,6 +132,11 @@ export default function FileActions({
   }
 
   async function handleDelete() {
+    if (!canManageFile) {
+      setError("Only engineers and admins can delete files.");
+      return;
+    }
+
     const confirmed = window.confirm(
       `Delete "${fileName}"? This cannot be undone.`
     );
@@ -134,6 +173,37 @@ export default function FileActions({
     } finally {
       setDeleting(false);
     }
+  }
+
+  if (roleLoading) {
+    return (
+      <div className="text-sm text-gray-400">
+        Loading actions...
+      </div>
+    );
+  }
+
+  if (!canManageFile) {
+    return (
+      <div className="flex flex-col items-end gap-2">
+        {signedUrl ? (
+          <a
+            href={signedUrl}
+            className="rounded-xl border border-gray-300 px-4 py-2 text-sm font-medium text-gray-900 transition hover:bg-gray-50"
+          >
+            Download
+          </a>
+        ) : (
+          <span className="text-sm text-gray-400">Unavailable</span>
+        )}
+
+        <p className="text-xs text-gray-500">
+          Read-only access
+        </p>
+
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
+      </div>
+    );
   }
 
   return (

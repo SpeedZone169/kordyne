@@ -37,6 +37,19 @@ function getStatusBadgeClass(status: string | null) {
   }
 }
 
+function getRoleBadgeClass(role: string | null) {
+  switch (role) {
+    case "admin":
+      return "bg-gray-900 text-white";
+    case "engineer":
+      return "bg-blue-100 text-blue-800";
+    case "viewer":
+      return "bg-gray-100 text-gray-700";
+    default:
+      return "bg-gray-100 text-gray-700";
+  }
+}
+
 export default async function PartsPage({ searchParams }: PartsPageProps) {
   const supabase = await createClient();
 
@@ -47,6 +60,9 @@ export default async function PartsPage({ searchParams }: PartsPageProps) {
   if (!user) {
     redirect("/login");
   }
+
+  const { data: orgRole } = await supabase.rpc("get_current_org_role");
+  const canCreatePart = orgRole === "admin" || orgRole === "engineer";
 
   const resolvedSearchParams = searchParams ? await searchParams : {};
   const queryText = resolvedSearchParams.q?.trim() || "";
@@ -112,20 +128,39 @@ export default async function PartsPage({ searchParams }: PartsPageProps) {
       <Navbar />
 
       <section className="mx-auto max-w-7xl px-6 py-20">
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
             <h1 className="text-4xl font-bold">Parts Vault</h1>
             <p className="mt-4 text-gray-600">
               Manage your parts, metadata, and manufacturing assets.
             </p>
+
+            <div className="mt-4 flex items-center gap-3">
+              <span
+                className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${getRoleBadgeClass(
+                  orgRole
+                )}`}
+              >
+                {orgRole || "unknown"}
+              </span>
+
+              {!canCreatePart ? (
+                <p className="text-sm text-gray-500">
+                  Read-only access. Viewers can browse parts but cannot create
+                  or edit them.
+                </p>
+              ) : null}
+            </div>
           </div>
 
-          <Link
-            href="/dashboard/parts/new"
-            className="rounded-2xl bg-gray-900 px-5 py-3 text-sm font-medium text-white transition hover:opacity-90"
-          >
-            New Part
-          </Link>
+          {canCreatePart ? (
+            <Link
+              href="/dashboard/parts/new"
+              className="rounded-2xl bg-gray-900 px-5 py-3 text-sm font-medium text-white transition hover:opacity-90"
+            >
+              New Part
+            </Link>
+          ) : null}
         </div>
 
         <div className="mt-8 rounded-3xl border border-gray-200 p-6 shadow-sm">

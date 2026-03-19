@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "../../../../lib/supabase/client";
 import Navbar from "../../../../components/Navbar";
@@ -12,9 +12,20 @@ const STATUS_OPTIONS = [
   { value: "archived", label: "Archived" },
 ];
 
+type MembershipState = {
+  organizationId: string | null;
+  role: string | null;
+};
+
 export default function NewPartPage() {
   const router = useRouter();
   const supabase = createClient();
+
+  const [membership, setMembership] = useState<MembershipState>({
+    organizationId: null,
+    role: null,
+  });
+  const [membershipLoading, setMembershipLoading] = useState(true);
 
   const [name, setName] = useState("");
   const [partNumber, setPartNumber] = useState("");
@@ -27,10 +38,66 @@ export default function NewPartPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const canCreatePart =
+    membership.role === "admin" || membership.role === "engineer";
+
+  useEffect(() => {
+    async function loadMembership() {
+      setMembershipLoading(true);
+      setError("");
+
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) {
+          router.push("/login");
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from("organization_members")
+          .select("organization_id, role")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (error) {
+          setError(`Failed to load organization membership: ${error.message}`);
+          setMembershipLoading(false);
+          return;
+        }
+
+        setMembership({
+          organizationId: data?.organization_id || null,
+          role: data?.role || null,
+        });
+      } catch {
+        setError("Unable to load your organization membership.");
+      } finally {
+        setMembershipLoading(false);
+      }
+    }
+
+    loadMembership();
+  }, [router, supabase]);
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
     setError("");
+
+    if (!canCreatePart) {
+      setError("Only engineers and admins can create parts.");
+      setLoading(false);
+      return;
+    }
+
+    if (!membership.organizationId) {
+      setError("No organization found for your account.");
+      setLoading(false);
+      return;
+    }
 
     try {
       const {
@@ -42,27 +109,9 @@ export default function NewPartPage() {
         return;
       }
 
-      const { data: membership, error: membershipError } = await supabase
-        .from("organization_members")
-        .select("organization_id, role")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (membershipError) {
-        setError(`Failed to load organization membership: ${membershipError.message}`);
-        setLoading(false);
-        return;
-      }
-
-      if (!membership?.organization_id) {
-        setError("No organization found for your account.");
-        setLoading(false);
-        return;
-      }
-
       const { error } = await supabase.from("parts").insert({
         user_id: user.id,
-        organization_id: membership.organization_id,
+        organization_id: membership.organizationId,
         name,
         part_number: partNumber,
         description,
@@ -97,6 +146,13 @@ export default function NewPartPage() {
           Add a new part record to your vault.
         </p>
 
+        {membership.role === "viewer" ? (
+          <div className="mt-8 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+            You have read-only access. Only engineers and admins can create
+            parts.
+          </div>
+        ) : null}
+
         <form
           onSubmit={handleSubmit}
           className="mt-10 grid gap-4 rounded-3xl border border-gray-200 p-6 shadow-sm"
@@ -107,8 +163,9 @@ export default function NewPartPage() {
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full rounded-2xl border border-gray-300 px-4 py-3"
+              className="w-full rounded-2xl border border-gray-300 px-4 py-3 disabled:bg-gray-50 disabled:text-gray-500"
               required
+              disabled={!canCreatePart || membershipLoading || loading}
             />
           </div>
 
@@ -118,7 +175,8 @@ export default function NewPartPage() {
               type="text"
               value={partNumber}
               onChange={(e) => setPartNumber(e.target.value)}
-              className="w-full rounded-2xl border border-gray-300 px-4 py-3"
+              className="w-full rounded-2xl border border-gray-300 px-4 py-3 disabled:bg-gray-50 disabled:text-gray-500"
+              disabled={!canCreatePart || membershipLoading || loading}
             />
           </div>
 
@@ -127,7 +185,8 @@ export default function NewPartPage() {
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="min-h-[120px] w-full rounded-2xl border border-gray-300 px-4 py-3"
+              className="min-h-[120px] w-full rounded-2xl border border-gray-300 px-4 py-3 disabled:bg-gray-50 disabled:text-gray-500"
+              disabled={!canCreatePart || membershipLoading || loading}
             />
           </div>
 
@@ -138,8 +197,9 @@ export default function NewPartPage() {
                 type="text"
                 value={processType}
                 onChange={(e) => setProcessType(e.target.value)}
-                className="w-full rounded-2xl border border-gray-300 px-4 py-3"
+                className="w-full rounded-2xl border border-gray-300 px-4 py-3 disabled:bg-gray-50 disabled:text-gray-500"
                 placeholder="3d_printed, cnc, composite..."
+                disabled={!canCreatePart || membershipLoading || loading}
               />
             </div>
 
@@ -149,7 +209,8 @@ export default function NewPartPage() {
                 type="text"
                 value={material}
                 onChange={(e) => setMaterial(e.target.value)}
-                className="w-full rounded-2xl border border-gray-300 px-4 py-3"
+                className="w-full rounded-2xl border border-gray-300 px-4 py-3 disabled:bg-gray-50 disabled:text-gray-500"
+                disabled={!canCreatePart || membershipLoading || loading}
               />
             </div>
           </div>
@@ -161,7 +222,8 @@ export default function NewPartPage() {
                 type="text"
                 value={revision}
                 onChange={(e) => setRevision(e.target.value)}
-                className="w-full rounded-2xl border border-gray-300 px-4 py-3"
+                className="w-full rounded-2xl border border-gray-300 px-4 py-3 disabled:bg-gray-50 disabled:text-gray-500"
+                disabled={!canCreatePart || membershipLoading || loading}
               />
             </div>
 
@@ -171,7 +233,8 @@ export default function NewPartPage() {
                 type="text"
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                className="w-full rounded-2xl border border-gray-300 px-4 py-3"
+                className="w-full rounded-2xl border border-gray-300 px-4 py-3 disabled:bg-gray-50 disabled:text-gray-500"
+                disabled={!canCreatePart || membershipLoading || loading}
               />
             </div>
 
@@ -180,7 +243,8 @@ export default function NewPartPage() {
               <select
                 value={status}
                 onChange={(e) => setStatus(e.target.value)}
-                className="w-full rounded-2xl border border-gray-300 px-4 py-3"
+                className="w-full rounded-2xl border border-gray-300 px-4 py-3 disabled:bg-gray-50 disabled:text-gray-500"
+                disabled={!canCreatePart || membershipLoading || loading}
               >
                 {STATUS_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -193,10 +257,14 @@ export default function NewPartPage() {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={!canCreatePart || membershipLoading || loading}
             className="mt-4 rounded-2xl bg-gray-900 px-6 py-3 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50"
           >
-            {loading ? "Creating..." : "Create Part"}
+            {membershipLoading
+              ? "Loading access..."
+              : loading
+              ? "Creating..."
+              : "Create Part"}
           </button>
 
           {error ? <p className="text-sm text-red-600">{error}</p> : null}

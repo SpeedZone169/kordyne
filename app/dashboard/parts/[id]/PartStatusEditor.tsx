@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "../../../../lib/supabase/client";
 
@@ -22,6 +22,9 @@ export default function PartStatusEditor({
   const supabase = createClient();
   const router = useRouter();
 
+  const [role, setRole] = useState<string | null>(null);
+  const [roleLoading, setRoleLoading] = useState(true);
+
   const initialStatus = currentStatus || "draft";
 
   const [selectedStatus, setSelectedStatus] = useState(initialStatus);
@@ -29,11 +32,42 @@ export default function PartStatusEditor({
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
+  const canEditStatus = role === "admin" || role === "engineer";
   const statusChanged = selectedStatus !== initialStatus;
+
+  useEffect(() => {
+    async function loadRole() {
+      setRoleLoading(true);
+
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) {
+          setRole(null);
+          return;
+        }
+
+        const { data: orgRole } = await supabase.rpc("get_current_org_role");
+        setRole(orgRole || null);
+      } finally {
+        setRoleLoading(false);
+      }
+    }
+
+    loadRole();
+  }, [supabase]);
 
   async function handleSave() {
     setError("");
     setSuccess("");
+
+    if (!canEditStatus) {
+      setError("Only engineers and admins can update part status.");
+      return;
+    }
+
     setSaving(true);
 
     try {
@@ -57,6 +91,21 @@ export default function PartStatusEditor({
     } finally {
       setSaving(false);
     }
+  }
+
+  if (roleLoading) {
+    return <p className="text-sm text-gray-500">Loading access...</p>;
+  }
+
+  if (!canEditStatus) {
+    return (
+      <div className="space-y-2">
+        <p className="text-sm text-gray-600">
+          Only engineers and admins can update part status.
+        </p>
+        {error ? <p className="text-xs text-red-600">{error}</p> : null}
+      </div>
+    );
   }
 
   return (
