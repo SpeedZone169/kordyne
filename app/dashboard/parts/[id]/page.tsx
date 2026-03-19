@@ -6,6 +6,7 @@ import Footer from "../../../../components/Footer";
 import UploadSection from "./UploadSection";
 import FileActions from "./FileActions";
 import PartStatusEditor from "./PartStatusEditor";
+import ServiceRequestActions from "./ServiceRequestActions";
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -331,8 +332,14 @@ export default async function PartDetailPage({ params }: PageProps) {
           </div>
 
           <div className="space-y-6">
-            {canEditPart ? (
-              <UploadSection partId={part.id} />
+  <ServiceRequestActions
+    partId={part.id}
+    organizationId={part.organization_id}
+    canRequest={canEditPart}
+  />
+
+  {canEditPart ? (
+    <UploadSection partId={part.id} />
             ) : (
               <div className="rounded-3xl border border-gray-200 p-6 shadow-sm">
                 <h2 className="text-xl font-semibold">Upload Files</h2>

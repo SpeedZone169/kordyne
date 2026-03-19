@@ -63,16 +63,27 @@ export default function TeamMembersList({
     )
   );
   const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [loadingAction, setLoadingAction] = useState<"save" | "remove" | null>(
+    null
+  );
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  async function handleSaveRole(memberUserId: string) {
+  async function handleSaveRole(memberUserId: string, displayName: string) {
     setError("");
     setSuccess("");
     setLoadingId(memberUserId);
+    setLoadingAction("save");
 
     try {
       const nextRole = selectedRoles[memberUserId];
+      const confirmed = window.confirm(
+        `Change ${displayName}'s role to ${nextRole}?`
+      );
+
+      if (!confirmed) {
+        return;
+      }
 
       const { error } = await supabase.rpc("update_org_member_role", {
         target_user_id: memberUserId,
@@ -88,6 +99,7 @@ export default function TeamMembersList({
       router.refresh();
     } finally {
       setLoadingId(null);
+      setLoadingAction(null);
     }
   }
 
@@ -101,6 +113,7 @@ export default function TeamMembersList({
     setError("");
     setSuccess("");
     setLoadingId(memberUserId);
+    setLoadingAction("remove");
 
     try {
       const { error } = await supabase.rpc("remove_org_member", {
@@ -116,6 +129,7 @@ export default function TeamMembersList({
       router.refresh();
     } finally {
       setLoadingId(null);
+      setLoadingAction(null);
     }
   }
 
@@ -161,7 +175,10 @@ export default function TeamMembersList({
 
                         {!isSelf ? (
                           <select
-                            value={selectedRoles[member.member_user_id] || member.member_role}
+                            value={
+                              selectedRoles[member.member_user_id] ||
+                              member.member_role
+                            }
                             onChange={(e) =>
                               setSelectedRoles((prev) => ({
                                 ...prev,
@@ -203,13 +220,16 @@ export default function TeamMembersList({
                         <div className="flex flex-wrap gap-2">
                           <button
                             type="button"
-                            onClick={() => handleSaveRole(member.member_user_id)}
+                            onClick={() =>
+                              handleSaveRole(member.member_user_id, displayName)
+                            }
                             disabled={
                               loadingId === member.member_user_id || !roleChanged
                             }
                             className="rounded-xl border border-gray-300 px-3 py-2 text-xs font-medium text-gray-900 transition hover:bg-gray-50 disabled:opacity-50"
                           >
-                            {loadingId === member.member_user_id
+                            {loadingId === member.member_user_id &&
+                            loadingAction === "save"
                               ? "Saving..."
                               : "Save Role"}
                           </button>
@@ -222,8 +242,9 @@ export default function TeamMembersList({
                             disabled={loadingId === member.member_user_id}
                             className="rounded-xl border border-red-200 px-3 py-2 text-xs font-medium text-red-700 transition hover:bg-red-50 disabled:opacity-50"
                           >
-                            {loadingId === member.member_user_id
-                              ? "Working..."
+                            {loadingId === member.member_user_id &&
+                            loadingAction === "remove"
+                              ? "Removing..."
                               : "Remove"}
                           </button>
                         </div>

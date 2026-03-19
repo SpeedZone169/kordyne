@@ -18,7 +18,7 @@ type PendingInvitesListProps = {
   isAdmin: boolean;
 };
 
-function formatDate(dateString: string | null) {
+function formatDateTime(dateString: string | null) {
   if (!dateString) return "-";
 
   const date = new Date(dateString);
@@ -27,6 +27,8 @@ function formatDate(dateString: string | null) {
     day: "2-digit",
     month: "short",
     year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
   }).format(date);
 }
 
@@ -45,8 +47,14 @@ export default function PendingInvitesList({
   const [success, setSuccess] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  async function handleRevoke(inviteId: string) {
+  async function handleRevoke(inviteId: string, email: string) {
     if (!isAdmin) return;
+
+    const confirmed = window.confirm(
+      `Revoke the pending invite for ${email}?`
+    );
+
+    if (!confirmed) return;
 
     setError("");
     setSuccess("");
@@ -86,9 +94,7 @@ export default function PendingInvitesList({
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          inviteId,
-        }),
+        body: JSON.stringify({ inviteId }),
       });
 
       const data = await res.json();
@@ -137,7 +143,7 @@ export default function PendingInvitesList({
   return (
     <div className="mt-6">
       <div className="overflow-x-auto rounded-2xl border border-gray-200">
-        <table className="w-full min-w-[860px] border-collapse text-left text-sm">
+        <table className="w-full min-w-[920px] border-collapse text-left text-sm">
           <thead className="bg-gray-50">
             <tr>
               <th className="px-4 py-4 font-medium whitespace-nowrap">Email</th>
@@ -151,7 +157,7 @@ export default function PendingInvitesList({
           <tbody>
             {invites.map((invite) => (
               <tr key={invite.id} className="border-t border-gray-200 align-top">
-                <td className="min-w-[240px] px-4 py-4 break-words">
+                <td className="min-w-[260px] px-4 py-4 break-words">
                   {invite.email}
                 </td>
                 <td className="px-4 py-4 whitespace-nowrap capitalize">
@@ -161,7 +167,7 @@ export default function PendingInvitesList({
                   {invite.status}
                 </td>
                 <td className="px-4 py-4 whitespace-nowrap">
-                  {formatDate(invite.created_at)}
+                  {formatDateTime(invite.created_at)}
                 </td>
                 <td className="px-4 py-4 whitespace-nowrap">
                   <button
@@ -188,7 +194,7 @@ export default function PendingInvitesList({
 
                       <button
                         type="button"
-                        onClick={() => handleRevoke(invite.id)}
+                        onClick={() => handleRevoke(invite.id, invite.email)}
                         disabled={loadingId === invite.id}
                         className="rounded-xl border border-red-200 px-3 py-2 text-xs font-medium text-red-700 transition hover:bg-red-50 disabled:opacity-50"
                       >
