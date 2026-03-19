@@ -153,7 +153,11 @@ export default async function PartDetailPage({ params }: PageProps) {
     .order("created_at", { ascending: false });
 
   const profileIds = Array.from(
-    new Set([part?.user_id, ...(files || []).map((file) => file.user_id)].filter(Boolean))
+    new Set(
+      [part?.user_id, ...(files || []).map((file) => file.user_id)].filter(
+        Boolean
+      )
+    )
   );
 
   const { data: profiles } =
@@ -214,22 +218,33 @@ export default async function PartDetailPage({ params }: PageProps) {
       <Navbar />
 
       <section className="mx-auto max-w-7xl px-6 py-20">
-        <div className="flex flex-col gap-4">
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-gray-500">
-            Part Detail
-          </p>
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-gray-500">
+              Part Detail
+            </p>
 
-          <h1 className="text-4xl font-bold">{part.name}</h1>
+            <h1 className="mt-2 text-4xl font-bold">{part.name}</h1>
 
-          <p className="text-gray-600">
-            {part.description || "No description added yet."}
-          </p>
+            <p className="mt-4 text-gray-600">
+              {part.description || "No description added yet."}
+            </p>
 
-          {!canEditPart ? (
-            <div className="mt-2 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-              You have read-only access. Viewers can browse files and metadata
-              but cannot upload, recategorize, delete, or update part status.
-            </div>
+            {!canEditPart ? (
+              <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                You have read-only access. Viewers can browse files and metadata
+                but cannot upload, recategorize, delete, or update part status.
+              </div>
+            ) : null}
+          </div>
+
+          {canEditPart ? (
+            <Link
+              href={`/dashboard/parts/${part.id}/edit`}
+              className="inline-flex rounded-2xl border border-gray-300 px-5 py-3 text-sm font-medium text-gray-900 transition hover:bg-gray-50"
+            >
+              Edit Part
+            </Link>
           ) : null}
         </div>
 
