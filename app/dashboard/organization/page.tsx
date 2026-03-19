@@ -5,6 +5,7 @@ import Footer from "../../../components/Footer";
 import OrganizationSettingsForm from "./OrganizationSettingsForm";
 import OrganizationInviteForm from "./OrganizationInviteForm";
 import PendingInvitesList from "./PendingInvitesList";
+import TeamMembersList from "./TeamMembersList";
 
 type OrgMemberRow = {
   organization_id: string;
@@ -233,46 +234,15 @@ export default async function OrganizationPage() {
             ) : null}
 
             <div className="mt-8 rounded-3xl border border-gray-200 p-6 shadow-sm">
-              <h2 className="text-xl font-semibold">Team Members</h2>
+  <h2 className="text-xl font-semibold">Team Members</h2>
 
-              <div className="mt-6 overflow-x-auto rounded-2xl border border-gray-200">
-                <table className="min-w-full border-collapse text-left text-sm">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-4 font-medium">Name</th>
-                      <th className="px-6 py-4 font-medium">Email</th>
-                      <th className="px-6 py-4 font-medium">Role</th>
-                      <th className="px-6 py-4 font-medium">Joined</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {members.map((member) => (
-                      <tr
-                        key={member.member_user_id}
-                        className="border-t border-gray-200"
-                      >
-                        <td className="px-6 py-4">
-                          {member.full_name || "-"}
-                        </td>
-                        <td className="px-6 py-4">{member.email || "-"}</td>
-                        <td className="px-6 py-4">
-                          <span
-                            className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${getRoleBadgeClass(
-                              member.member_role
-                            )}`}
-                          >
-                            {member.member_role}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          {formatDate(member.joined_at)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+  <TeamMembersList
+    members={members}
+    isAdmin={isAdmin}
+    currentUserId={user.id}
+  />
+</div>
+            
           </>
         ) : null}
       </section>
