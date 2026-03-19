@@ -78,7 +78,7 @@ export default async function OrganizationPage() {
   const {
     data: pendingInvitesData,
     error: pendingInvitesError,
-  } = organization
+  } = organization && isAdmin
     ? await supabase
         .from("organization_invites")
         .select("id, token, email, role, status, created_at")
@@ -97,7 +97,9 @@ export default async function OrganizationPage() {
         <div>
           <h1 className="text-4xl font-bold">Organization</h1>
           <p className="mt-4 text-gray-600">
-            Manage your organization details and team members.
+            {isAdmin
+              ? "Manage your organization details and team members."
+              : "View your organization details and team members."}
           </p>
         </div>
 
@@ -115,7 +117,7 @@ export default async function OrganizationPage() {
 
         {organization ? (
           <>
-            <div className="mt-10 grid gap-6 md:grid-cols-2">
+            <div className={`mt-10 grid gap-6 ${isAdmin ? "md:grid-cols-2" : ""}`}>
               <div className="rounded-3xl border border-gray-200 p-6 shadow-sm">
                 <h2 className="text-xl font-semibold">Organization Details</h2>
 
@@ -141,77 +143,99 @@ export default async function OrganizationPage() {
                     </p>
                   </div>
 
-                  <div>
-                    <p className="text-gray-500">Plan</p>
-                    <p className="font-medium text-gray-900">
-                      {organization.organization_plan || "starter"}
-                    </p>
-                  </div>
+                  {isAdmin ? (
+                    <>
+                      <div>
+                        <p className="text-gray-500">Plan</p>
+                        <p className="font-medium text-gray-900">
+                          {organization.organization_plan || "starter"}
+                        </p>
+                      </div>
 
-                  <div>
-                    <p className="text-gray-500">Seat Limit</p>
-                    <p className="font-medium text-gray-900">
-                      {organization.organization_seat_limit ?? 5}
-                    </p>
-                  </div>
+                      <div>
+                        <p className="text-gray-500">Seat Limit</p>
+                        <p className="font-medium text-gray-900">
+                          {organization.organization_seat_limit ?? 5}
+                        </p>
+                      </div>
 
-                  <div>
-                    <p className="text-gray-500">Member Count</p>
-                    <p className="font-medium text-gray-900">
-                      {members.length}
-                    </p>
-                  </div>
+                      <div>
+                        <p className="text-gray-500">Member Count</p>
+                        <p className="font-medium text-gray-900">
+                          {members.length}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-gray-500">Pending Invites</p>
+                        <p className="font-medium text-gray-900">
+                          {pendingInvites.length}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-gray-500">Seats Used</p>
+                        <p className="font-medium text-gray-900">
+                          {members.length + pendingInvites.length}
+                        </p>
+                      </div>
+                    </>
+                  ) : null}
                 </div>
               </div>
 
-              <div className="rounded-3xl border border-gray-200 p-6 shadow-sm">
-                <h2 className="text-xl font-semibold">Settings</h2>
+              {isAdmin ? (
+                <div className="rounded-3xl border border-gray-200 p-6 shadow-sm">
+                  <h2 className="text-xl font-semibold">Settings</h2>
 
-                <div className="mt-6">
-                  <OrganizationSettingsForm
-                    organizationId={organization.organization_id}
-                    initialName={organization.organization_name}
-                    isAdmin={isAdmin}
-                  />
+                  <div className="mt-6">
+                    <OrganizationSettingsForm
+                      organizationId={organization.organization_id}
+                      initialName={organization.organization_name}
+                      isAdmin={isAdmin}
+                    />
+                  </div>
                 </div>
-              </div>
+              ) : null}
             </div>
 
-            <div className="mt-8 grid gap-6 xl:grid-cols-2">
-              <div className="rounded-3xl border border-gray-200 p-6 shadow-sm">
-                <h2 className="text-xl font-semibold">Invite Member</h2>
+            {isAdmin ? (
+              <div className="mt-8 grid gap-6 xl:grid-cols-2">
+                <div className="rounded-3xl border border-gray-200 p-6 shadow-sm">
+                  <h2 className="text-xl font-semibold">Invite Member</h2>
 
-                <div className="mt-6">
-                  <OrganizationInviteForm
-                    organizationId={organization.organization_id}
-                    seatLimit={organization.organization_seat_limit ?? 5}
-                    activeMemberCount={members.length}
-                    pendingInviteCount={pendingInvites.length}
-                    isAdmin={isAdmin}
-                  />
+                  <div className="mt-6">
+                    <OrganizationInviteForm
+                      organizationId={organization.organization_id}
+                      seatLimit={organization.organization_seat_limit ?? 5}
+                      activeMemberCount={members.length}
+                      pendingInviteCount={pendingInvites.length}
+                      isAdmin={isAdmin}
+                    />
+                  </div>
+                </div>
+
+                <div className="rounded-3xl border border-gray-200 p-6 shadow-sm">
+                  <h2 className="text-xl font-semibold">Pending Invites</h2>
+
+                  {pendingInvitesError ? (
+                    <p className="mt-4 text-sm text-red-600">
+                      Failed to load pending invites.
+                    </p>
+                  ) : (
+                    <PendingInvitesList
+                      invites={pendingInvites}
+                      isAdmin={isAdmin}
+                    />
+                  )}
                 </div>
               </div>
-
-              <div className="rounded-3xl border border-gray-200 p-6 shadow-sm">
-                <h2 className="text-xl font-semibold">Pending Invites</h2>
-
-                {pendingInvitesError ? (
-                  <p className="mt-4 text-sm text-red-600">
-                    Failed to load pending invites.
-                  </p>
-                ) : (
-                  <PendingInvitesList
-                    invites={pendingInvites}
-                    isAdmin={isAdmin}
-                  />
-                )}
-              </div>
-            </div>
+            ) : null}
 
             <div className="mt-8 rounded-3xl border border-gray-200 p-6 shadow-sm">
               <h2 className="text-xl font-semibold">Team Members</h2>
 
-              <div className="mt-6 overflow-hidden rounded-2xl border border-gray-200">
+              <div className="mt-6 overflow-x-auto rounded-2xl border border-gray-200">
                 <table className="min-w-full border-collapse text-left text-sm">
                   <thead className="bg-gray-50">
                     <tr>
@@ -248,12 +272,6 @@ export default async function OrganizationPage() {
                   </tbody>
                 </table>
               </div>
-
-              {!isAdmin ? (
-                <p className="mt-4 text-sm text-gray-500">
-                  Only admins can invite new members.
-                </p>
-              ) : null}
             </div>
           </>
         ) : null}
