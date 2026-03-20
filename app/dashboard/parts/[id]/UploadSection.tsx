@@ -224,7 +224,7 @@ export default function UploadSection({ partId }: UploadSectionProps) {
   }
 
   return (
-    <div className="rounded-3xl border border-gray-200 p-6 shadow-sm">
+    <div className="h-full rounded-3xl border border-gray-200 p-6 shadow-sm">
       <h2 className="text-xl font-semibold">Upload File</h2>
 
       {!roleLoading && !canUpload ? (

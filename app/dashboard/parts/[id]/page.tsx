@@ -251,8 +251,8 @@ export default async function PartDetailPage({ params }: PageProps) {
           ) : null}
         </div>
 
-        <div className="mt-12 grid gap-6 md:grid-cols-2">
-          <div className="rounded-3xl border border-gray-200 p-6 shadow-sm">
+        <div className="mt-12 grid gap-6 lg:grid-cols-[380px_1fr] lg:items-stretch">
+          <div className="h-full rounded-3xl border border-gray-200 p-6 shadow-sm">
             <h2 className="text-xl font-semibold">Part Information</h2>
 
             <div className="mt-6 grid gap-4 text-sm">
@@ -333,109 +333,124 @@ export default async function PartDetailPage({ params }: PageProps) {
             </div>
           </div>
 
-          <div className="space-y-6">
-            <ServiceRequestActions partId={part.id} canRequest={canRequest} />
-            <ServiceRequestHistory partId={part.id} />
-
-            {canEditPart ? (
-              <UploadSection partId={part.id} />
-            ) : (
-              <div className="rounded-3xl border border-gray-200 p-6 shadow-sm">
-                <h2 className="text-xl font-semibold">Upload Files</h2>
-                <p className="mt-4 text-sm text-gray-600">
-                  File upload is available to engineers and admins only.
-                </p>
-              </div>
-            )}
-
-            <div className="rounded-3xl border border-gray-200 p-6 shadow-sm">
-              <h2 className="text-xl font-semibold">Attached Files</h2>
-
-              {filesWithUrls.length > 0 ? (
-                <div className="mt-6 space-y-6">
-                  {CATEGORY_ORDER.map((category) => {
-                    const categoryFiles = groupedFiles[category];
-
-                    if (!categoryFiles || categoryFiles.length === 0) {
-                      return null;
-                    }
-
-                    return (
-                      <div key={category}>
-                        <div className="mb-3 flex items-center justify-between">
-                          <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-gray-500">
-                            {CATEGORY_LABELS[category]}
-                          </h3>
-                          <span className="text-sm text-gray-400">
-                            {categoryFiles.length}
-                          </span>
-                        </div>
-
-                        <div className="space-y-3">
-                          {categoryFiles.map((file) => (
-                            <div
-                              key={file.id}
-                              className="flex flex-col gap-4 rounded-2xl border border-gray-200 px-4 py-3 md:flex-row md:items-center md:justify-between"
-                            >
-                              <div>
-                                <p className="font-medium text-gray-900">
-                                  {file.file_name}
-                                </p>
-                                <p className="text-sm text-gray-500">
-                                  {file.file_type || "unknown"} ·{" "}
-                                  {formatBytes(file.file_size_bytes)}
-                                </p>
-                                <p className="mt-1 text-xs text-gray-400">
-                                  Uploaded {formatDateTime(file.created_at)}
-                                  {file.uploaderName
-                                    ? ` by ${file.uploaderName}`
-                                    : ""}
-                                </p>
-                              </div>
-
-                              {canEditPart ? (
-                                <FileActions
-                                  fileId={file.id}
-                                  fileName={file.file_name}
-                                  storagePath={file.storage_path}
-                                  signedUrl={file.signedUrl}
-                                  assetCategory={file.asset_category}
-                                />
-                              ) : file.signedUrl ? (
-                                <Link
-                                  href={file.signedUrl}
-                                  className="inline-flex rounded-xl border border-gray-300 px-3 py-2 text-xs font-medium text-gray-900 transition hover:bg-gray-50"
-                                >
-                                  Download
-                                </Link>
-                              ) : (
-                                <span className="text-sm text-gray-400">
-                                  Download unavailable
-                                </span>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className="mt-4 text-sm text-gray-600">
-                  No files attached yet.
-                </p>
-              )}
-            </div>
-          </div>
+          <div className="h-full">
+  {canEditPart ? (
+    <div className="h-full">
+      <UploadSection partId={part.id} />
+    </div>
+  ) : (
+    <div className="h-full rounded-3xl border border-gray-200 p-6 shadow-sm">
+      <h2 className="text-xl font-semibold">Upload Files</h2>
+      <p className="mt-4 text-sm text-gray-600">
+        File upload is available to engineers and admins only.
+      </p>
+    </div>
+  )}
+</div>
         </div>
 
         <div className="mt-6 rounded-3xl border border-gray-200 p-6 shadow-sm">
-          <h2 className="text-xl font-semibold">Manufacturing Notes</h2>
-          <p className="mt-4 text-sm text-gray-600">
-            This area can later include print settings, PDF documentation,
-            images, work instructions, and linked manufacturing assets.
-          </p>
+          <h2 className="text-xl font-semibold">Part Files</h2>
+
+          {filesWithUrls.length > 0 ? (
+            <div className="mt-6 space-y-6">
+              {CATEGORY_ORDER.map((category) => {
+                const categoryFiles = groupedFiles[category];
+
+                if (!categoryFiles || categoryFiles.length === 0) {
+                  return null;
+                }
+
+                return (
+                  <div key={category}>
+                    <div className="mb-3 flex items-center justify-between">
+                      <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-gray-500">
+                        {CATEGORY_LABELS[category]}
+                      </h3>
+                      <span className="text-sm text-gray-400">
+                        {categoryFiles.length}
+                      </span>
+                    </div>
+
+                    <div className="space-y-3">
+                      {categoryFiles.map((file) => (
+                        <div
+                          key={file.id}
+                          className="flex flex-col gap-4 rounded-2xl border border-gray-200 px-4 py-3 md:flex-row md:items-center md:justify-between"
+                        >
+                          <div>
+                            <p className="font-medium text-gray-900">
+                              {file.file_name}
+                            </p>
+                            <p className="text-sm text-gray-500">
+                              {file.file_type || "unknown"} ·{" "}
+                              {formatBytes(file.file_size_bytes)}
+                            </p>
+                            <p className="mt-1 text-xs text-gray-400">
+                              Uploaded {formatDateTime(file.created_at)}
+                              {file.uploaderName
+                                ? ` by ${file.uploaderName}`
+                                : ""}
+                            </p>
+                          </div>
+
+                          {canEditPart ? (
+                            <FileActions
+                              fileId={file.id}
+                              fileName={file.file_name}
+                              storagePath={file.storage_path}
+                              signedUrl={file.signedUrl}
+                              assetCategory={file.asset_category}
+                            />
+                          ) : file.signedUrl ? (
+                            <Link
+                              href={file.signedUrl}
+                              className="inline-flex rounded-xl border border-gray-300 px-3 py-2 text-xs font-medium text-gray-900 transition hover:bg-gray-50"
+                            >
+                              Download
+                            </Link>
+                          ) : (
+                            <span className="text-sm text-gray-400">
+                              Download unavailable
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="mt-4 text-sm text-gray-600">No files attached yet.</p>
+          )}
         </div>
+
+       <div className="mt-10">
+  <div className="mb-6">
+    <h2 className="text-2xl font-semibold text-gray-900">
+      Manufacturing Requests
+    </h2>
+    <p className="mt-2 text-sm text-gray-600">
+      Create and track manufacturing or engineering service workflows for this part.
+    </p>
+  </div>
+
+  <div className="grid gap-6 xl:grid-cols-2 xl:items-stretch">
+    <ServiceRequestActions
+      partId={part.id}
+      canRequest={canRequest}
+      availableFiles={filesWithUrls.map((file) => ({
+        id: file.id,
+        fileName: file.file_name,
+        assetCategory: file.asset_category,
+        fileType: file.file_type,
+      }))}
+    />
+
+    <ServiceRequestHistory partId={part.id} />
+  </div>
+</div>
       </section>
 
       <Footer />

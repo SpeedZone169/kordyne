@@ -23,6 +23,7 @@ type CreateRequestBody = {
   cadOutputType?: string | null;
   optimizationGoal?: string | null;
   sourceReferenceType?: string | null;
+  selectedPartFileIds?: string[];
 };
 
 function isPositiveInteger(value: unknown) {
@@ -47,8 +48,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Part is required." }, { status: 400 });
     }
 
-    if (!body.requestType || !SERVICE_REQUEST_TYPES.includes(body.requestType as never)) {
-      return NextResponse.json({ error: "Invalid request type." }, { status: 400 });
+    if (
+      !body.requestType ||
+      !SERVICE_REQUEST_TYPES.includes(body.requestType as never)
+    ) {
+      return NextResponse.json(
+        { error: "Invalid request type." },
+        { status: 400 }
+      );
     }
 
     const priority = body.priority ?? "normal";
@@ -60,22 +67,37 @@ export async function POST(req: Request) {
       body.manufacturingType &&
       !MANUFACTURING_TYPES.includes(body.manufacturingType as never)
     ) {
-      return NextResponse.json({ error: "Invalid manufacturing type." }, { status: 400 });
+      return NextResponse.json(
+        { error: "Invalid manufacturing type." },
+        { status: 400 }
+      );
     }
 
-    if (body.cadOutputType && !CAD_OUTPUT_TYPES.includes(body.cadOutputType as never)) {
-      return NextResponse.json({ error: "Invalid CAD output type." }, { status: 400 });
+    if (
+      body.cadOutputType &&
+      !CAD_OUTPUT_TYPES.includes(body.cadOutputType as never)
+    ) {
+      return NextResponse.json(
+        { error: "Invalid CAD output type." },
+        { status: 400 }
+      );
     }
 
     if (
       body.optimizationGoal &&
       !OPTIMIZATION_GOALS.includes(body.optimizationGoal as never)
     ) {
-      return NextResponse.json({ error: "Invalid optimization goal." }, { status: 400 });
+      return NextResponse.json(
+        { error: "Invalid optimization goal." },
+        { status: 400 }
+      );
     }
 
     const sourceReferenceType = body.sourceReferenceType ?? "existing_part_files";
-    if (!SOURCE_REFERENCE_TYPES.includes(sourceReferenceType as never)) {
+
+    if (
+      !["existing_part_files", "uploaded_files"].includes(sourceReferenceType)
+    ) {
       return NextResponse.json(
         { error: "Invalid source reference type." },
         { status: 400 }
@@ -88,6 +110,20 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
+
+    if (
+      body.selectedPartFileIds &&
+      !Array.isArray(body.selectedPartFileIds)
+    ) {
+      return NextResponse.json(
+        { error: "Selected files must be an array." },
+        { status: 400 }
+      );
+    }
+
+    const selectedPartFileIds = Array.from(
+      new Set((body.selectedPartFileIds ?? []).filter(Boolean))
+    );
 
     const { data: part, error: partError } = await supabase
       .from("parts")
@@ -113,50 +149,44 @@ export async function POST(req: Request) {
       );
     }
 
-    const defaultTitle =
-      body.requestType === "manufacture_part"
-        ? `Manufacture request - ${part.part_number || part.name}`
-        : body.requestType === "cad_creation"
-        ? `CAD creation request - ${part.part_number || part.name}`
-        : `Optimization request - ${part.part_number || part.name}`;
+    const { data: createdId, error: rpcError } = await supabase.rpc(
+      "create_service_request",
+      {
+        p_part_id: part.id,
+        p_request_type: body.requestType,
+        p_title: body.title?.trim() || null,
+        p_notes: body.notes?.trim() || null,
+        p_priority: priority,
+        p_due_date: body.dueDate || null,
+        p_quantity: body.quantity ?? null,
+        p_target_process: body.targetProcess?.trim() || null,
+        p_target_material: body.targetMaterial?.trim() || null,
+        p_manufacturing_type:
+          body.requestType === "manufacture_part"
+            ? body.manufacturingType || null
+            : null,
+        p_cad_output_type:
+          body.requestType === "cad_creation"
+            ? body.cadOutputType || null
+            : null,
+        p_optimization_goal:
+          body.requestType === "optimization"
+            ? body.optimizationGoal || null
+            : null,
+        p_source_reference_type: sourceReferenceType,
+        p_request_meta: {},
+        p_part_file_ids: selectedPartFileIds,
+      }
+    );
 
-    const insertPayload = {
-      organization_id: part.organization_id,
-      part_id: part.id,
-      requested_by_user_id: user.id,
-      request_type: body.requestType,
-      status: "submitted",
-      title: body.title?.trim() || defaultTitle,
-      notes: body.notes?.trim() || null,
-      priority,
-      due_date: body.dueDate || null,
-      quantity: body.quantity ?? null,
-      target_process: body.targetProcess?.trim() || null,
-      target_material: body.targetMaterial?.trim() || null,
-      manufacturing_type:
-        body.requestType === "manufacture_part" ? body.manufacturingType || null : null,
-      cad_output_type:
-        body.requestType === "cad_creation" ? body.cadOutputType || null : null,
-      optimization_goal:
-        body.requestType === "optimization" ? body.optimizationGoal || null : null,
-      source_reference_type: sourceReferenceType,
-      request_meta: {},
-    };
-
-    const { data: created, error: insertError } = await supabase
-      .from("service_requests")
-      .insert(insertPayload)
-      .select("id")
-      .single();
-
-    if (insertError) {
+    if (rpcError) {
       return NextResponse.json(
-        { error: insertError.message || "Failed to create request." },
+        { error: rpcError.message || "Failed to create request." },
         { status: 400 }
       );
     }
 
-    return NextResponse.json({ id: created.id }, { status: 201 });
+    return NextResponse.json({ id: createdId }, { status: 201 });
   } catch (error) {
     console.error("POST /api/service-requests failed", error);
     return NextResponse.json(
