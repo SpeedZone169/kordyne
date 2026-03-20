@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 type CreateRevisionBody = {
   sourcePartId?: string;
   newRevision?: string;
+  revisionNote?: string;
 };
 
 export async function POST(req: Request) {
@@ -23,6 +24,7 @@ export async function POST(req: Request) {
 
     const sourcePartId = body.sourcePartId?.trim();
     const newRevision = body.newRevision?.trim();
+    const revisionNote = body.revisionNote?.trim() || null;
 
     if (!sourcePartId) {
       return NextResponse.json(
@@ -43,6 +45,7 @@ export async function POST(req: Request) {
       {
         p_source_part_id: sourcePartId,
         p_new_revision: newRevision,
+        p_revision_note: revisionNote,
       }
     );
 

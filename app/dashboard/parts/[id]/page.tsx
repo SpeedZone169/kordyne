@@ -64,6 +64,7 @@ type RevisionRow = {
   name: string;
   part_number: string | null;
   revision: string | null;
+  revision_note: string | null;
   status: string | null;
   updated_at: string | null;
   created_at: string;
@@ -232,10 +233,12 @@ export default async function PartDetailPage({ params }: PageProps) {
   }
 
   const { data: revisions } = await supabase
-    .from("parts")
-    .select("id, name, part_number, revision, status, updated_at, created_at")
-    .eq("part_family_id", part.part_family_id)
-    .order("created_at", { ascending: true });
+  .from("parts")
+  .select(
+    "id, name, part_number, revision, revision_note, status, updated_at, created_at"
+  )
+  .eq("part_family_id", part.part_family_id)
+  .order("created_at", { ascending: true });
 
   return (
     <main className="min-h-screen bg-white text-gray-900">
@@ -323,8 +326,14 @@ export default async function PartDetailPage({ params }: PageProps) {
                     </div>
 
                     <div className="mt-1 text-xs text-gray-400">
-                      {formatDate(revisionPart.updated_at || revisionPart.created_at)}
-                    </div>
+  {formatDate(revisionPart.updated_at || revisionPart.created_at)}
+</div>
+
+{revisionPart.revision_note ? (
+  <div className="mt-2 line-clamp-2 text-xs text-gray-600">
+    {revisionPart.revision_note}
+  </div>
+) : null}
 
                     {isCurrent ? (
                       <div className="mt-2 text-[11px] font-medium text-gray-900">
@@ -374,6 +383,13 @@ export default async function PartDetailPage({ params }: PageProps) {
                   {part.revision || "-"}
                 </p>
               </div>
+
+              <div>
+  <p className="text-gray-500">Revision Note</p>
+  <p className="font-medium text-gray-900">
+    {part.revision_note || "-"}
+  </p>
+</div>
 
               <div>
                 <p className="text-gray-500">Category</p>

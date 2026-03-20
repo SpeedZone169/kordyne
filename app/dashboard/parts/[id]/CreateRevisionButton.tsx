@@ -15,6 +15,7 @@ export default function CreateRevisionButton({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [newRevision, setNewRevision] = useState("");
+  const [revisionNote, setRevisionNote] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -22,6 +23,7 @@ export default function CreateRevisionButton({
     if (loading) return;
     setOpen(false);
     setNewRevision("");
+    setRevisionNote("");
     setError("");
   }
 
@@ -39,6 +41,7 @@ export default function CreateRevisionButton({
         body: JSON.stringify({
           sourcePartId,
           newRevision,
+          revisionNote,
         }),
       });
 
@@ -69,7 +72,7 @@ export default function CreateRevisionButton({
 
       {open ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white shadow-xl">
+          <div className="w-full max-w-lg rounded-2xl bg-white shadow-xl">
             <div className="border-b border-gray-200 px-6 py-4">
               <h3 className="text-lg font-semibold text-gray-900">
                 Create New Revision
@@ -100,6 +103,20 @@ export default function CreateRevisionButton({
                   placeholder="Example: B"
                   className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-500"
                   required
+                  disabled={loading}
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700">
+                  What changed in this revision?
+                </label>
+                <textarea
+                  value={revisionNote}
+                  onChange={(e) => setRevisionNote(e.target.value)}
+                  rows={4}
+                  placeholder="Example: Updated mounting hole positions and revised manufacturing drawing."
+                  className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-500"
                   disabled={loading}
                 />
               </div>
