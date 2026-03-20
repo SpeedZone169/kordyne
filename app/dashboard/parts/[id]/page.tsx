@@ -8,6 +8,11 @@ import FileActions from "./FileActions";
 import PartStatusEditor from "./PartStatusEditor";
 import ServiceRequestActions from "./ServiceRequestActions";
 import ServiceRequestHistory from "./ServiceRequestHistory";
+import CreateRevisionButton from "./CreateRevisionButton";
+import {
+  getPartCategoryLabel,
+  getProcessTypeLabel,
+} from "@/lib/parts";
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -52,6 +57,16 @@ type ProfileRow = {
   user_id: string;
   full_name: string | null;
   email: string | null;
+};
+
+type RevisionRow = {
+  id: string;
+  name: string;
+  part_number: string | null;
+  revision: string | null;
+  status: string | null;
+  updated_at: string | null;
+  created_at: string;
 };
 
 function groupFilesByCategory(files: PartFileWithUrl[]) {
@@ -216,6 +231,12 @@ export default async function PartDetailPage({ params }: PageProps) {
     );
   }
 
+  const { data: revisions } = await supabase
+    .from("parts")
+    .select("id, name, part_number, revision, status, updated_at, created_at")
+    .eq("part_family_id", part.part_family_id)
+    .order("created_at", { ascending: true });
+
   return (
     <main className="min-h-screen bg-white text-gray-900">
       <Navbar />
@@ -242,13 +263,83 @@ export default async function PartDetailPage({ params }: PageProps) {
           </div>
 
           {canEditPart ? (
-            <Link
-              href={`/dashboard/parts/${part.id}/edit`}
-              className="inline-flex rounded-2xl border border-gray-300 px-5 py-3 text-sm font-medium text-gray-900 transition hover:bg-gray-50"
-            >
-              Edit Part
-            </Link>
+            <div className="flex flex-wrap gap-3">
+              <CreateRevisionButton
+                sourcePartId={part.id}
+                currentRevision={part.revision}
+              />
+
+              <Link
+                href={`/dashboard/parts/${part.id}/edit`}
+                className="inline-flex rounded-2xl border border-gray-300 px-5 py-3 text-sm font-medium text-gray-900 transition hover:bg-gray-50"
+              >
+                Edit Part
+              </Link>
+            </div>
           ) : null}
+        </div>
+
+        <div className="mt-8 rounded-3xl border border-gray-200 p-6 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900">Revisions</h2>
+              <p className="mt-2 text-sm text-gray-600">
+                Related revisions for this part family.
+              </p>
+            </div>
+          </div>
+
+          {revisions && revisions.length > 0 ? (
+            <div className="mt-5 flex flex-wrap gap-3">
+              {(revisions as RevisionRow[]).map((revisionPart) => {
+                const isCurrent = revisionPart.id === part.id;
+
+                return (
+                  <Link
+                    key={revisionPart.id}
+                    href={`/dashboard/parts/${revisionPart.id}`}
+                    className={`min-w-[120px] rounded-2xl border px-4 py-3 transition ${
+                      isCurrent
+                        ? "border-gray-900 bg-gray-50"
+                        : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-semibold text-gray-900">
+                        Rev {revisionPart.revision || "-"}
+                      </span>
+
+                      <span
+                        className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${getStatusBadgeClass(
+                          revisionPart.status
+                        )}`}
+                      >
+                        {revisionPart.status || "-"}
+                      </span>
+                    </div>
+
+                    <div className="mt-2 text-xs text-gray-500">
+                      {revisionPart.part_number || "-"}
+                    </div>
+
+                    <div className="mt-1 text-xs text-gray-400">
+                      {formatDate(revisionPart.updated_at || revisionPart.created_at)}
+                    </div>
+
+                    {isCurrent ? (
+                      <div className="mt-2 text-[11px] font-medium text-gray-900">
+                        Current
+                      </div>
+                    ) : null}
+                  </Link>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="mt-4 text-sm text-gray-600">
+              No linked revisions found.
+            </p>
+          )}
         </div>
 
         <div className="mt-12 grid gap-6 lg:grid-cols-[380px_1fr] lg:items-stretch">
@@ -266,7 +357,7 @@ export default async function PartDetailPage({ params }: PageProps) {
               <div>
                 <p className="text-gray-500">Process Type</p>
                 <p className="font-medium text-gray-900">
-                  {part.process_type || "-"}
+                  {getProcessTypeLabel(part.process_type)}
                 </p>
               </div>
 
@@ -287,7 +378,7 @@ export default async function PartDetailPage({ params }: PageProps) {
               <div>
                 <p className="text-gray-500">Category</p>
                 <p className="font-medium text-gray-900">
-                  {part.category || "-"}
+                  {getPartCategoryLabel(part.category)}
                 </p>
               </div>
 
@@ -334,19 +425,19 @@ export default async function PartDetailPage({ params }: PageProps) {
           </div>
 
           <div className="h-full">
-  {canEditPart ? (
-    <div className="h-full">
-      <UploadSection partId={part.id} />
-    </div>
-  ) : (
-    <div className="h-full rounded-3xl border border-gray-200 p-6 shadow-sm">
-      <h2 className="text-xl font-semibold">Upload Files</h2>
-      <p className="mt-4 text-sm text-gray-600">
-        File upload is available to engineers and admins only.
-      </p>
-    </div>
-  )}
-</div>
+            {canEditPart ? (
+              <div className="h-full">
+                <UploadSection partId={part.id} />
+              </div>
+            ) : (
+              <div className="h-full rounded-3xl border border-gray-200 p-6 shadow-sm">
+                <h2 className="text-xl font-semibold">Upload Files</h2>
+                <p className="mt-4 text-sm text-gray-600">
+                  File upload is available to engineers and admins only.
+                </p>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="mt-6 rounded-3xl border border-gray-200 p-6 shadow-sm">
@@ -426,31 +517,31 @@ export default async function PartDetailPage({ params }: PageProps) {
           )}
         </div>
 
-       <div className="mt-10">
-  <div className="mb-6">
-    <h2 className="text-2xl font-semibold text-gray-900">
-      Manufacturing Requests
-    </h2>
-    <p className="mt-2 text-sm text-gray-600">
-      Create and track manufacturing or engineering service workflows for this part.
-    </p>
-  </div>
+        <div className="mt-10">
+          <div className="mb-6">
+            <h2 className="text-2xl font-semibold text-gray-900">
+              Manufacturing Requests
+            </h2>
+            <p className="mt-2 text-sm text-gray-600">
+              Create and track manufacturing or engineering service workflows for this part.
+            </p>
+          </div>
 
-  <div className="grid gap-6 xl:grid-cols-2 xl:items-stretch">
-    <ServiceRequestActions
-      partId={part.id}
-      canRequest={canRequest}
-      availableFiles={filesWithUrls.map((file) => ({
-        id: file.id,
-        fileName: file.file_name,
-        assetCategory: file.asset_category,
-        fileType: file.file_type,
-      }))}
-    />
+          <div className="grid gap-6 xl:grid-cols-2 xl:items-stretch">
+            <ServiceRequestActions
+              partId={part.id}
+              canRequest={canRequest}
+              availableFiles={filesWithUrls.map((file) => ({
+                id: file.id,
+                fileName: file.file_name,
+                assetCategory: file.asset_category,
+                fileType: file.file_type,
+              }))}
+            />
 
-    <ServiceRequestHistory partId={part.id} />
-  </div>
-</div>
+            <ServiceRequestHistory partId={part.id} />
+          </div>
+        </div>
       </section>
 
       <Footer />
