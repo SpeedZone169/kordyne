@@ -5,6 +5,12 @@ import { useRouter } from "next/navigation";
 import { createClient } from "../../../../lib/supabase/client";
 import Navbar from "../../../../components/Navbar";
 import Footer from "../../../../components/Footer";
+import {
+  PART_CATEGORY_OPTIONS,
+  PROCESS_TYPE_OPTIONS,
+  getPartCategoryLabel,
+  getProcessTypeLabel,
+} from "@/lib/parts";
 
 const STATUS_OPTIONS = [
   { value: "draft", label: "Draft" },
@@ -115,10 +121,10 @@ export default function NewPartPage() {
         name,
         part_number: partNumber,
         description,
-        process_type: processType,
+        process_type: processType || null,
         material,
         revision,
-        category,
+        category: category || null,
         status,
       });
 
@@ -193,14 +199,19 @@ export default function NewPartPage() {
           <div className="grid gap-4 md:grid-cols-2">
             <div>
               <label className="mb-2 block text-sm font-medium">Process Type</label>
-              <input
-                type="text"
+              <select
                 value={processType}
                 onChange={(e) => setProcessType(e.target.value)}
                 className="w-full rounded-2xl border border-gray-300 px-4 py-3 disabled:bg-gray-50 disabled:text-gray-500"
-                placeholder="3d_printed, cnc, composite..."
                 disabled={!canCreatePart || membershipLoading || loading}
-              />
+              >
+                <option value="">Select process type</option>
+                {PROCESS_TYPE_OPTIONS.map((option) => (
+                  <option key={option} value={option}>
+                    {getProcessTypeLabel(option)}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>
@@ -229,13 +240,19 @@ export default function NewPartPage() {
 
             <div>
               <label className="mb-2 block text-sm font-medium">Category</label>
-              <input
-                type="text"
+              <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
                 className="w-full rounded-2xl border border-gray-300 px-4 py-3 disabled:bg-gray-50 disabled:text-gray-500"
                 disabled={!canCreatePart || membershipLoading || loading}
-              />
+              >
+                <option value="">Select category</option>
+                {PART_CATEGORY_OPTIONS.map((option) => (
+                  <option key={option} value={option}>
+                    {getPartCategoryLabel(option)}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>
