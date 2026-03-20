@@ -7,6 +7,7 @@ import UploadSection from "./UploadSection";
 import FileActions from "./FileActions";
 import PartStatusEditor from "./PartStatusEditor";
 import ServiceRequestActions from "./ServiceRequestActions";
+import ServiceRequestHistory from "./ServiceRequestHistory";
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -140,6 +141,7 @@ export default async function PartDetailPage({ params }: PageProps) {
 
   const { data: orgRole } = await supabase.rpc("get_current_org_role");
   const canEditPart = orgRole === "admin" || orgRole === "engineer";
+  const canRequest = canEditPart;
 
   const { data: part, error } = await supabase
     .from("parts")
@@ -332,14 +334,11 @@ export default async function PartDetailPage({ params }: PageProps) {
           </div>
 
           <div className="space-y-6">
-  <ServiceRequestActions
-    partId={part.id}
-    organizationId={part.organization_id}
-    canRequest={canEditPart}
-  />
+            <ServiceRequestActions partId={part.id} canRequest={canRequest} />
+            <ServiceRequestHistory partId={part.id} />
 
-  {canEditPart ? (
-    <UploadSection partId={part.id} />
+            {canEditPart ? (
+              <UploadSection partId={part.id} />
             ) : (
               <div className="rounded-3xl border border-gray-200 p-6 shadow-sm">
                 <h2 className="text-xl font-semibold">Upload Files</h2>
