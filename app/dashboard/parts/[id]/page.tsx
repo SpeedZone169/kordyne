@@ -70,6 +70,14 @@ type RevisionRow = {
   created_at: string;
 };
 
+type FamilyFileRow = {
+  id: string;
+  part_id: string;
+  file_name: string;
+  file_type: string | null;
+  asset_category: string | null;
+};
+
 function groupFilesByCategory(files: PartFileWithUrl[]) {
   const grouped: Record<string, PartFileWithUrl[]> = {
     cad_3d: [],
@@ -232,13 +240,26 @@ export default async function PartDetailPage({ params }: PageProps) {
     );
   }
 
- const { data: revisions } = await supabase
-  .from("parts")
-  .select(
-    "id, name, part_number, revision, revision_note, status, updated_at, created_at"
-  )
-  .eq("part_family_id", part.part_family_id)
-  .order("created_at", { ascending: true });
+  const { data: revisions } = await supabase
+    .from("parts")
+    .select(
+      "id, name, part_number, revision, revision_note, status, updated_at, created_at"
+    )
+    .eq("part_family_id", part.part_family_id)
+    .order("created_at", { ascending: true });
+
+  const revisionIds = ((revisions as RevisionRow[] | null) ?? []).map(
+    (revisionPart) => revisionPart.id
+  );
+
+  const { data: familyFiles } =
+    revisionIds.length > 0
+      ? await supabase
+          .from("part_files")
+          .select("id, part_id, file_name, file_type, asset_category")
+          .in("part_id", revisionIds)
+          .order("created_at", { ascending: false })
+      : { data: [] as FamilyFileRow[] };
 
   return (
     <main className="min-h-screen bg-white text-gray-900">
@@ -268,20 +289,25 @@ export default async function PartDetailPage({ params }: PageProps) {
           {canEditPart ? (
             <div className="flex flex-wrap gap-3">
               <CreateRevisionButton
-  sourcePartId={part.id}
-  currentRevision={part.revision}
-  sourceFiles={((revisions as RevisionRow[] | null) ?? []).flatMap((revisionPart) =>
-    filesWithUrls
-      .filter((file) => file.part_id === revisionPart.id)
-      .map((file) => ({
-        id: file.id,
-        fileName: file.file_name,
-        assetCategory: file.asset_category,
-        fileType: file.file_type,
-        sourceRevision: revisionPart.revision,
-      }))
-  )}
-/>
+                sourcePartId={part.id}
+                currentRevision={part.revision}
+                sourceFiles={((familyFiles as FamilyFileRow[] | null) ?? []).map(
+                  (file) => {
+                    const sourceRevision =
+                      ((revisions as RevisionRow[] | null) ?? []).find(
+                        (revisionPart) => revisionPart.id === file.part_id
+                      )?.revision || null;
+
+                    return {
+                      id: file.id,
+                      fileName: file.file_name,
+                      assetCategory: file.asset_category,
+                      fileType: file.file_type,
+                      sourceRevision,
+                    };
+                  }
+                )}
+              />
 
               <Link
                 href={`/dashboard/parts/${part.id}/edit`}
@@ -336,15 +362,15 @@ export default async function PartDetailPage({ params }: PageProps) {
                       {revisionPart.part_number || "-"}
                     </div>
 
- <div className="mt-1 text-xs text-gray-400">
-  {formatDate(revisionPart.updated_at || revisionPart.created_at)}
-</div>
+                    <div className="mt-1 text-xs text-gray-400">
+                      {formatDate(revisionPart.updated_at || revisionPart.created_at)}
+                    </div>
 
-{revisionPart.revision_note ? (
-  <div className="mt-2 line-clamp-2 text-xs text-gray-600">
-    {revisionPart.revision_note}
-  </div>
-) : null}
+                    {revisionPart.revision_note ? (
+                      <div className="mt-2 line-clamp-2 text-xs text-gray-600">
+                        {revisionPart.revision_note}
+                      </div>
+                    ) : null}
 
                     {isCurrent ? (
                       <div className="mt-2 text-[11px] font-medium text-gray-900">
@@ -396,11 +422,11 @@ export default async function PartDetailPage({ params }: PageProps) {
               </div>
 
               <div>
-  <p className="text-gray-500">Revision Note</p>
-  <p className="font-medium text-gray-900">
-    {part.revision_note || "-"}
-  </p>
-</div>
+                <p className="text-gray-500">Revision Note</p>
+                <p className="font-medium text-gray-900">
+                  {part.revision_note || "-"}
+                </p>
+              </div>
 
               <div>
                 <p className="text-gray-500">Category</p>
