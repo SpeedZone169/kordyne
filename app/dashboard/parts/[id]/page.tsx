@@ -232,7 +232,7 @@ export default async function PartDetailPage({ params }: PageProps) {
     );
   }
 
-  const { data: revisions } = await supabase
+ const { data: revisions } = await supabase
   .from("parts")
   .select(
     "id, name, part_number, revision, revision_note, status, updated_at, created_at"
@@ -268,9 +268,20 @@ export default async function PartDetailPage({ params }: PageProps) {
           {canEditPart ? (
             <div className="flex flex-wrap gap-3">
               <CreateRevisionButton
-                sourcePartId={part.id}
-                currentRevision={part.revision}
-              />
+  sourcePartId={part.id}
+  currentRevision={part.revision}
+  sourceFiles={((revisions as RevisionRow[] | null) ?? []).flatMap((revisionPart) =>
+    filesWithUrls
+      .filter((file) => file.part_id === revisionPart.id)
+      .map((file) => ({
+        id: file.id,
+        fileName: file.file_name,
+        assetCategory: file.asset_category,
+        fileType: file.file_type,
+        sourceRevision: revisionPart.revision,
+      }))
+  )}
+/>
 
               <Link
                 href={`/dashboard/parts/${part.id}/edit`}
@@ -325,7 +336,7 @@ export default async function PartDetailPage({ params }: PageProps) {
                       {revisionPart.part_number || "-"}
                     </div>
 
-                    <div className="mt-1 text-xs text-gray-400">
+ <div className="mt-1 text-xs text-gray-400">
   {formatDate(revisionPart.updated_at || revisionPart.created_at)}
 </div>
 
