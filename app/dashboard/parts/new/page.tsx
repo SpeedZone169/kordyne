@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "../../../../lib/supabase/client";
 import Navbar from "../../../../components/Navbar";
@@ -16,12 +16,23 @@ const STATUS_OPTIONS = [
   { value: "draft", label: "Draft" },
   { value: "active", label: "Active" },
   { value: "archived", label: "Archived" },
-];
+] as const;
+
+const REVISION_SCHEME_OPTIONS = [
+  { value: "alphabetic", label: "Alphabetic (A, B, C...)" },
+  { value: "numeric", label: "Numeric (1, 2, 3...)" },
+] as const;
+
+type RevisionScheme = "alphabetic" | "numeric";
 
 type MembershipState = {
   organizationId: string | null;
   role: string | null;
 };
+
+function getInitialRevisionLabel(revisionScheme: RevisionScheme) {
+  return revisionScheme === "numeric" ? "1" : "A";
+}
 
 export default function NewPartPage() {
   const router = useRouter();
@@ -38,7 +49,8 @@ export default function NewPartPage() {
   const [description, setDescription] = useState("");
   const [processType, setProcessType] = useState("");
   const [material, setMaterial] = useState("");
-  const [revision, setRevision] = useState("A");
+  const [revisionScheme, setRevisionScheme] =
+    useState<RevisionScheme>("alphabetic");
   const [category, setCategory] = useState("");
   const [status, setStatus] = useState("draft");
   const [error, setError] = useState("");
@@ -46,6 +58,11 @@ export default function NewPartPage() {
 
   const canCreatePart =
     membership.role === "admin" || membership.role === "engineer";
+
+  const initialRevisionLabel = useMemo(
+    () => getInitialRevisionLabel(revisionScheme),
+    [revisionScheme]
+  );
 
   useEffect(() => {
     async function loadMembership() {
@@ -105,36 +122,39 @@ export default function NewPartPage() {
       return;
     }
 
+    const trimmedName = name.trim();
+    const trimmedPartNumber = partNumber.trim();
+    const trimmedDescription = description.trim();
+    const trimmedMaterial = material.trim();
+
+    if (!trimmedName) {
+      setError("Part name is required.");
+      setLoading(false);
+      return;
+    }
+
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: newPartId, error: createError } = await supabase.rpc(
+        "create_part_with_family",
+        {
+          p_name: trimmedName,
+          p_part_number: trimmedPartNumber || null,
+          p_description: trimmedDescription || null,
+          p_process_type: processType || null,
+          p_material: trimmedMaterial || null,
+          p_revision_scheme: revisionScheme,
+          p_category: category || null,
+          p_status: status,
+        }
+      );
 
-      if (!user) {
-        router.push("/login");
-        return;
-      }
-
-      const { error } = await supabase.from("parts").insert({
-        user_id: user.id,
-        organization_id: membership.organizationId,
-        name,
-        part_number: partNumber,
-        description,
-        process_type: processType || null,
-        material,
-        revision,
-        category: category || null,
-        status,
-      });
-
-      if (error) {
-        setError(error.message);
+      if (createError || !newPartId) {
+        setError(createError?.message || "Failed to create part.");
         setLoading(false);
         return;
       }
 
-      router.push("/dashboard/parts");
+      router.push(`/dashboard/parts/${newPartId}`);
       router.refresh();
     } catch {
       setError("Something went wrong while creating the part.");
@@ -149,7 +169,9 @@ export default function NewPartPage() {
       <section className="mx-auto max-w-3xl px-6 py-20">
         <h1 className="text-4xl font-bold">Create New Part</h1>
         <p className="mt-4 text-gray-600">
-          Add a new part record to your vault.
+          Add a new part record to your vault. A new part family will be created
+          automatically and the first revision will be assigned by the selected
+          revision scheme.
         </p>
 
         {membership.role === "viewer" ? (
@@ -228,31 +250,32 @@ export default function NewPartPage() {
 
           <div className="grid gap-4 md:grid-cols-3">
             <div>
-              <label className="mb-2 block text-sm font-medium">Revision</label>
-              <input
-                type="text"
-                value={revision}
-                onChange={(e) => setRevision(e.target.value)}
-                className="w-full rounded-2xl border border-gray-300 px-4 py-3 disabled:bg-gray-50 disabled:text-gray-500"
-                disabled={!canCreatePart || membershipLoading || loading}
-              />
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-medium">Category</label>
+              <label className="mb-2 block text-sm font-medium">
+                Revision Scheme
+              </label>
               <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
+                value={revisionScheme}
+                onChange={(e) =>
+                  setRevisionScheme(e.target.value as RevisionScheme)
+                }
                 className="w-full rounded-2xl border border-gray-300 px-4 py-3 disabled:bg-gray-50 disabled:text-gray-500"
                 disabled={!canCreatePart || membershipLoading || loading}
               >
-                <option value="">Select category</option>
-                {PART_CATEGORY_OPTIONS.map((option) => (
-                  <option key={option} value={option}>
-                    {getPartCategoryLabel(option)}
+                {REVISION_SCHEME_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
                   </option>
                 ))}
               </select>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium">
+                Initial Revision
+              </label>
+              <div className="w-full rounded-2xl border border-gray-300 bg-gray-50 px-4 py-3 text-gray-900">
+                {initialRevisionLabel}
+              </div>
             </div>
 
             <div>
@@ -270,6 +293,23 @@ export default function NewPartPage() {
                 ))}
               </select>
             </div>
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-medium">Category</label>
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="w-full rounded-2xl border border-gray-300 px-4 py-3 disabled:bg-gray-50 disabled:text-gray-500"
+              disabled={!canCreatePart || membershipLoading || loading}
+            >
+              <option value="">Select category</option>
+              {PART_CATEGORY_OPTIONS.map((option) => (
+                <option key={option} value={option}>
+                  {getPartCategoryLabel(option)}
+                </option>
+              ))}
+            </select>
           </div>
 
           <button

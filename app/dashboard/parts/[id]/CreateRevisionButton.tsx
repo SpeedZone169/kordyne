@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type SourceFileOption = {
@@ -42,39 +42,176 @@ type RevisionCategoryGroup = {
 
 type RevisionFileGroup = {
   revision: string;
+  isCurrent: boolean;
   files: SourceFileOption[];
   categories: RevisionCategoryGroup[];
 };
 
-function groupSourceFiles(files: SourceFileOption[]): RevisionFileGroup[] {
+type RevisionSortKey =
+  | { type: "numeric"; value: number }
+  | { type: "alphabetic"; value: number }
+  | { type: "text"; value: string };
+
+function normalizeCategory(assetCategory: string | null) {
+  return assetCategory && FILE_CATEGORY_LABELS[assetCategory]
+    ? assetCategory
+    : "other";
+}
+
+function normalizeRevisionLabel(revision: string | null) {
+  return revision?.trim() || "-";
+}
+
+function detectRevisionScheme(
+  revision: string | null
+): "numeric" | "alphabetic" | null {
+  const normalized = revision?.trim().toUpperCase();
+
+  if (!normalized) return null;
+  if (/^[0-9]+$/.test(normalized)) return "numeric";
+  if (/^[A-Z]+$/.test(normalized)) return "alphabetic";
+
+  return null;
+}
+
+function alphabeticLabelToIndex(label: string) {
+  const normalized = label.trim().toUpperCase();
+
+  if (!/^[A-Z]+$/.test(normalized)) {
+    return null;
+  }
+
+  let result = 0;
+
+  for (let i = 0; i < normalized.length; i += 1) {
+    result = result * 26 + (normalized.charCodeAt(i) - 64);
+  }
+
+  return result;
+}
+
+function indexToAlphabeticLabel(index: number) {
+  if (index < 1) return null;
+
+  let value = index;
+  let result = "";
+
+  while (value > 0) {
+    const remainder = (value - 1) % 26;
+    result = String.fromCharCode(65 + remainder) + result;
+    value = Math.floor((value - 1) / 26);
+  }
+
+  return result;
+}
+
+function getNextRevisionPreview(currentRevision: string | null) {
+  const normalized = currentRevision?.trim();
+
+  if (!normalized) {
+    return "Automatically assigned";
+  }
+
+  const scheme = detectRevisionScheme(normalized);
+
+  if (scheme === "numeric") {
+    return String(Number(normalized) + 1);
+  }
+
+  if (scheme === "alphabetic") {
+    const currentIndex = alphabeticLabelToIndex(normalized);
+
+    if (!currentIndex) {
+      return "Automatically assigned";
+    }
+
+    return indexToAlphabeticLabel(currentIndex + 1) || "Automatically assigned";
+  }
+
+  return "Automatically assigned";
+}
+
+function getRevisionSortKey(revision: string): RevisionSortKey {
+  const normalized = normalizeRevisionLabel(revision);
+  const scheme = detectRevisionScheme(normalized);
+
+  if (scheme === "numeric") {
+    return { type: "numeric", value: Number(normalized) };
+  }
+
+  if (scheme === "alphabetic") {
+    return {
+      type: "alphabetic",
+      value: alphabeticLabelToIndex(normalized) ?? 0,
+    };
+  }
+
+  return { type: "text", value: normalized.toUpperCase() };
+}
+
+function compareRevisionLabels(a: string, b: string) {
+  const aKey = getRevisionSortKey(a);
+  const bKey = getRevisionSortKey(b);
+
+  if (aKey.type === "numeric" && bKey.type === "numeric") {
+    return bKey.value - aKey.value;
+  }
+
+  if (aKey.type === "alphabetic" && bKey.type === "alphabetic") {
+    return bKey.value - aKey.value;
+  }
+
+  if (aKey.type === "text" && bKey.type === "text") {
+    return bKey.value.localeCompare(aKey.value, undefined, {
+      numeric: true,
+      sensitivity: "base",
+    });
+  }
+
+  return b.localeCompare(a, undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
+}
+
+function groupSourceFiles(
+  files: SourceFileOption[],
+  currentRevision: string | null
+): RevisionFileGroup[] {
   const revisionMap = new Map<string, SourceFileOption[]>();
 
   for (const file of files) {
-    const revision = file.sourceRevision || "-";
+    const revision = normalizeRevisionLabel(file.sourceRevision);
     const existing = revisionMap.get(revision) || [];
     existing.push(file);
     revisionMap.set(revision, existing);
   }
 
-  return Array.from(revisionMap.entries()).map(([revision, revisionFiles]) => {
-    const categories: RevisionCategoryGroup[] = FILE_CATEGORY_ORDER.map((category) => ({
-      category,
-      files: revisionFiles.filter((file) => {
-        const normalizedCategory =
-          file.assetCategory && FILE_CATEGORY_LABELS[file.assetCategory]
-            ? file.assetCategory
-            : "other";
+  const currentRevisionLabel = normalizeRevisionLabel(currentRevision);
 
-        return normalizedCategory === category;
-      }),
-    })).filter((group) => group.files.length > 0);
+  return Array.from(revisionMap.entries())
+    .map(([revision, revisionFiles]) => {
+      const categories: RevisionCategoryGroup[] = FILE_CATEGORY_ORDER.map(
+        (category) => ({
+          category,
+          files: revisionFiles.filter(
+            (file) => normalizeCategory(file.assetCategory) === category
+          ),
+        })
+      ).filter((group) => group.files.length > 0);
 
-    return {
-      revision,
-      files: revisionFiles,
-      categories,
-    };
-  });
+      return {
+        revision,
+        isCurrent: revision === currentRevisionLabel,
+        files: revisionFiles,
+        categories,
+      };
+    })
+    .sort((a, b) => {
+      if (a.isCurrent && !b.isCurrent) return -1;
+      if (!a.isCurrent && b.isCurrent) return 1;
+      return compareRevisionLabels(a.revision, b.revision);
+    });
 }
 
 export default function CreateRevisionButton({
@@ -84,19 +221,28 @@ export default function CreateRevisionButton({
 }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [newRevision, setNewRevision] = useState("");
   const [revisionNote, setRevisionNote] = useState("");
   const [fileCopyMode, setFileCopyMode] = useState<"none" | "selected">("none");
-  const [selectedSourceFileIds, setSelectedSourceFileIds] = useState<string[]>([]);
+  const [selectedSourceFileIds, setSelectedSourceFileIds] = useState<string[]>(
+    []
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const revisionGroups = useMemo(() => groupSourceFiles(sourceFiles), [sourceFiles]);
+  const revisionGroups = useMemo(
+    () => groupSourceFiles(sourceFiles, currentRevision),
+    [sourceFiles, currentRevision]
+  );
+
+  const nextRevisionPreview = useMemo(
+    () => getNextRevisionPreview(currentRevision),
+    [currentRevision]
+  );
 
   function closeModal(force = false) {
     if (loading && !force) return;
+
     setOpen(false);
-    setNewRevision("");
     setRevisionNote("");
     setFileCopyMode("none");
     setSelectedSourceFileIds([]);
@@ -119,10 +265,20 @@ export default function CreateRevisionButton({
     setSelectedSourceFileIds((prev) => prev.filter((id) => !fileIds.includes(id)));
   }
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  function selectAllInCategory(fileIds: string[]) {
+    setSelectedSourceFileIds((prev) => Array.from(new Set([...prev, ...fileIds])));
+  }
+
+  function clearCategory(fileIds: string[]) {
+    setSelectedSourceFileIds((prev) => prev.filter((id) => !fileIds.includes(id)));
+  }
+
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
     setError("");
+
+    const trimmedRevisionNote = revisionNote.trim();
 
     if (fileCopyMode === "selected" && selectedSourceFileIds.length === 0) {
       setError("Select at least one file to copy, or choose Start with no files.");
@@ -138,8 +294,7 @@ export default function CreateRevisionButton({
         },
         body: JSON.stringify({
           sourcePartId,
-          newRevision,
-          revisionNote,
+          revisionNote: trimmedRevisionNote,
           fileCopyMode,
           selectedSourceFileIds,
         }),
@@ -172,39 +327,36 @@ export default function CreateRevisionButton({
 
       {open ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
-          <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-xl">
+          <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-2xl bg-white shadow-xl">
             <div className="border-b border-gray-200 px-6 py-4">
               <h3 className="text-lg font-semibold text-gray-900">
                 Create New Revision
               </h3>
               <p className="mt-1 text-sm text-gray-600">
-                This will create a new part record in the same revision family.
+                The next revision is assigned automatically by the system based on
+                this part family&apos;s revision scheme.
               </p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-6 px-6 py-6">
-              <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700">
-                  Current revision
-                </label>
-                <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
-                  {currentRevision || "-"}
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                    Current revision
+                  </label>
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+                    {currentRevision || "-"}
+                  </div>
                 </div>
-              </div>
 
-              <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700">
-                  New revision
-                </label>
-                <input
-                  type="text"
-                  value={newRevision}
-                  onChange={(e) => setNewRevision(e.target.value)}
-                  placeholder="Example: H"
-                  className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-500"
-                  required
-                  disabled={loading}
-                />
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                    Next revision
+                  </label>
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+                    {nextRevisionPreview}
+                  </div>
+                </div>
               </div>
 
               <div>
@@ -222,9 +374,12 @@ export default function CreateRevisionButton({
               </div>
 
               <div className="rounded-2xl border border-gray-200 p-4">
-                <h4 className="text-sm font-semibold text-gray-900">File handling</h4>
+                <h4 className="text-sm font-semibold text-gray-900">
+                  File handling
+                </h4>
                 <p className="mt-1 text-sm text-gray-600">
-                  Decide whether the new revision starts empty or copies selected files from any revision in this part family.
+                  Decide whether the new revision starts empty or copies selected
+                  files from any revision in this part family.
                 </p>
 
                 <div className="mt-4 space-y-3">
@@ -263,7 +418,8 @@ export default function CreateRevisionButton({
                         Copy selected files from revision family
                       </div>
                       <div className="text-sm text-gray-600">
-                        Pick files from any revision in the family and copy them into the new revision.
+                        Pick files from any revision in the family and copy them
+                        into the new revision.
                       </div>
                     </div>
                   </label>
@@ -280,6 +436,7 @@ export default function CreateRevisionButton({
                           Files are grouped by revision first, then by category.
                         </p>
                       </div>
+
                       <div className="text-xs text-gray-500">
                         {selectedSourceFileIds.length} selected
                       </div>
@@ -301,8 +458,15 @@ export default function CreateRevisionButton({
                             >
                               <div className="flex flex-wrap items-center justify-between gap-3">
                                 <div>
-                                  <div className="text-sm font-medium text-gray-900">
-                                    Rev {group.revision}
+                                  <div className="flex items-center gap-2">
+                                    <div className="text-sm font-medium text-gray-900">
+                                      Rev {group.revision}
+                                    </div>
+                                    {group.isCurrent ? (
+                                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-700">
+                                        Current
+                                      </span>
+                                    ) : null}
                                   </div>
                                   <div className="text-xs text-gray-500">
                                     {group.files.length} file
@@ -315,57 +479,95 @@ export default function CreateRevisionButton({
                                     type="button"
                                     onClick={() => selectAllInRevision(revisionFileIds)}
                                     className="rounded-lg border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                                    disabled={loading}
                                   >
-                                    Select all
+                                    Select all in revision
                                   </button>
                                   <button
                                     type="button"
                                     onClick={() => clearRevision(revisionFileIds)}
                                     className="rounded-lg border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                                    disabled={loading}
                                   >
-                                    Clear
+                                    Clear revision
                                   </button>
                                 </div>
                               </div>
 
                               <div className="mt-4 space-y-4">
-                                {group.categories.map((categoryGroup) => (
-                                  <div key={`${group.revision}-${categoryGroup.category}`}>
-                                    <div className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-gray-500">
-                                      {FILE_CATEGORY_LABELS[categoryGroup.category] || "Other"}
-                                    </div>
+                                {group.categories.map((categoryGroup) => {
+                                  const categoryFileIds = categoryGroup.files.map(
+                                    (file) => file.id
+                                  );
 
-                                    <div className="space-y-2">
-                                      {categoryGroup.files.map((file) => {
-                                        const isSelected = selectedSourceFileIds.includes(file.id);
+                                  return (
+                                    <div
+                                      key={`${group.revision}-${categoryGroup.category}`}
+                                    >
+                                      <div className="mb-2 flex items-center justify-between gap-3">
+                                        <div className="text-xs font-semibold uppercase tracking-[0.12em] text-gray-500">
+                                          {FILE_CATEGORY_LABELS[
+                                            categoryGroup.category
+                                          ] || "Other"}
+                                        </div>
 
-                                        return (
-                                          <label
-                                            key={file.id}
-                                            className="flex cursor-pointer items-start gap-3 rounded-lg border border-gray-200 px-3 py-2 hover:bg-gray-50"
+                                        <div className="flex flex-wrap gap-2">
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              selectAllInCategory(categoryFileIds)
+                                            }
+                                            className="rounded-lg border border-gray-300 px-2 py-1 text-[11px] font-medium text-gray-700 hover:bg-gray-50"
+                                            disabled={loading}
                                           >
-                                            <input
-                                              type="checkbox"
-                                              checked={isSelected}
-                                              onChange={() => toggleFile(file.id)}
-                                              disabled={loading}
-                                              className="mt-0.5 h-4 w-4 rounded border-gray-300"
-                                            />
+                                            Select category
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              clearCategory(categoryFileIds)
+                                            }
+                                            className="rounded-lg border border-gray-300 px-2 py-1 text-[11px] font-medium text-gray-700 hover:bg-gray-50"
+                                            disabled={loading}
+                                          >
+                                            Clear
+                                          </button>
+                                        </div>
+                                      </div>
 
-                                            <div className="min-w-0">
-                                              <div className="text-sm font-medium text-gray-900">
-                                                {file.fileName}
+                                      <div className="space-y-2">
+                                        {categoryGroup.files.map((file) => {
+                                          const isSelected =
+                                            selectedSourceFileIds.includes(file.id);
+
+                                          return (
+                                            <label
+                                              key={file.id}
+                                              className="flex cursor-pointer items-start gap-3 rounded-lg border border-gray-200 px-3 py-2 hover:bg-gray-50"
+                                            >
+                                              <input
+                                                type="checkbox"
+                                                checked={isSelected}
+                                                onChange={() => toggleFile(file.id)}
+                                                disabled={loading}
+                                                className="mt-0.5 h-4 w-4 rounded border-gray-300"
+                                              />
+
+                                              <div className="min-w-0">
+                                                <div className="text-sm font-medium text-gray-900">
+                                                  {file.fileName}
+                                                </div>
+                                                <div className="text-xs text-gray-500">
+                                                  {file.fileType || "unknown"}
+                                                </div>
                                               </div>
-                                              <div className="text-xs text-gray-500">
-                                                {file.fileType || "unknown"}
-                                              </div>
-                                            </div>
-                                          </label>
-                                        );
-                                      })}
+                                            </label>
+                                          );
+                                        })}
+                                      </div>
                                     </div>
-                                  </div>
-                                ))}
+                                  );
+                                })}
                               </div>
                             </div>
                           );

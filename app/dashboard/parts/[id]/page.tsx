@@ -75,7 +75,29 @@ type FamilyFileRow = {
   part_id: string;
   file_name: string;
   file_type: string | null;
+  file_size_bytes: number | null;
   asset_category: string | null;
+  created_at: string;
+};
+
+type FamilySourceFile = {
+  id: string;
+  partId: string;
+  fileName: string;
+  fileType: string | null;
+  fileSizeBytes: number | null;
+  assetCategory: string | null;
+  createdAt: string;
+  sourceRevision: {
+    partId: string;
+    revision: string | null;
+    name: string;
+    partNumber: string | null;
+    createdAt: string;
+    updatedAt: string | null;
+    status: string | null;
+    isCurrent: boolean;
+  };
 };
 
 function groupFilesByCategory(files: PartFileWithUrl[]) {
@@ -173,6 +195,21 @@ export default async function PartDetailPage({ params }: PageProps) {
     .eq("id", id)
     .single();
 
+  if (error || !part) {
+    return (
+      <main className="min-h-screen bg-white text-gray-900">
+        <Navbar />
+        <section className="mx-auto max-w-7xl px-6 py-20">
+          <h1 className="text-3xl font-bold">Part not found</h1>
+          <p className="mt-4 text-gray-600">
+            We could not find this part in your vault.
+          </p>
+        </section>
+        <Footer />
+      </main>
+    );
+  }
+
   const { data: files } = await supabase
     .from("part_files")
     .select("*")
@@ -181,7 +218,7 @@ export default async function PartDetailPage({ params }: PageProps) {
 
   const profileIds = Array.from(
     new Set(
-      [part?.user_id, ...(files || []).map((file) => file.user_id)].filter(
+      [part.user_id, ...(files || []).map((file) => file.user_id)].filter(
         Boolean
       )
     )
@@ -199,7 +236,7 @@ export default async function PartDetailPage({ params }: PageProps) {
     (profiles || []).map((profile) => [profile.user_id, profile])
   );
 
-  const creatorProfile = part?.user_id ? profileMap.get(part.user_id) : null;
+  const creatorProfile = part.user_id ? profileMap.get(part.user_id) : null;
 
   const filesWithUrls: PartFileWithUrl[] = files
     ? await Promise.all(
@@ -225,41 +262,65 @@ export default async function PartDetailPage({ params }: PageProps) {
 
   const groupedFiles = groupFilesByCategory(filesWithUrls);
 
-  if (error || !part) {
-    return (
-      <main className="min-h-screen bg-white text-gray-900">
-        <Navbar />
-        <section className="mx-auto max-w-7xl px-6 py-20">
-          <h1 className="text-3xl font-bold">Part not found</h1>
-          <p className="mt-4 text-gray-600">
-            We could not find this part in your vault.
-          </p>
-        </section>
-        <Footer />
-      </main>
-    );
-  }
-
   const { data: revisions } = await supabase
     .from("parts")
     .select(
       "id, name, part_number, revision, revision_note, status, updated_at, created_at"
     )
+    .eq("organization_id", part.organization_id)
     .eq("part_family_id", part.part_family_id)
     .order("created_at", { ascending: true });
 
-  const revisionIds = ((revisions as RevisionRow[] | null) ?? []).map(
-    (revisionPart) => revisionPart.id
-  );
+  const revisionRows = (revisions as RevisionRow[] | null) ?? [];
+
+  const revisionIds = revisionRows.map((revisionPart) => revisionPart.id);
 
   const { data: familyFiles } =
     revisionIds.length > 0
       ? await supabase
           .from("part_files")
-          .select("id, part_id, file_name, file_type, asset_category")
+          .select(
+            "id, part_id, file_name, file_type, file_size_bytes, asset_category, created_at"
+          )
           .in("part_id", revisionIds)
           .order("created_at", { ascending: false })
       : { data: [] as FamilyFileRow[] };
+
+  const revisionMap = new Map(
+    revisionRows.map((revisionPart) => [revisionPart.id, revisionPart] as const)
+  );
+
+  const familyFilesForRevisionPicker: FamilySourceFile[] = (
+    (familyFiles as FamilyFileRow[] | null) ?? []
+  ).flatMap((file) => {
+    const sourceRevision = revisionMap.get(file.part_id);
+
+    if (!sourceRevision) {
+      return [];
+    }
+
+    return [
+      {
+        id: file.id,
+        partId: file.part_id,
+        fileName: file.file_name,
+        fileType: file.file_type,
+        fileSizeBytes: file.file_size_bytes,
+        assetCategory: file.asset_category,
+        createdAt: file.created_at,
+        sourceRevision: {
+          partId: sourceRevision.id,
+          revision: sourceRevision.revision,
+          name: sourceRevision.name,
+          partNumber: sourceRevision.part_number,
+          createdAt: sourceRevision.created_at,
+          updatedAt: sourceRevision.updated_at,
+          status: sourceRevision.status,
+          isCurrent: sourceRevision.id === part.id,
+        },
+      },
+    ];
+  });
 
   return (
     <main className="min-h-screen bg-white text-gray-900">
@@ -291,22 +352,13 @@ export default async function PartDetailPage({ params }: PageProps) {
               <CreateRevisionButton
                 sourcePartId={part.id}
                 currentRevision={part.revision}
-                sourceFiles={((familyFiles as FamilyFileRow[] | null) ?? []).map(
-                  (file) => {
-                    const sourceRevision =
-                      ((revisions as RevisionRow[] | null) ?? []).find(
-                        (revisionPart) => revisionPart.id === file.part_id
-                      )?.revision || null;
-
-                    return {
-                      id: file.id,
-                      fileName: file.file_name,
-                      assetCategory: file.asset_category,
-                      fileType: file.file_type,
-                      sourceRevision,
-                    };
-                  }
-                )}
+                sourceFiles={familyFilesForRevisionPicker.map((file) => ({
+                  id: file.id,
+                  fileName: file.fileName,
+                  assetCategory: file.assetCategory,
+                  fileType: file.fileType,
+                  sourceRevision: file.sourceRevision.revision,
+                }))}
               />
 
               <Link
@@ -329,9 +381,9 @@ export default async function PartDetailPage({ params }: PageProps) {
             </div>
           </div>
 
-          {revisions && revisions.length > 0 ? (
+          {revisionRows.length > 0 ? (
             <div className="mt-5 flex flex-wrap gap-3">
-              {(revisions as RevisionRow[]).map((revisionPart) => {
+              {revisionRows.map((revisionPart) => {
                 const isCurrent = revisionPart.id === part.id;
 
                 return (
@@ -363,7 +415,9 @@ export default async function PartDetailPage({ params }: PageProps) {
                     </div>
 
                     <div className="mt-1 text-xs text-gray-400">
-                      {formatDate(revisionPart.updated_at || revisionPart.created_at)}
+                      {formatDate(
+                        revisionPart.updated_at || revisionPart.created_at
+                      )}
                     </div>
 
                     {revisionPart.revision_note ? (
@@ -576,7 +630,8 @@ export default async function PartDetailPage({ params }: PageProps) {
               Manufacturing Requests
             </h2>
             <p className="mt-2 text-sm text-gray-600">
-              Create and track manufacturing or engineering service workflows for this part.
+              Create and track manufacturing or engineering service workflows
+              for this part.
             </p>
           </div>
 
