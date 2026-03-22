@@ -4,6 +4,22 @@ import { createClient } from "../../lib/supabase/server";
 import Navbar from "../../components/Navbar";
 import Footer from "../../components/Footer";
 
+type PartRow = {
+  id: string;
+  part_family_id: string;
+};
+
+type MembershipRow = {
+  organization_id: string;
+  role: string | null;
+};
+
+type OrganizationRow = {
+  id: string;
+  name: string;
+  plan: string | null;
+};
+
 function getRoleBadgeClass(role: string | null) {
   switch (role) {
     case "admin":
@@ -20,14 +36,78 @@ function getRoleBadgeClass(role: string | null) {
 function getRoleDescription(role: string | null) {
   switch (role) {
     case "admin":
-      return "You can manage organization settings, invites, and parts.";
+      return "You can manage organization settings, invites, parts, and service workflows.";
     case "engineer":
-      return "You can create and update parts and files.";
+      return "You can create and update parts, revisions, files, and service requests.";
     case "viewer":
-      return "You have read-only access to the parts vault.";
+      return "You have read-only access to the vault and service request visibility.";
     default:
       return "Your workspace access is being determined.";
   }
+}
+
+function SnapshotCard({
+  label,
+  value,
+  helper,
+}: {
+  label: string;
+  value: string;
+  helper: string;
+}) {
+  return (
+    <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
+      <p className="text-sm font-medium text-gray-500">{label}</p>
+      <p className="mt-3 text-3xl font-bold text-gray-900">{value}</p>
+      <p className="mt-2 text-sm text-gray-600">{helper}</p>
+    </div>
+  );
+}
+
+function ActionCard({
+  title,
+  description,
+  href,
+  primary = false,
+}: {
+  title: string;
+  description: string;
+  href: string;
+  primary?: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      className={`block rounded-3xl border p-6 shadow-sm transition ${
+        primary
+          ? "border-gray-900 bg-gray-900 text-white hover:opacity-95"
+          : "border-gray-200 bg-white text-gray-900 hover:bg-gray-50"
+      }`}
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-semibold">{title}</h2>
+          <p
+            className={`mt-2 text-sm ${
+              primary ? "text-gray-200" : "text-gray-600"
+            }`}
+          >
+            {description}
+          </p>
+        </div>
+
+        <span
+          className={`inline-flex h-9 w-9 items-center justify-center rounded-full border text-lg ${
+            primary
+              ? "border-white/20 text-white"
+              : "border-gray-300 text-gray-700"
+          }`}
+        >
+          →
+        </span>
+      </div>
+    </Link>
+  );
 }
 
 export default async function DashboardPage() {
@@ -43,6 +123,50 @@ export default async function DashboardPage() {
 
   const { data: orgRole } = await supabase.rpc("get_current_org_role");
 
+  const { data: membership } = await supabase
+    .from("organization_members")
+    .select("organization_id, role")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  const typedMembership = membership as MembershipRow | null;
+  const organizationId = typedMembership?.organization_id || null;
+
+  const { data: organization } = organizationId
+    ? await supabase
+        .from("organizations")
+        .select("id, name, plan")
+        .eq("id", organizationId)
+        .maybeSingle()
+    : { data: null };
+
+  const typedOrganization = organization as OrganizationRow | null;
+
+  const { data: parts } = organizationId
+    ? await supabase
+        .from("parts")
+        .select("id, part_family_id")
+        .eq("organization_id", organizationId)
+    : { data: [] as PartRow[] };
+
+  const { count: memberCount } = organizationId
+    ? await supabase
+        .from("organization_members")
+        .select("*", { count: "exact", head: true })
+        .eq("organization_id", organizationId)
+    : { count: 0 };
+
+  const { count: serviceRequestCount } = organizationId
+    ? await supabase
+        .from("service_requests")
+        .select("*", { count: "exact", head: true })
+        .eq("organization_id", organizationId)
+    : { count: 0 };
+
+  const partRows = (parts as PartRow[] | null) ?? [];
+  const familyCount = new Set(partRows.map((part) => part.part_family_id)).size;
+  const revisionCount = partRows.length;
+
   return (
     <main className="min-h-screen bg-white text-gray-900">
       <Navbar />
@@ -50,17 +174,23 @@ export default async function DashboardPage() {
       <section className="mx-auto max-w-7xl px-6 py-20">
         <div className="flex flex-col gap-4">
           <div>
-            <h1 className="text-4xl font-bold">Dashboard</h1>
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-gray-500">
+              Workspace
+            </p>
 
-            <p className="mt-4 text-gray-600">
-              Welcome to your Kordyne workspace.
+            <h1 className="mt-2 text-4xl font-bold">Dashboard</h1>
+
+            <p className="mt-4 max-w-4xl text-gray-600">
+              Welcome to your Kordyne workspace. This is your high-level view
+              across part families, revision-controlled records, and service
+              requests for engineering and manufacturing workflows.
             </p>
 
             <p className="mt-2 text-sm text-gray-500">
               Signed in as {user.email}
             </p>
 
-            <div className="mt-6">
+            <div className="mt-6 flex flex-wrap items-center gap-3">
               <span
                 className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${getRoleBadgeClass(
                   orgRole
@@ -68,26 +198,76 @@ export default async function DashboardPage() {
               >
                 {orgRole || "unknown"}
               </span>
-              <p className="mt-3 text-sm text-gray-600">
-                {getRoleDescription(orgRole)}
-              </p>
+
+              {typedOrganization?.name ? (
+                <span className="inline-flex rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">
+                  {typedOrganization.name}
+                </span>
+              ) : null}
+
+              {typedOrganization?.plan ? (
+                <span className="inline-flex rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">
+                  Plan {typedOrganization.plan}
+                </span>
+              ) : null}
             </div>
 
-            <div className="mt-8 flex flex-wrap gap-3">
-              <Link
-                href="/dashboard/parts"
-                className="inline-flex rounded-2xl bg-gray-900 px-5 py-3 text-sm font-medium text-white transition hover:opacity-90"
-              >
-                Open Parts Vault
-              </Link>
+            <p className="mt-3 text-sm text-gray-600">
+              {getRoleDescription(orgRole)}
+            </p>
+          </div>
+        </div>
 
-              <Link
-                href="/dashboard/organization"
-                className="inline-flex rounded-2xl border border-gray-300 px-5 py-3 text-sm font-medium text-gray-900 transition hover:bg-gray-50"
-              >
-                View Organization
-              </Link>
-            </div>
+        <div className="mt-10 grid gap-4 lg:grid-cols-3">
+          <ActionCard
+            title="Open Parts Vault"
+            description="Browse your family-based parts library, revisions, and attached vault files."
+            href="/dashboard/parts"
+            primary
+          />
+          <ActionCard
+            title="Service Requests"
+            description="Manage manufacturing, CAD, and optimization requests as their own operational workspace."
+            href="/dashboard/requests"
+          />
+          <ActionCard
+            title="View Organization"
+            description="Manage members, roles, invitations, and organization settings."
+            href="/dashboard/organization"
+          />
+        </div>
+
+        <div className="mt-10">
+          <div className="mb-5">
+            <h2 className="text-2xl font-semibold text-gray-900">
+              Workspace snapshot
+            </h2>
+            <p className="mt-2 text-sm text-gray-600">
+              A quick view of your current organization workspace.
+            </p>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <SnapshotCard
+              label="Part families"
+              value={familyCount.toString()}
+              helper="Logical parts grouped across revision history."
+            />
+            <SnapshotCard
+              label="Revisions"
+              value={revisionCount.toString()}
+              helper="Total revision-controlled records stored in the vault."
+            />
+            <SnapshotCard
+              label="Service requests"
+              value={(serviceRequestCount ?? 0).toString()}
+              helper="Operational requests across engineering and manufacturing workflows."
+            />
+            <SnapshotCard
+              label="Members"
+              value={(memberCount ?? 0).toString()}
+              helper="Organization users with workspace access."
+            />
           </div>
         </div>
       </section>
