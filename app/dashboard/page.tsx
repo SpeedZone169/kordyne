@@ -1,12 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { createClient } from "../../lib/supabase/server";
-import Navbar from "../../components/Navbar";
-import Footer from "../../components/Footer";
+import { createClient } from "@/lib/supabase/server";
 
 type PartRow = {
   id: string;
-  part_family_id: string;
+  part_family_id: string | null;
 };
 
 type MembershipRow = {
@@ -36,7 +34,7 @@ function getRoleBadgeClass(role: string | null) {
 function getRoleDescription(role: string | null) {
   switch (role) {
     case "admin":
-      return "You can manage organization settings, invites, parts, and service workflows.";
+      return "You can manage organization settings, invites, parts, revisions, files, and service workflows.";
     case "engineer":
       return "You can create and update parts, revisions, files, and service requests.";
     case "viewer":
@@ -164,21 +162,21 @@ export default async function DashboardPage() {
     : { count: 0 };
 
   const partRows = (parts as PartRow[] | null) ?? [];
-  const familyCount = new Set(partRows.map((part) => part.part_family_id)).size;
+  const familyCount = new Set(
+    partRows.map((part) => part.part_family_id).filter(Boolean)
+  ).size;
   const revisionCount = partRows.length;
 
   return (
-    <main className="min-h-screen bg-white text-gray-900">
-      <Navbar />
-
-      <section className="mx-auto max-w-7xl px-6 py-20">
+    <div className="space-y-10">
+      <section className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm lg:p-8">
         <div className="flex flex-col gap-4">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-gray-500">
               Workspace
             </p>
 
-            <h1 className="mt-2 text-4xl font-bold">Dashboard</h1>
+            <h1 className="mt-2 text-4xl font-bold text-gray-900">Dashboard</h1>
 
             <p className="mt-4 max-w-4xl text-gray-600">
               Welcome to your Kordyne workspace. This is your high-level view
@@ -217,62 +215,65 @@ export default async function DashboardPage() {
             </p>
           </div>
         </div>
-
-        <div className="mt-10 grid gap-4 lg:grid-cols-3">
-          <ActionCard
-            title="Open Parts Vault"
-            description="Browse your family-based parts library, revisions, and attached vault files."
-            href="/dashboard/parts"
-            primary
-          />
-          <ActionCard
-            title="Service Requests"
-            description="Manage manufacturing, CAD, and optimization requests as their own operational workspace."
-            href="/dashboard/requests"
-          />
-          <ActionCard
-            title="View Organization"
-            description="Manage members, roles, invitations, and organization settings."
-            href="/dashboard/organization"
-          />
-        </div>
-
-        <div className="mt-10">
-          <div className="mb-5">
-            <h2 className="text-2xl font-semibold text-gray-900">
-              Workspace snapshot
-            </h2>
-            <p className="mt-2 text-sm text-gray-600">
-              A quick view of your current organization workspace.
-            </p>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <SnapshotCard
-              label="Part families"
-              value={familyCount.toString()}
-              helper="Logical parts grouped across revision history."
-            />
-            <SnapshotCard
-              label="Revisions"
-              value={revisionCount.toString()}
-              helper="Total revision-controlled records stored in the vault."
-            />
-            <SnapshotCard
-              label="Service requests"
-              value={(serviceRequestCount ?? 0).toString()}
-              helper="Operational requests across engineering and manufacturing workflows."
-            />
-            <SnapshotCard
-              label="Members"
-              value={(memberCount ?? 0).toString()}
-              helper="Organization users with workspace access."
-            />
-          </div>
-        </div>
       </section>
 
-      <Footer />
-    </main>
+      <section className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
+        <ActionCard
+          title="Open Parts Vault"
+          description="Browse your family-based parts library, revisions, and attached vault files."
+          href="/dashboard/parts"
+          primary
+        />
+        <ActionCard
+          title="Service Requests"
+          description="Manage manufacturing, CAD, and optimization requests as their own operational workspace."
+          href="/dashboard/requests"
+        />
+        <ActionCard
+          title="View Organization"
+          description="Manage members, roles, invitations, and organization settings."
+          href="/dashboard/organization"
+        />
+        <ActionCard
+          title="Operational Insights"
+          description="Review request activity, queue health, turnaround, and quoted value on a dedicated page."
+          href="/dashboard/insights"
+        />
+      </section>
+
+      <section>
+        <div className="mb-5">
+          <h2 className="text-2xl font-semibold text-gray-900">
+            Workspace snapshot
+          </h2>
+          <p className="mt-2 text-sm text-gray-600">
+            A quick view of your current organization workspace.
+          </p>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <SnapshotCard
+            label="Part families"
+            value={familyCount.toString()}
+            helper="Logical parts grouped across revision history."
+          />
+          <SnapshotCard
+            label="Revisions"
+            value={revisionCount.toString()}
+            helper="Total revision-controlled records stored in the vault."
+          />
+          <SnapshotCard
+            label="Service requests"
+            value={(serviceRequestCount ?? 0).toString()}
+            helper="Operational requests across engineering and manufacturing workflows."
+          />
+          <SnapshotCard
+            label="Members"
+            value={(memberCount ?? 0).toString()}
+            helper="Organization users with workspace access."
+          />
+        </div>
+      </section>
+    </div>
   );
 }

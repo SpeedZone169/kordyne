@@ -9,6 +9,7 @@ import {
   getServiceRequestTypeLabel,
 } from "@/lib/service-requests";
 import type { ReactNode } from "react";
+import PromoteUploadedRequestFileButton from "./PromoteUploadedRequestFileButton";
 
 type RequestDetailPageProps = {
   params: Promise<{ id: string }>;
@@ -43,6 +44,18 @@ type ServiceRequestFileRow = {
   is_primary: boolean | null;
   created_at: string;
   part_files: AttachedPartFileRow | AttachedPartFileRow[] | null;
+};
+
+type UploadedRequestFileRow = {
+  id: string;
+  file_name: string;
+  file_type: string | null;
+  file_size_bytes: number | null;
+  asset_category: string | null;
+  storage_path: string;
+  created_at: string;
+  promoted_to_part_file_id: string | null;
+  promoted_at: string | null;
 };
 
 type ServiceRequestRow = {
@@ -84,6 +97,18 @@ type AttachmentViewModel = {
   signedUrl: string | null;
 };
 
+type UploadedAttachmentViewModel = {
+  id: string;
+  file_name: string;
+  file_type: string | null;
+  file_size_bytes: number | null;
+  asset_category: string | null;
+  created_at: string;
+  promoted_to_part_file_id: string | null;
+  promoted_at: string | null;
+  signedUrl: string | null;
+};
+
 const FILE_CATEGORY_LABELS: Record<string, string> = {
   cad_3d: "CAD 3D",
   drawing_2d: "2D Drawings",
@@ -92,6 +117,12 @@ const FILE_CATEGORY_LABELS: Record<string, string> = {
   quality_doc: "Quality Docs",
   other: "Other",
 };
+
+const INTERNAL_EDITABLE_STATUSES = [
+  "submitted",
+  "in_review",
+  "awaiting_customer",
+];
 
 function formatDate(value: string | null) {
   if (!value) return "—";
@@ -128,6 +159,17 @@ function getDisplayName(profile: RequesterProfileRow | null | undefined) {
 function getAssetCategoryLabel(value: string | null) {
   if (!value) return "Other";
   return FILE_CATEGORY_LABELS[value] || "Other";
+}
+
+function getSourceReferenceLabel(value: string | null) {
+  switch (value) {
+    case "existing_part_files":
+      return "Vault files";
+    case "uploaded_files":
+      return "Request uploads";
+    default:
+      return "Unspecified";
+  }
 }
 
 function DetailRow({
@@ -232,11 +274,24 @@ export default async function RequestDetailPage({
     notFound();
   }
 
+  const memberRole = membership.role || null;
+  const canManageInternalUploads =
+    ["admin", "engineer"].includes(memberRole || "") &&
+    INTERNAL_EDITABLE_STATUSES.includes(typedRequest.status);
+
   const { data: requesterProfile } = await supabase
     .from("profiles")
     .select("user_id, full_name, email")
     .eq("user_id", typedRequest.requested_by_user_id)
     .maybeSingle();
+
+  const { data: uploadedRequestFiles } = await supabase
+    .from("service_request_uploaded_files")
+    .select(
+      "id, file_name, file_type, file_size_bytes, asset_category, storage_path, created_at, promoted_to_part_file_id, promoted_at"
+    )
+    .eq("service_request_id", typedRequest.id)
+    .order("created_at", { ascending: false });
 
   const part = Array.isArray(typedRequest.parts)
     ? typedRequest.parts[0]
@@ -274,8 +329,33 @@ export default async function RequestDetailPage({
     )
   ).filter(Boolean) as AttachmentViewModel[];
 
-  const statusKey =
-    typedRequest.status as keyof typeof STATUS_BADGE_CLASSES;
+  const uploadedAttachments: UploadedAttachmentViewModel[] = (
+    await Promise.all(
+      ((uploadedRequestFiles as UploadedRequestFileRow[] | null) ?? []).map(
+        async (file) => {
+          const { data } = await supabase.storage
+            .from("service-request-files")
+            .createSignedUrl(file.storage_path, 60 * 10, {
+              download: file.file_name,
+            });
+
+          return {
+            id: file.id,
+            file_name: file.file_name,
+            file_type: file.file_type,
+            file_size_bytes: file.file_size_bytes,
+            asset_category: file.asset_category,
+            created_at: file.created_at,
+            promoted_to_part_file_id: file.promoted_to_part_file_id,
+            promoted_at: file.promoted_at,
+            signedUrl: data?.signedUrl || null,
+          };
+        }
+      )
+    )
+  ).filter(Boolean) as UploadedAttachmentViewModel[];
+
+  const statusKey = typedRequest.status as keyof typeof STATUS_BADGE_CLASSES;
 
   const requestTypeLabel = getServiceRequestTypeLabel(
     typedRequest.request_type as
@@ -390,7 +470,7 @@ export default async function RequestDetailPage({
           />
           <DetailRow
             label="Source reference"
-            value={typedRequest.source_reference_type || "—"}
+            value={getSourceReferenceLabel(typedRequest.source_reference_type)}
           />
           <DetailRow
             label="CAD output type"
@@ -412,12 +492,11 @@ export default async function RequestDetailPage({
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h2 className="text-lg font-semibold text-slate-900">
-              Attached request files
+              Vault-linked request files
             </h2>
             <p className="mt-2 text-sm text-slate-600">
-              These files were explicitly attached to this request. This keeps
-              request context controlled and separate from any later provider
-              sharing workflow.
+              These vault files were explicitly selected and attached from the
+              part revision when the request was created.
             </p>
           </div>
 
@@ -453,9 +532,7 @@ export default async function RequestDetailPage({
                   <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
                     <span>{attachment.file.file_type || "unknown type"}</span>
                     <span>{formatBytes(attachment.file.file_size_bytes)}</span>
-                    <span>
-                      Attached {formatDateTime(attachment.attachedAt)}
-                    </span>
+                    <span>Attached {formatDateTime(attachment.attachedAt)}</span>
                   </div>
                 </div>
 
@@ -478,7 +555,96 @@ export default async function RequestDetailPage({
           </div>
         ) : (
           <div className="mt-5 rounded-2xl border border-dashed border-slate-300 p-6 text-sm text-slate-600">
-            No files were explicitly attached to this request.
+            No vault files were explicitly attached to this request.
+          </div>
+        )}
+      </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">
+              Request uploads
+            </h2>
+            <p className="mt-2 text-sm text-slate-600">
+              These files were uploaded directly into the request. They remain
+              request-specific until you explicitly save them into the vault.
+            </p>
+          </div>
+
+          <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+            {uploadedAttachments.length} uploaded
+          </div>
+        </div>
+
+        {uploadedAttachments.length > 0 ? (
+          <div className="mt-5 space-y-3">
+            {uploadedAttachments.map((file) => (
+              <div
+                key={file.id}
+                className="flex flex-col gap-4 rounded-2xl border border-slate-200 p-4"
+              >
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="truncate font-medium text-slate-900">
+                        {file.file_name}
+                      </p>
+
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-700">
+                        {getAssetCategoryLabel(file.asset_category)}
+                      </span>
+
+                      {file.promoted_to_part_file_id ? (
+                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-800">
+                          Saved to vault
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800">
+                          Request-only
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+                      <span>{file.file_type || "unknown type"}</span>
+                      <span>{formatBytes(file.file_size_bytes)}</span>
+                      <span>Uploaded {formatDateTime(file.created_at)}</span>
+                      {file.promoted_at ? (
+                        <span>Saved to vault {formatDateTime(file.promoted_at)}</span>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-start gap-2">
+                    {file.signedUrl ? (
+                      <Link
+                        href={file.signedUrl}
+                        className="inline-flex rounded-xl border border-slate-300 px-3 py-2 text-xs font-medium text-slate-900 transition hover:bg-slate-50"
+                      >
+                        Download
+                      </Link>
+                    ) : (
+                      <span className="text-xs text-slate-400">
+                        Download unavailable
+                      </span>
+                    )}
+
+                    {!file.promoted_to_part_file_id && canManageInternalUploads ? (
+                      <PromoteUploadedRequestFileButton
+                        requestId={typedRequest.id}
+                        uploadedFileId={file.id}
+                        initialAssetCategory={file.asset_category}
+                      />
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="mt-5 rounded-2xl border border-dashed border-slate-300 p-6 text-sm text-slate-600">
+            No request-only uploads have been added to this request.
           </div>
         )}
       </section>

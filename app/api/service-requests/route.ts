@@ -6,7 +6,6 @@ import {
   OPTIMIZATION_GOALS,
   SERVICE_REQUEST_PRIORITIES,
   SERVICE_REQUEST_TYPES,
-  SOURCE_REFERENCE_TYPES,
 } from "@/lib/service-requests";
 
 type CreateRequestBody = {
@@ -24,6 +23,7 @@ type CreateRequestBody = {
   optimizationGoal?: string | null;
   sourceReferenceType?: string | null;
   selectedPartFileIds?: string[];
+  requestMeta?: Record<string, unknown>;
 };
 
 function isPositiveInteger(value: unknown) {
@@ -95,9 +95,7 @@ export async function POST(req: Request) {
 
     const sourceReferenceType = body.sourceReferenceType ?? "existing_part_files";
 
-    if (
-      !["existing_part_files", "uploaded_files"].includes(sourceReferenceType)
-    ) {
+    if (!["existing_part_files", "uploaded_files"].includes(sourceReferenceType)) {
       return NextResponse.json(
         { error: "Invalid source reference type." },
         { status: 400 }
@@ -111,10 +109,7 @@ export async function POST(req: Request) {
       );
     }
 
-    if (
-      body.selectedPartFileIds &&
-      !Array.isArray(body.selectedPartFileIds)
-    ) {
+    if (body.selectedPartFileIds && !Array.isArray(body.selectedPartFileIds)) {
       return NextResponse.json(
         { error: "Selected files must be an array." },
         { status: 400 }
@@ -149,6 +144,18 @@ export async function POST(req: Request) {
       );
     }
 
+    if (!["admin", "engineer"].includes(membership.role || "")) {
+      return NextResponse.json(
+        { error: "Only admins and engineers can create service requests." },
+        { status: 403 }
+      );
+    }
+
+    const requestMeta =
+      body.requestMeta && typeof body.requestMeta === "object"
+        ? body.requestMeta
+        : {};
+
     const { data: createdId, error: rpcError } = await supabase.rpc(
       "create_service_request",
       {
@@ -174,7 +181,7 @@ export async function POST(req: Request) {
             ? body.optimizationGoal || null
             : null,
         p_source_reference_type: sourceReferenceType,
-        p_request_meta: {},
+        p_request_meta: requestMeta,
         p_part_file_ids: selectedPartFileIds,
       }
     );
