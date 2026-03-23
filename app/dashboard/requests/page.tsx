@@ -2,14 +2,17 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import ServiceRequestActions from "../parts/[id]/ServiceRequestActions";
+import StandaloneRequestActions from "./StandaloneRequestActions";
 import {
   STATUS_BADGE_CLASSES,
   SERVICE_REQUEST_STATUSES,
   SERVICE_REQUEST_TYPES,
   getManufacturingTypeLabel,
   getPriorityLabel,
+  getRequestOriginLabel,
   getServiceRequestStatusLabel,
   getServiceRequestTypeLabel,
+  getSourceReferenceTypeLabel,
 } from "@/lib/service-requests";
 
 type RequestsPageProps = {
@@ -72,6 +75,9 @@ type ServiceRequestRow = {
   requested_by_user_id: string;
   title: string | null;
   request_type: string;
+  request_origin: string | null;
+  requested_item_name: string | null;
+  requested_item_reference: string | null;
   status: string;
   priority: string | null;
   notes: string | null;
@@ -123,19 +129,6 @@ function formatCurrencyFromCents(value: number | null) {
     currency: "EUR",
     maximumFractionDigits: 0,
   }).format(value / 100);
-}
-
-function getSourceReferenceLabel(value: string | null) {
-  switch (value) {
-    case "existing_part_files":
-      return "Vault files";
-    case "uploaded_files":
-      return "Request uploads";
-    case "external_reference":
-      return "External reference";
-    default:
-      return "Unspecified";
-  }
 }
 
 function getPriorityBadgeClass(priority: string | null) {
@@ -243,10 +236,11 @@ export default async function RequestsPage({
   const membershipRows = (memberships as MembershipRow[] | null) ?? [];
   const organizationIds = membershipRows.map((m) => m.organization_id);
   const orgRole = membershipRows[0]?.role || null;
+  const activeOrganizationId = membershipRows[0]?.organization_id || null;
   const isAdmin = orgRole === "admin";
   const canRequest = orgRole === "admin" || orgRole === "engineer";
 
-  if (organizationIds.length === 0) {
+  if (organizationIds.length === 0 || !activeOrganizationId) {
     return (
       <div className="space-y-4">
         <h1 className="text-2xl font-semibold text-slate-900">
@@ -290,6 +284,9 @@ export default async function RequestsPage({
       requested_by_user_id,
       title,
       request_type,
+      request_origin,
+      requested_item_name,
+      requested_item_reference,
       status,
       priority,
       notes,
@@ -317,7 +314,9 @@ export default async function RequestsPage({
     .order("created_at", { ascending: false });
 
   if (queryText) {
-    query = query.or(`title.ilike.%${queryText}%,notes.ilike.%${queryText}%`);
+    query = query.or(
+      `title.ilike.%${queryText}%,notes.ilike.%${queryText}%,requested_item_name.ilike.%${queryText}%,requested_item_reference.ilike.%${queryText}%`
+    );
   }
 
   if (statusFilter) {
@@ -355,9 +354,6 @@ export default async function RequestsPage({
   );
 
   const totalRequests = requestRows.length;
-  const myRequestsCount = requestRows.filter(
-    (request) => request.requested_by_user_id === user.id
-  ).length;
   const activeRequestsCount = requestRows.filter(
     (request) => !isTerminalStatus(request.status)
   ).length;
@@ -448,10 +444,10 @@ export default async function RequestsPage({
             <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
               Service Requests
             </h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-              Run manufacturing, CAD, and optimization workflows from one
-              operational workspace. Vault-linked requests remain tied to exact
-              part revisions and controlled file context.
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
+              Start requests either from an exact vault revision or as a
+              standalone intake. Standalone requests can later be linked to an
+              existing vault revision or converted into a brand-new vault part.
             </p>
           </div>
         </div>
@@ -497,107 +493,95 @@ export default async function RequestsPage({
         </div>
       </section>
 
-      <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:p-8">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-            Step 1
-          </p>
-          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">
-            Start a request from the vault
-          </h2>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-            Choose a part revision first. Once loaded, the next step will reveal
-            the selected revision and the request actions.
-          </p>
-        </div>
-
-        <form className="mt-6 grid gap-4 md:grid-cols-[minmax(0,1fr)_auto]">
-          <div>
-            <label className="mb-2 block text-sm font-medium text-slate-700">
-              Select part revision
-            </label>
-            <select
-              name="part"
-              defaultValue={selectedPartId}
-              className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
-              disabled={!canRequest}
-            >
-              <option value="">Choose a part revision</option>
-              {partOptions.map((part) => (
-                <option key={part.id} value={part.id}>
-                  {part.name}
-                  {part.part_number ? ` · ${part.part_number}` : ""}
-                  {part.revision ? ` · Rev ${part.revision}` : ""}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex items-end gap-3">
-            <button
-              type="submit"
-              disabled={!canRequest}
-              className="inline-flex rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50"
-            >
-              Load part
-            </button>
-
-            <Link
-              href="/dashboard/requests"
-              className="inline-flex rounded-2xl border border-slate-300 px-4 py-3 text-sm font-medium text-slate-900 transition hover:bg-slate-50"
-            >
-              Clear
-            </Link>
-          </div>
-        </form>
-
-        {!selectedPart ? (
-          <div className="mt-6 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-600">
-            Select a part revision above to unlock the next step.
-          </div>
-        ) : null}
-      </section>
-
-      {selectedPart ? (
-        <section className="space-y-6">
+      <section className="grid gap-6 xl:grid-cols-2">
+        <div className="space-y-6">
           <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:p-8">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                  Step 2
-                </p>
-                <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">
-                  Selected part revision
-                </h2>
+            <div>
+              <h2 className="text-2xl font-semibold tracking-tight text-slate-900">
+                Start from vault
+              </h2>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
+                Select an exact revision from the vault when the request should
+                start with full revision context immediately.
+              </p>
+            </div>
 
-                <div className="mt-4">
-                  <div className="text-lg font-medium text-slate-900">
-                    {selectedPart.name}
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2 text-xs text-slate-500">
-                    <span>Part Number {selectedPart.part_number || "—"}</span>
-                    <span>Revision {selectedPart.revision || "—"}</span>
-                    <span>Status {selectedPart.status || "—"}</span>
-                    <span>
-                      Updated{" "}
-                      {formatDateTime(
-                        selectedPart.updated_at || selectedPart.created_at
-                      )}
-                    </span>
-                  </div>
-                </div>
+            <form className="mt-6 grid gap-4 md:grid-cols-[minmax(0,1fr)_auto]">
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-700">
+                  Select part revision
+                </label>
+                <select
+                  name="part"
+                  defaultValue={selectedPartId}
+                  className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
+                  disabled={!canRequest}
+                >
+                  <option value="">Choose a part revision</option>
+                  {partOptions.map((part) => (
+                    <option key={part.id} value={part.id}>
+                      {part.name}
+                      {part.part_number ? ` · ${part.part_number}` : ""}
+                      {part.revision ? ` · Rev ${part.revision}` : ""}
+                    </option>
+                  ))}
+                </select>
               </div>
 
-              <Link
-                href={`/dashboard/parts/${selectedPart.id}`}
-                className="inline-flex rounded-xl border border-slate-300 px-3 py-2 text-xs font-medium text-slate-900 transition hover:bg-slate-50"
-              >
-                Open part revision
-              </Link>
-            </div>
+              <div className="flex items-end gap-3">
+                <button
+                  type="submit"
+                  disabled={!canRequest}
+                  className="inline-flex rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50"
+                >
+                  Load part
+                </button>
+
+                <Link
+                  href="/dashboard/requests"
+                  className="inline-flex rounded-2xl border border-slate-300 px-4 py-3 text-sm font-medium text-slate-900 transition hover:bg-slate-50"
+                >
+                  Clear
+                </Link>
+              </div>
+            </form>
+
+            {selectedPart ? (
+              <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <div className="font-medium text-slate-900">
+                      {selectedPart.name}
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2 text-xs text-slate-500">
+                      <span>Part Number {selectedPart.part_number || "—"}</span>
+                      <span>Revision {selectedPart.revision || "—"}</span>
+                      <span>Status {selectedPart.status || "—"}</span>
+                      <span>
+                        Updated{" "}
+                        {formatDateTime(
+                          selectedPart.updated_at || selectedPart.created_at
+                        )}
+                      </span>
+                    </div>
+                  </div>
+
+                  <Link
+                    href={`/dashboard/parts/${selectedPart.id}`}
+                    className="inline-flex rounded-xl border border-slate-300 px-3 py-2 text-xs font-medium text-slate-900 transition hover:bg-white"
+                  >
+                    Open part revision
+                  </Link>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-6 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-600">
+                Load a vault revision to unlock the vault-linked request flow.
+              </div>
+            )}
           </section>
 
-          <section>
+          {selectedPart ? (
             <ServiceRequestActions
               partId={selectedPart.id}
               canRequest={canRequest}
@@ -610,9 +594,14 @@ export default async function RequestsPage({
                 })
               )}
             />
-          </section>
-        </section>
-      ) : null}
+          ) : null}
+        </div>
+
+        <StandaloneRequestActions
+          organizationId={activeOrganizationId}
+          canRequest={canRequest}
+        />
+      </section>
 
       <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:p-8">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -672,7 +661,7 @@ export default async function RequestsPage({
               type="text"
               name="q"
               defaultValue={queryText}
-              placeholder="Search by request title or notes"
+              placeholder="Search by title, notes, requested item, or reference"
               className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
             />
           </div>
@@ -809,6 +798,7 @@ export default async function RequestsPage({
                           >
                             {getServiceRequestStatusLabel(
                               request.status as
+                                | "draft"
                                 | "submitted"
                                 | "in_review"
                                 | "awaiting_customer"
@@ -818,6 +808,10 @@ export default async function RequestsPage({
                                 | "rejected"
                                 | "cancelled"
                             )}
+                          </span>
+
+                          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-700">
+                            {getRequestOriginLabel(request.request_origin)}
                           </span>
 
                           {isOverdue(request) ? (
@@ -861,7 +855,7 @@ export default async function RequestsPage({
                           </span>
 
                           <span className="rounded-full bg-slate-100 px-2.5 py-1">
-                            {getSourceReferenceLabel(
+                            {getSourceReferenceTypeLabel(
                               request.source_reference_type
                             )}
                           </span>
@@ -898,6 +892,18 @@ export default async function RequestsPage({
                         <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
                           <span>Part Number {part.part_number || "—"}</span>
                           <span>Revision {part.revision || "—"}</span>
+                        </div>
+                      </div>
+                    ) : request.request_origin === "standalone" ? (
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                        <div className="font-medium text-slate-900">
+                          {request.requested_item_name || "Standalone item"}
+                        </div>
+                        <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+                          <span>
+                            Reference {request.requested_item_reference || "—"}
+                          </span>
+                          <span>Not yet linked to vault</span>
                         </div>
                       </div>
                     ) : (

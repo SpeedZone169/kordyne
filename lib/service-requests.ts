@@ -7,6 +7,7 @@ export const SERVICE_REQUEST_TYPES = [
 export type ServiceRequestType = (typeof SERVICE_REQUEST_TYPES)[number];
 
 export const SERVICE_REQUEST_STATUSES = [
+  "draft",
   "submitted",
   "in_review",
   "awaiting_customer",
@@ -53,10 +54,13 @@ export type OptimizationGoal = (typeof OPTIMIZATION_GOALS)[number];
 export const SOURCE_REFERENCE_TYPES = [
   "existing_part_files",
   "uploaded_files",
-  "external_reference",
+  "mixed",
 ] as const;
 
 export type SourceReferenceType = (typeof SOURCE_REFERENCE_TYPES)[number];
+
+export const REQUEST_ORIGINS = ["vault", "standalone"] as const;
+export type RequestOrigin = (typeof REQUEST_ORIGINS)[number];
 
 export const QUOTE_MODELS = ["none", "money", "credits"] as const;
 export type QuoteModel = (typeof QUOTE_MODELS)[number];
@@ -76,6 +80,8 @@ export function getServiceRequestTypeLabel(type: ServiceRequestType) {
 
 export function getServiceRequestStatusLabel(status: ServiceRequestStatus) {
   switch (status) {
+    case "draft":
+      return "Draft";
     case "submitted":
       return "Submitted";
     case "in_review":
@@ -127,7 +133,32 @@ export function getPriorityLabel(priority: ServiceRequestPriority) {
   }
 }
 
+export function getRequestOriginLabel(origin?: string | null) {
+  switch (origin) {
+    case "vault":
+      return "Vault-linked";
+    case "standalone":
+      return "Standalone";
+    default:
+      return "Request";
+  }
+}
+
+export function getSourceReferenceTypeLabel(source?: string | null) {
+  switch (source) {
+    case "existing_part_files":
+      return "Vault files";
+    case "uploaded_files":
+      return "Request uploads";
+    case "mixed":
+      return "Mixed attachments";
+    default:
+      return "Unspecified";
+  }
+}
+
 export const STATUS_BADGE_CLASSES: Record<ServiceRequestStatus, string> = {
+  draft: "bg-slate-100 text-slate-700",
   submitted: "bg-slate-100 text-slate-700",
   in_review: "bg-amber-100 text-amber-800",
   awaiting_customer: "bg-blue-100 text-blue-800",
