@@ -77,9 +77,9 @@ const REQUEST_TYPE_CARDS: Array<{
 }> = [
   {
     type: "manufacture_part",
-    title: "Standalone manufacture request",
+    title: "Standalone manufacture",
     description:
-      "Start from request uploads and scope details first, then link to the vault or create a new part from the request.",
+      "Start from request uploads and scope details first, then link or convert into the vault.",
   },
   {
     type: "cad_creation",
@@ -89,7 +89,7 @@ const REQUEST_TYPE_CARDS: Array<{
   },
   {
     type: "optimization",
-    title: "Standalone optimization request",
+    title: "Standalone optimization",
     description:
       "Create an optimization request first, then connect it to an existing or newly created vault part.",
   },
@@ -118,16 +118,21 @@ function RequestTypeCard({
   onClick: () => void;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 p-5">
-      <div className="text-base font-semibold text-slate-900">{title}</div>
-      <p className="mt-2 text-sm leading-6 text-slate-600">{description}</p>
-      <button
-        type="button"
-        onClick={onClick}
-        className="mt-4 inline-flex rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800"
-      >
-        Open request
-      </button>
+    <div className="flex h-full flex-col rounded-2xl border border-slate-200 p-5">
+      <div>
+        <div className="text-lg font-semibold text-slate-900">{title}</div>
+        <p className="mt-2 text-sm leading-6 text-slate-600">{description}</p>
+      </div>
+
+      <div className="mt-5">
+        <button
+          type="button"
+          onClick={onClick}
+          className="inline-flex rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800"
+        >
+          Open request
+        </button>
+      </div>
     </div>
   );
 }
@@ -343,7 +348,7 @@ export default function StandaloneRequestActions({
     <>
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div>
-          <h3 className="text-xl font-semibold text-slate-900">
+          <h3 className="text-2xl font-semibold tracking-tight text-slate-900">
             Start standalone request
           </h3>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">

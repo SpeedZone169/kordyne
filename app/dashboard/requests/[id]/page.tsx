@@ -5,11 +5,14 @@ import {
   STATUS_BADGE_CLASSES,
   getManufacturingTypeLabel,
   getPriorityLabel,
+  getRequestOriginLabel,
   getServiceRequestStatusLabel,
   getServiceRequestTypeLabel,
+  getSourceReferenceTypeLabel,
 } from "@/lib/service-requests";
 import type { ReactNode } from "react";
 import PromoteUploadedRequestFileButton from "./PromoteUploadedRequestFileButton";
+import StandaloneRequestManagement from "./StandaloneRequestManagement";
 
 type RequestDetailPageProps = {
   params: Promise<{ id: string }>;
@@ -21,6 +24,13 @@ type PartRow = {
   part_number: string | null;
   revision: string | null;
   status?: string | null;
+};
+
+type OrgPartOptionRow = {
+  id: string;
+  name: string;
+  part_number: string | null;
+  revision: string | null;
 };
 
 type RequesterProfileRow = {
@@ -65,6 +75,10 @@ type ServiceRequestRow = {
   requested_by_user_id: string;
   title: string | null;
   request_type: string;
+  request_origin: string | null;
+  requested_item_name: string | null;
+  requested_item_reference: string | null;
+  linked_to_part_at: string | null;
   status: string;
   priority: string | null;
   notes: string | null;
@@ -119,6 +133,7 @@ const FILE_CATEGORY_LABELS: Record<string, string> = {
 };
 
 const INTERNAL_EDITABLE_STATUSES = [
+  "draft",
   "submitted",
   "in_review",
   "awaiting_customer",
@@ -161,17 +176,6 @@ function getAssetCategoryLabel(value: string | null) {
   return FILE_CATEGORY_LABELS[value] || "Other";
 }
 
-function getSourceReferenceLabel(value: string | null) {
-  switch (value) {
-    case "existing_part_files":
-      return "Vault files";
-    case "uploaded_files":
-      return "Request uploads";
-    default:
-      return "Unspecified";
-  }
-}
-
 function DetailRow({
   label,
   value,
@@ -211,6 +215,10 @@ export default async function RequestDetailPage({
       requested_by_user_id,
       title,
       request_type,
+      request_origin,
+      requested_item_name,
+      requested_item_reference,
+      linked_to_part_at,
       status,
       priority,
       notes,
@@ -278,6 +286,8 @@ export default async function RequestDetailPage({
   const canManageInternalUploads =
     ["admin", "engineer"].includes(memberRole || "") &&
     INTERNAL_EDITABLE_STATUSES.includes(typedRequest.status);
+  const canPromoteUploads =
+    canManageInternalUploads && Boolean(typedRequest.part_id);
 
   const { data: requesterProfile } = await supabase
     .from("profiles")
@@ -292,6 +302,25 @@ export default async function RequestDetailPage({
     )
     .eq("service_request_id", typedRequest.id)
     .order("created_at", { ascending: false });
+
+  const { data: orgParts } =
+    typedRequest.request_origin === "standalone" &&
+    ["admin", "engineer"].includes(memberRole || "")
+      ? await supabase
+          .from("parts")
+          .select("id, name, part_number, revision")
+          .eq("organization_id", typedRequest.organization_id)
+          .order("updated_at", { ascending: false })
+      : { data: [] as OrgPartOptionRow[] };
+
+  const partOptions = ((orgParts as OrgPartOptionRow[] | null) ?? []).map(
+    (part) => ({
+      id: part.id,
+      name: part.name,
+      partNumber: part.part_number,
+      revision: part.revision,
+    })
+  );
 
   const part = Array.isArray(typedRequest.parts)
     ? typedRequest.parts[0]
@@ -387,6 +416,7 @@ export default async function RequestDetailPage({
             >
               {getServiceRequestStatusLabel(
                 typedRequest.status as
+                  | "draft"
                   | "submitted"
                   | "in_review"
                   | "awaiting_customer"
@@ -400,6 +430,10 @@ export default async function RequestDetailPage({
 
             <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-700">
               {requestTypeLabel}
+            </span>
+
+            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-700">
+              {getRequestOriginLabel(typedRequest.request_origin)}
             </span>
 
             <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-700">
@@ -428,7 +462,7 @@ export default async function RequestDetailPage({
 
         <div className="mt-5 space-y-4">
           <DetailRow
-            label="Part"
+            label="Vault revision"
             value={
               part ? (
                 <Link
@@ -440,9 +474,29 @@ export default async function RequestDetailPage({
                   {part.revision ? ` · Rev ${part.revision}` : ""}
                 </Link>
               ) : (
-                "—"
+                "Not yet linked to vault"
               )
             }
+          />
+
+          <DetailRow
+            label="Request origin"
+            value={getRequestOriginLabel(typedRequest.request_origin)}
+          />
+
+          <DetailRow
+            label="Requested item"
+            value={typedRequest.requested_item_name || "—"}
+          />
+
+          <DetailRow
+            label="Requested item reference"
+            value={typedRequest.requested_item_reference || "—"}
+          />
+
+          <DetailRow
+            label="Linked to vault at"
+            value={formatDateTime(typedRequest.linked_to_part_at)}
           />
 
           <DetailRow
@@ -470,7 +524,7 @@ export default async function RequestDetailPage({
           />
           <DetailRow
             label="Source reference"
-            value={getSourceReferenceLabel(typedRequest.source_reference_type)}
+            value={getSourceReferenceTypeLabel(typedRequest.source_reference_type)}
           />
           <DetailRow
             label="CAD output type"
@@ -488,6 +542,23 @@ export default async function RequestDetailPage({
         </div>
       </section>
 
+      {typedRequest.request_origin === "standalone" ? (
+        <StandaloneRequestManagement
+          requestId={typedRequest.id}
+          status={typedRequest.status}
+          canManage={["admin", "engineer"].includes(memberRole || "")}
+          isLinkedToPart={Boolean(typedRequest.part_id)}
+          requestedItemName={typedRequest.requested_item_name}
+          requestedItemReference={typedRequest.requested_item_reference}
+          initialPartName={
+            typedRequest.requested_item_name ||
+            typedRequest.title ||
+            "New part from request"
+          }
+          partOptions={partOptions}
+        />
+      ) : null}
+
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -496,7 +567,7 @@ export default async function RequestDetailPage({
             </h2>
             <p className="mt-2 text-sm text-slate-600">
               These vault files were explicitly selected and attached from the
-              part revision when the request was created.
+              part revision when the request was created or linked.
             </p>
           </div>
 
@@ -555,7 +626,7 @@ export default async function RequestDetailPage({
           </div>
         ) : (
           <div className="mt-5 rounded-2xl border border-dashed border-slate-300 p-6 text-sm text-slate-600">
-            No vault files were explicitly attached to this request.
+            No vault files are currently attached to this request.
           </div>
         )}
       </section>
@@ -576,6 +647,13 @@ export default async function RequestDetailPage({
             {uploadedAttachments.length} uploaded
           </div>
         </div>
+
+        {!typedRequest.part_id && canManageInternalUploads ? (
+          <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+            Link this request to an existing vault revision or create a new vault
+            part first. Then you can save selected request uploads into the vault.
+          </div>
+        ) : null}
 
         {uploadedAttachments.length > 0 ? (
           <div className="mt-5 space-y-3">
@@ -630,7 +708,7 @@ export default async function RequestDetailPage({
                       </span>
                     )}
 
-                    {!file.promoted_to_part_file_id && canManageInternalUploads ? (
+                    {!file.promoted_to_part_file_id && canPromoteUploads ? (
                       <PromoteUploadedRequestFileButton
                         requestId={typedRequest.id}
                         uploadedFileId={file.id}

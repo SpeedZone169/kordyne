@@ -15,6 +15,7 @@ import {
   getSourceReferenceTypeLabel,
 } from "@/lib/service-requests";
 
+
 type RequestsPageProps = {
   searchParams?: Promise<{
     q?: string;
@@ -22,13 +23,16 @@ type RequestsPageProps = {
     type?: string;
     mine?: string;
     part?: string;
+    mode?: string;
   }>;
 };
+
 
 type MembershipRow = {
   organization_id: string;
   role: string | null;
 };
+
 
 type PartRow = {
   id: string;
@@ -40,12 +44,14 @@ type PartRow = {
   created_at: string;
 };
 
+
 type PartFileRow = {
   id: string;
   file_name: string;
   asset_category: string | null;
   file_type: string | null;
 };
+
 
 type RequestPartRow = {
   id: string;
@@ -54,19 +60,23 @@ type RequestPartRow = {
   revision: string | null;
 };
 
+
 type ServiceRequestFileRow = {
   id: string;
 };
 
+
 type UploadedRequestFileRow = {
   id: string;
 };
+
 
 type ProfileRow = {
   user_id: string;
   full_name: string | null;
   email: string | null;
 };
+
 
 type ServiceRequestRow = {
   id: string;
@@ -92,6 +102,7 @@ type ServiceRequestRow = {
   service_request_uploaded_files: UploadedRequestFileRow[] | null;
 };
 
+
 type RequesterSummary = {
   userId: string;
   fullName: string | null;
@@ -102,6 +113,7 @@ type RequesterSummary = {
   overdue: number;
 };
 
+
 function formatDate(value: string | null) {
   if (!value) return "—";
   return new Intl.DateTimeFormat("en-IE", {
@@ -110,6 +122,7 @@ function formatDate(value: string | null) {
     year: "numeric",
   }).format(new Date(value));
 }
+
 
 function formatDateTime(value: string | null) {
   if (!value) return "—";
@@ -122,6 +135,7 @@ function formatDateTime(value: string | null) {
   }).format(new Date(value));
 }
 
+
 function formatCurrencyFromCents(value: number | null) {
   if (value == null || value <= 0) return "—";
   return new Intl.NumberFormat("en-IE", {
@@ -130,6 +144,7 @@ function formatCurrencyFromCents(value: number | null) {
     maximumFractionDigits: 0,
   }).format(value / 100);
 }
+
 
 function getPriorityBadgeClass(priority: string | null) {
   switch (priority) {
@@ -146,6 +161,7 @@ function getPriorityBadgeClass(priority: string | null) {
   }
 }
 
+
 function getRoleBadgeClass(role: string | null) {
   switch (role) {
     case "admin":
@@ -159,35 +175,44 @@ function getRoleBadgeClass(role: string | null) {
   }
 }
 
+
 function isTerminalStatus(status: string) {
   return ["completed", "rejected", "cancelled"].includes(status);
 }
 
+
 function isOverdue(request: Pick<ServiceRequestRow, "due_date" | "status">) {
   if (!request.due_date || isTerminalStatus(request.status)) return false;
+
 
   const due = new Date(request.due_date);
   const now = new Date();
   due.setHours(23, 59, 59, 999);
 
+
   return due.getTime() < now.getTime();
 }
+
 
 function getDaysBetween(start: string, end: string) {
   const startDate = new Date(start).getTime();
   const endDate = new Date(end).getTime();
 
+
   if (Number.isNaN(startDate) || Number.isNaN(endDate) || endDate < startDate) {
     return null;
   }
 
+
   return (endDate - startDate) / (1000 * 60 * 60 * 24);
 }
+
 
 function getRequesterLabel(profile: ProfileRow | null | undefined) {
   if (!profile) return "Unknown user";
   return profile.full_name || profile.email || "Unknown user";
 }
+
 
 function buildRequestsHref(params: {
   part?: string;
@@ -195,31 +220,67 @@ function buildRequestsHref(params: {
   status?: string;
   type?: string;
   mine?: string;
+  mode?: string;
 }) {
   const search = new URLSearchParams();
+
 
   if (params.part) search.set("part", params.part);
   if (params.q) search.set("q", params.q);
   if (params.status) search.set("status", params.status);
   if (params.type) search.set("type", params.type);
   if (params.mine) search.set("mine", params.mine);
+  if (params.mode) search.set("mode", params.mode);
+
 
   const query = search.toString();
   return query ? `/dashboard/requests?${query}` : "/dashboard/requests";
 }
+
+
+function StepBadge({ step }: { step: string }) {
+  return (
+    <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-600">
+      {step}
+    </span>
+  );
+}
+
+
+function MetricCard({
+  label,
+  value,
+  helper,
+}: {
+  label: string;
+  value: string;
+  helper: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="text-sm font-medium text-slate-500">{label}</div>
+      <div className="mt-2 text-3xl font-semibold text-slate-900">{value}</div>
+      <p className="mt-2 text-xs text-slate-500">{helper}</p>
+    </div>
+  );
+}
+
 
 export default async function RequestsPage({
   searchParams,
 }: RequestsPageProps) {
   const supabase = await createClient();
 
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
+
   if (!user) {
     redirect("/login");
   }
+
 
   const resolvedSearchParams = searchParams ? await searchParams : {};
   const queryText = resolvedSearchParams.q?.trim() || "";
@@ -227,11 +288,15 @@ export default async function RequestsPage({
   const typeFilter = resolvedSearchParams.type?.trim() || "";
   const selectedPartId = resolvedSearchParams.part?.trim() || "";
   const mineFilter = resolvedSearchParams.mine === "true";
+  const mode =
+    resolvedSearchParams.mode === "standalone" ? "standalone" : "vault";
+
 
   const { data: memberships } = await supabase
     .from("organization_members")
     .select("organization_id, role")
     .eq("user_id", user.id);
+
 
   const membershipRows = (memberships as MembershipRow[] | null) ?? [];
   const organizationIds = membershipRows.map((m) => m.organization_id);
@@ -239,6 +304,7 @@ export default async function RequestsPage({
   const activeOrganizationId = membershipRows[0]?.organization_id || null;
   const isAdmin = orgRole === "admin";
   const canRequest = orgRole === "admin" || orgRole === "engineer";
+
 
   if (organizationIds.length === 0 || !activeOrganizationId) {
     return (
@@ -253,17 +319,21 @@ export default async function RequestsPage({
     );
   }
 
+
   const { data: orgParts } = await supabase
     .from("parts")
     .select("id, name, part_number, revision, status, updated_at, created_at")
     .in("organization_id", organizationIds)
     .order("updated_at", { ascending: false });
 
+
   const partOptions = (orgParts as PartRow[] | null) ?? [];
+
 
   const selectedPart = selectedPartId
     ? partOptions.find((part) => part.id === selectedPartId) || null
     : null;
+
 
   const { data: selectedPartFiles } =
     selectedPartId && selectedPart
@@ -273,6 +343,7 @@ export default async function RequestsPage({
           .eq("part_id", selectedPartId)
           .order("created_at", { ascending: false })
       : { data: [] as PartFileRow[] };
+
 
   let query = supabase
     .from("service_requests")
@@ -313,30 +384,37 @@ export default async function RequestsPage({
     .in("organization_id", organizationIds)
     .order("created_at", { ascending: false });
 
+
   if (queryText) {
     query = query.or(
       `title.ilike.%${queryText}%,notes.ilike.%${queryText}%,requested_item_name.ilike.%${queryText}%,requested_item_reference.ilike.%${queryText}%`
     );
   }
 
+
   if (statusFilter) {
     query = query.eq("status", statusFilter);
   }
+
 
   if (typeFilter) {
     query = query.eq("request_type", typeFilter);
   }
 
+
   if (mineFilter) {
     query = query.eq("requested_by_user_id", user.id);
   }
 
+
   const { data: requests, error } = await query;
   const requestRows = (requests as ServiceRequestRow[] | null) ?? [];
+
 
   const requesterIds = Array.from(
     new Set(requestRows.map((request) => request.requested_by_user_id).filter(Boolean))
   );
+
 
   const { data: requesterProfiles } =
     requesterIds.length > 0
@@ -346,6 +424,7 @@ export default async function RequestsPage({
           .in("user_id", requesterIds)
       : { data: [] as ProfileRow[] };
 
+
   const requesterProfileMap = new Map(
     ((requesterProfiles as ProfileRow[] | null) ?? []).map((profile) => [
       profile.user_id,
@@ -353,15 +432,18 @@ export default async function RequestsPage({
     ])
   );
 
+
   const totalRequests = requestRows.length;
   const activeRequestsCount = requestRows.filter(
     (request) => !isTerminalStatus(request.status)
   ).length;
   const overdueRequestsCount = requestRows.filter(isOverdue).length;
 
+
   const completedRequests = requestRows.filter(
     (request) => request.status === "completed" && request.completed_at
   );
+
 
   const averageCompletionDays =
     completedRequests.length > 0
@@ -375,11 +457,14 @@ export default async function RequestsPage({
         ).toFixed(1)
       : null;
 
+
   const requesterSummaryMap = new Map<string, RequesterSummary>();
+
 
   for (const request of requestRows) {
     const existing = requesterSummaryMap.get(request.requested_by_user_id);
     const profile = requesterProfileMap.get(request.requested_by_user_id) ?? null;
+
 
     if (!existing) {
       requesterSummaryMap.set(request.requested_by_user_id, {
@@ -399,9 +484,11 @@ export default async function RequestsPage({
     }
   }
 
+
   const requesterSummaries = Array.from(requesterSummaryMap.values()).sort(
     (a, b) => b.total - a.total
   );
+
 
   return (
     <div className="space-y-8">
@@ -415,13 +502,23 @@ export default async function RequestsPage({
               ← Back to dashboard
             </Link>
 
-            <Link
-              href="/dashboard/parts"
-              className="inline-flex rounded-2xl border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-900 transition hover:bg-slate-50"
-            >
-              Open Parts Vault
-            </Link>
+
+            <div className="flex flex-wrap gap-3">
+              <Link
+                href="/dashboard/parts"
+                className="inline-flex rounded-2xl border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-900 transition hover:bg-slate-50"
+              >
+                Open Parts Vault
+              </Link>
+              <Link
+                href="/dashboard/insights"
+                className="inline-flex rounded-2xl border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-900 transition hover:bg-slate-50"
+              >
+                Operational insights
+              </Link>
+            </div>
           </div>
+
 
           <div className="flex flex-wrap items-center gap-3">
             <span
@@ -440,168 +537,215 @@ export default async function RequestsPage({
             </span>
           </div>
 
+
           <div>
             <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
               Service Requests
             </h1>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-              Start requests either from an exact vault revision or as a
-              standalone intake. Standalone requests can later be linked to an
-              existing vault revision or converted into a brand-new vault part.
+              Start from an exact vault revision or begin as a standalone intake
+              and link it to the vault later.
             </p>
           </div>
         </div>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="text-sm font-medium text-slate-500">Total requests</div>
-          <div className="mt-2 text-3xl font-semibold text-slate-900">
-            {totalRequests}
-          </div>
-          <p className="mt-2 text-xs text-slate-500">
-            All requests in the current view.
-          </p>
-        </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="text-sm font-medium text-slate-500">Active queue</div>
-          <div className="mt-2 text-3xl font-semibold text-slate-900">
-            {activeRequestsCount}
-          </div>
-          <p className="mt-2 text-xs text-slate-500">Requests not yet closed.</p>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="text-sm font-medium text-slate-500">Overdue</div>
-          <div className="mt-2 text-3xl font-semibold text-slate-900">
-            {overdueRequestsCount}
-          </div>
-          <p className="mt-2 text-xs text-slate-500">Open requests past due date.</p>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="text-sm font-medium text-slate-500">
-            Avg. completion time
-          </div>
-          <div className="mt-2 text-3xl font-semibold text-slate-900">
-            {averageCompletionDays ? `${averageCompletionDays}d` : "—"}
-          </div>
-          <p className="mt-2 text-xs text-slate-500">
-            Based on completed requests only.
-          </p>
-        </div>
-      </section>
-
-      <section className="grid gap-6 xl:grid-cols-2">
+      <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:p-8">
         <div className="space-y-6">
-          <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:p-8">
-            <div>
-              <h2 className="text-2xl font-semibold tracking-tight text-slate-900">
-                Start from vault
-              </h2>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-                Select an exact revision from the vault when the request should
-                start with full revision context immediately.
-              </p>
-            </div>
+          <div>
+            <StepBadge step="Step 1" />
+            <h2 className="mt-3 text-2xl font-semibold tracking-tight text-slate-900">
+              Choose how to start
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              From vault keeps exact revision context from the start. Standalone
+              begins with request uploads and links to the vault later.
+            </p>
+          </div>
 
-            <form className="mt-6 grid gap-4 md:grid-cols-[minmax(0,1fr)_auto]">
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">
-                  Select part revision
-                </label>
-                <select
-                  name="part"
-                  defaultValue={selectedPartId}
-                  className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
-                  disabled={!canRequest}
-                >
-                  <option value="">Choose a part revision</option>
-                  {partOptions.map((part) => (
-                    <option key={part.id} value={part.id}>
-                      {part.name}
-                      {part.part_number ? ` · ${part.part_number}` : ""}
-                      {part.revision ? ` · Rev ${part.revision}` : ""}
-                    </option>
-                  ))}
-                </select>
-              </div>
 
-              <div className="flex items-end gap-3">
-                <button
-                  type="submit"
-                  disabled={!canRequest}
-                  className="inline-flex rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50"
-                >
-                  Load part
-                </button>
+          <div className="inline-flex w-full max-w-md rounded-2xl border border-slate-200 bg-slate-50 p-1">
+            <Link
+              href={buildRequestsHref({
+                q: queryText || undefined,
+                status: statusFilter || undefined,
+                type: typeFilter || undefined,
+                mine: mineFilter ? "true" : undefined,
+                part: selectedPartId || undefined,
+                mode: "vault",
+              })}
+              className={`flex-1 rounded-xl px-4 py-2.5 text-center text-sm font-medium transition ${
+                mode === "vault"
+                  ? "bg-slate-900 text-white"
+                  : "text-slate-600 hover:bg-white"
+              }`}
+            >
+              From vault
+            </Link>
 
-                <Link
-                  href="/dashboard/requests"
-                  className="inline-flex rounded-2xl border border-slate-300 px-4 py-3 text-sm font-medium text-slate-900 transition hover:bg-slate-50"
-                >
-                  Clear
-                </Link>
-              </div>
-            </form>
 
-            {selectedPart ? (
-              <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <Link
+              href={buildRequestsHref({
+                q: queryText || undefined,
+                status: statusFilter || undefined,
+                type: typeFilter || undefined,
+                mine: mineFilter ? "true" : undefined,
+                mode: "standalone",
+              })}
+              className={`flex-1 rounded-xl px-4 py-2.5 text-center text-sm font-medium transition ${
+                mode === "standalone"
+                  ? "bg-slate-900 text-white"
+                  : "text-slate-600 hover:bg-white"
+              }`}
+            >
+              Standalone
+            </Link>
+          </div>
+
+
+          {mode === "vault" ? (
+            <div className="space-y-6">
+              <section className="rounded-2xl border border-slate-200 bg-slate-50 p-6">
+                <div>
+                  <StepBadge step="Step 2" />
+                  <h3 className="mt-3 text-xl font-semibold text-slate-900">
+                    Select vault revision
+                  </h3>
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+                    Choose the exact revision that should anchor the request.
+                  </p>
+                </div>
+
+
+                <form className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto_auto]">
                   <div>
-                    <div className="font-medium text-slate-900">
-                      {selectedPart.name}
-                    </div>
-                    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2 text-xs text-slate-500">
-                      <span>Part Number {selectedPart.part_number || "—"}</span>
-                      <span>Revision {selectedPart.revision || "—"}</span>
-                      <span>Status {selectedPart.status || "—"}</span>
-                      <span>
-                        Updated{" "}
-                        {formatDateTime(
-                          selectedPart.updated_at || selectedPart.created_at
-                        )}
-                      </span>
-                    </div>
+                    <label className="mb-2 block text-sm font-medium text-slate-700">
+                      Select part revision
+                    </label>
+                    <select
+                      name="part"
+                      defaultValue={selectedPartId}
+                      className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm"
+                      disabled={!canRequest}
+                    >
+                      <option value="">Choose a part revision</option>
+                      {partOptions.map((part) => (
+                        <option key={part.id} value={part.id}>
+                          {part.name}
+                          {part.part_number ? ` · ${part.part_number}` : ""}
+                          {part.revision ? ` · Rev ${part.revision}` : ""}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
-                  <Link
-                    href={`/dashboard/parts/${selectedPart.id}`}
-                    className="inline-flex rounded-xl border border-slate-300 px-3 py-2 text-xs font-medium text-slate-900 transition hover:bg-white"
-                  >
-                    Open part revision
-                  </Link>
-                </div>
-              </div>
-            ) : (
-              <div className="mt-6 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-600">
-                Load a vault revision to unlock the vault-linked request flow.
-              </div>
-            )}
-          </section>
 
-          {selectedPart ? (
-            <ServiceRequestActions
-              partId={selectedPart.id}
-              canRequest={canRequest}
-              availableFiles={((selectedPartFiles as PartFileRow[] | null) ?? []).map(
-                (file) => ({
-                  id: file.id,
-                  fileName: file.file_name,
-                  assetCategory: file.asset_category,
-                  fileType: file.file_type,
-                })
-              )}
-            />
-          ) : null}
+                  <div className="flex items-end">
+                    <button
+                      type="submit"
+                      disabled={!canRequest}
+                      className="inline-flex w-full rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50 lg:w-auto"
+                    >
+                      Load part
+                    </button>
+                  </div>
+
+
+                  <div className="flex items-end">
+                    <Link
+                      href={buildRequestsHref({
+                        q: queryText || undefined,
+                        status: statusFilter || undefined,
+                        type: typeFilter || undefined,
+                        mine: mineFilter ? "true" : undefined,
+                        mode: "vault",
+                      })}
+                      className="inline-flex w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-900 transition hover:bg-slate-50 lg:w-auto"
+                    >
+                      Clear
+                    </Link>
+                  </div>
+                </form>
+
+
+                {selectedPart ? (
+                  <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-4">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                      <div>
+                        <div className="font-medium text-slate-900">
+                          {selectedPart.name}
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2 text-xs text-slate-500">
+                          <span>Part Number {selectedPart.part_number || "—"}</span>
+                          <span>Revision {selectedPart.revision || "—"}</span>
+                          <span>Status {selectedPart.status || "—"}</span>
+                          <span>
+                            Updated{" "}
+                            {formatDateTime(
+                              selectedPart.updated_at || selectedPart.created_at
+                            )}
+                          </span>
+                        </div>
+                      </div>
+
+
+                      <Link
+                        href={`/dashboard/parts/${selectedPart.id}`}
+                        className="inline-flex rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-900 transition hover:bg-slate-50"
+                      >
+                        Open part revision
+                      </Link>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-6 rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-600">
+                    Load a revision to unlock the final request step.
+                  </div>
+                )}
+              </section>
+
+
+              {selectedPart ? (
+                <ServiceRequestActions
+                  partId={selectedPart.id}
+                  canRequest={canRequest}
+                  availableFiles={((selectedPartFiles as PartFileRow[] | null) ?? []).map(
+                    (file) => ({
+                      id: file.id,
+                      fileName: file.file_name,
+                      assetCategory: file.asset_category,
+                      fileType: file.file_type,
+                    })
+                  )}
+                />
+              ) : null}
+            </div>
+          ) : (
+            <section className="rounded-2xl border border-slate-200 bg-slate-50 p-6">
+              <div>
+                <StepBadge step="Step 2" />
+                <h3 className="mt-3 text-xl font-semibold text-slate-900">
+                  Create standalone request
+                </h3>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+                  Choose the request type and continue with uploads and request
+                  details inside the request flow.
+                </p>
+              </div>
+
+
+              <div className="mt-6">
+                <StandaloneRequestActions
+                  organizationId={activeOrganizationId}
+                  canRequest={canRequest}
+                />
+              </div>
+            </section>
+          )}
         </div>
-
-        <StandaloneRequestActions
-          organizationId={activeOrganizationId}
-          canRequest={canRequest}
-        />
       </section>
+
 
       <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:p-8">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -615,6 +759,7 @@ export default async function RequestsPage({
             </p>
           </div>
 
+
           <div className="flex flex-wrap gap-2">
             <Link
               href={buildRequestsHref({
@@ -622,6 +767,7 @@ export default async function RequestsPage({
                 q: queryText || undefined,
                 status: statusFilter || undefined,
                 type: typeFilter || undefined,
+                mode,
               })}
               className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
                 !mineFilter
@@ -638,6 +784,7 @@ export default async function RequestsPage({
                 status: statusFilter || undefined,
                 type: typeFilter || undefined,
                 mine: "true",
+                mode,
               })}
               className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
                 mineFilter
@@ -650,8 +797,11 @@ export default async function RequestsPage({
           </div>
         </div>
 
+
         <form className="mt-6 grid gap-4 md:grid-cols-4">
           <input type="hidden" name="part" value={selectedPartId} />
+          <input type="hidden" name="mode" value={mode} />
+
 
           <div className="md:col-span-4">
             <label className="mb-2 block text-sm font-medium text-slate-700">
@@ -665,6 +815,7 @@ export default async function RequestsPage({
               className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
             />
           </div>
+
 
           <div>
             <label className="mb-2 block text-sm font-medium text-slate-700">
@@ -684,6 +835,7 @@ export default async function RequestsPage({
             </select>
           </div>
 
+
           <div>
             <label className="mb-2 block text-sm font-medium text-slate-700">
               Type
@@ -702,6 +854,7 @@ export default async function RequestsPage({
             </select>
           </div>
 
+
           <div>
             <label className="mb-2 block text-sm font-medium text-slate-700">
               Scope
@@ -716,6 +869,7 @@ export default async function RequestsPage({
             </select>
           </div>
 
+
           <div className="flex items-end gap-3">
             <button
               type="submit"
@@ -724,9 +878,10 @@ export default async function RequestsPage({
               Apply
             </button>
 
+
             <Link
               href={buildRequestsHref({
-                part: selectedPartId || undefined,
+                mode,
               })}
               className="inline-flex rounded-2xl border border-slate-300 px-4 py-3 text-sm font-medium text-slate-900 transition hover:bg-slate-50"
             >
@@ -734,6 +889,7 @@ export default async function RequestsPage({
             </Link>
           </div>
         </form>
+
 
         {error ? (
           <div className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
@@ -750,9 +906,11 @@ export default async function RequestsPage({
                 ? request.parts[0]
                 : request.parts;
 
+
               const vaultAttachmentCount = Array.isArray(request.service_request_files)
                 ? request.service_request_files.length
                 : 0;
+
 
               const uploadedAttachmentCount = Array.isArray(
                 request.service_request_uploaded_files
@@ -760,11 +918,14 @@ export default async function RequestsPage({
                 ? request.service_request_uploaded_files.length
                 : 0;
 
+
               const attachmentCount =
                 vaultAttachmentCount + uploadedAttachmentCount;
 
+
               const statusKey =
                 request.status as keyof typeof STATUS_BADGE_CLASSES;
+
 
               const requestTypeLabel = getServiceRequestTypeLabel(
                 request.request_type as
@@ -773,8 +934,10 @@ export default async function RequestsPage({
                   | "optimization"
               );
 
+
               const requesterProfile =
                 requesterProfileMap.get(request.requested_by_user_id) ?? null;
+
 
               return (
                 <Link
@@ -789,6 +952,7 @@ export default async function RequestsPage({
                           <span className="text-lg font-semibold text-slate-900">
                             {request.title || requestTypeLabel}
                           </span>
+
 
                           <span
                             className={`rounded-full px-2.5 py-1 text-xs font-medium ${
@@ -810,9 +974,11 @@ export default async function RequestsPage({
                             )}
                           </span>
 
+
                           <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-700">
                             {getRequestOriginLabel(request.request_origin)}
                           </span>
+
 
                           {isOverdue(request) ? (
                             <span className="rounded-full bg-red-100 px-2.5 py-1 text-xs font-medium text-red-800">
@@ -821,10 +987,12 @@ export default async function RequestsPage({
                           ) : null}
                         </div>
 
+
                         <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
                           <span className="rounded-full bg-slate-100 px-2.5 py-1">
                             {requestTypeLabel}
                           </span>
+
 
                           {request.request_type === "manufacture_part" ? (
                             <span className="rounded-full bg-slate-100 px-2.5 py-1">
@@ -833,6 +1001,7 @@ export default async function RequestsPage({
                               )}
                             </span>
                           ) : null}
+
 
                           <span
                             className={`rounded-full px-2.5 py-1 font-medium ${getPriorityBadgeClass(
@@ -850,15 +1019,18 @@ export default async function RequestsPage({
                               : "No priority"}
                           </span>
 
+
                           <span className="rounded-full bg-slate-100 px-2.5 py-1">
                             {attachmentCount} attached
                           </span>
+
 
                           <span className="rounded-full bg-slate-100 px-2.5 py-1">
                             {getSourceReferenceTypeLabel(
                               request.source_reference_type
                             )}
                           </span>
+
 
                           {request.due_date ? (
                             <span className="rounded-full bg-slate-100 px-2.5 py-1">
@@ -867,6 +1039,7 @@ export default async function RequestsPage({
                           ) : null}
                         </div>
                       </div>
+
 
                       <div className="text-xs text-slate-500 lg:text-right">
                         <div>Created {formatDateTime(request.created_at)}</div>
@@ -878,11 +1051,13 @@ export default async function RequestsPage({
                       </div>
                     </div>
 
+
                     <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
                       <span>
                         Requested by {getRequesterLabel(requesterProfile)}
                       </span>
                     </div>
+
 
                     {part ? (
                       <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
@@ -912,6 +1087,7 @@ export default async function RequestsPage({
                       </div>
                     )}
 
+
                     {request.notes ? (
                       <p className="line-clamp-2 text-sm leading-6 text-slate-600">
                         {request.notes}
@@ -924,6 +1100,31 @@ export default async function RequestsPage({
           </div>
         )}
       </section>
+
+
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <MetricCard
+          label="Total requests"
+          value={totalRequests.toString()}
+          helper="All requests in the current view."
+        />
+        <MetricCard
+          label="Active queue"
+          value={activeRequestsCount.toString()}
+          helper="Requests not yet closed."
+        />
+        <MetricCard
+          label="Overdue"
+          value={overdueRequestsCount.toString()}
+          helper="Open requests past due date."
+        />
+        <MetricCard
+          label="Avg. completion time"
+          value={averageCompletionDays ? `${averageCompletionDays}d` : "—"}
+          helper="Based on completed requests only."
+        />
+      </section>
+
 
       {isAdmin ? (
         <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:p-8">
@@ -938,11 +1139,13 @@ export default async function RequestsPage({
               </p>
             </div>
 
+
             <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
               {requesterSummaries.length} requester
               {requesterSummaries.length === 1 ? "" : "s"}
             </div>
           </div>
+
 
           {requesterSummaries.length === 0 ? (
             <div className="mt-6 rounded-2xl border border-dashed border-slate-300 p-6 text-sm text-slate-600">
@@ -965,10 +1168,12 @@ export default async function RequestsPage({
                       </div>
                     </div>
 
+
                     <div className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">
                       {summary.total} request{summary.total === 1 ? "" : "s"}
                     </div>
                   </div>
+
 
                   <div className="mt-4 grid grid-cols-3 gap-3">
                     <div className="rounded-xl bg-slate-50 p-3">
@@ -978,12 +1183,14 @@ export default async function RequestsPage({
                       </div>
                     </div>
 
+
                     <div className="rounded-xl bg-slate-50 p-3">
                       <div className="text-xs text-slate-500">Completed</div>
                       <div className="mt-1 text-lg font-semibold text-slate-900">
                         {summary.completed}
                       </div>
                     </div>
+
 
                     <div className="rounded-xl bg-slate-50 p-3">
                       <div className="text-xs text-slate-500">Overdue</div>

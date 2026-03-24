@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -23,12 +22,6 @@ type Props = {
   canRequest: boolean;
   availableFiles: RequestFileOption[];
   defaultType?: ServiceRequestType | null;
-};
-
-type LocalUploadItem = {
-  id: string;
-  file: File;
-  assetCategory: string;
 };
 
 type FormState = {
@@ -86,19 +79,19 @@ const REQUEST_TYPE_CARDS: Array<{
     type: "manufacture_part",
     title: "Manufacture this part",
     description:
-      "Create a manufacturing request tied to this exact revision and attach only the relevant vault and request files.",
+      "Create a manufacturing request tied to this exact revision and controlled vault file context.",
   },
   {
     type: "cad_creation",
     title: "Request CAD creation",
     description:
-      "Start a CAD workflow from the current revision and add supporting request files where needed.",
+      "Start a CAD workflow from this revision using only files already controlled in the vault.",
   },
   {
     type: "optimization",
     title: "Request optimization",
     description:
-      "Create an optimization request for this revision with process, material, and measured context.",
+      "Create an optimization request linked to this revision, process context, and selected vault files.",
   },
 ];
 
@@ -106,13 +99,6 @@ function prettyLabel(value: string) {
   return value
     .replaceAll("_", " ")
     .replace(/\b\w/g, (char) => char.toUpperCase());
-}
-
-function formatBytes(bytes: number) {
-  if (!bytes || bytes <= 0) return "—";
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function groupAvailableFiles(files: RequestFileOption[]) {
@@ -147,16 +133,21 @@ function RequestTypeCard({
   onClick: () => void;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 p-5">
-      <div className="text-base font-semibold text-slate-900">{title}</div>
-      <p className="mt-2 text-sm leading-6 text-slate-600">{description}</p>
-      <button
-        type="button"
-        onClick={onClick}
-        className="mt-4 inline-flex rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800"
-      >
-        Open request
-      </button>
+    <div className="flex h-full flex-col rounded-2xl border border-slate-200 p-5">
+      <div>
+        <div className="text-lg font-semibold text-slate-900">{title}</div>
+        <p className="mt-2 text-sm leading-6 text-slate-600">{description}</p>
+      </div>
+
+      <div className="mt-5">
+        <button
+          type="button"
+          onClick={onClick}
+          className="inline-flex rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800"
+        >
+          Open request
+        </button>
+      </div>
     </div>
   );
 }
@@ -170,7 +161,6 @@ export default function ServiceRequestActions({
   const router = useRouter();
   const [activeType, setActiveType] = useState<ServiceRequestType | null>(null);
   const [form, setForm] = useState<FormState>(initialFormState);
-  const [localUploads, setLocalUploads] = useState<LocalUploadItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [createdRequestId, setCreatedRequestId] = useState<string | null>(null);
@@ -186,7 +176,6 @@ export default function ServiceRequestActions({
       setError(null);
       setCreatedRequestId(null);
       setForm(initialFormState);
-      setLocalUploads([]);
       setActiveType(defaultType);
       setHasAppliedDefaultType(true);
     }
@@ -209,7 +198,6 @@ export default function ServiceRequestActions({
     setError(null);
     setCreatedRequestId(null);
     setForm(initialFormState);
-    setLocalUploads([]);
     setActiveType(type);
   }
 
@@ -251,30 +239,6 @@ export default function ServiceRequestActions({
     }));
   }
 
-  function addLocalFiles(files: FileList | null) {
-    if (!files || files.length === 0) return;
-
-    const nextItems = Array.from(files).map((file) => ({
-      id: crypto.randomUUID(),
-      file,
-      assetCategory: "other",
-    }));
-
-    setLocalUploads((prev) => [...prev, ...nextItems]);
-  }
-
-  function updateLocalUploadCategory(id: string, assetCategory: string) {
-    setLocalUploads((prev) =>
-      prev.map((item) =>
-        item.id === id ? { ...item, assetCategory } : item
-      )
-    );
-  }
-
-  function removeLocalUpload(id: string) {
-    setLocalUploads((prev) => prev.filter((item) => item.id !== id));
-  }
-
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!activeType) return;
@@ -283,11 +247,7 @@ export default function ServiceRequestActions({
     setError(null);
     setCreatedRequestId(null);
 
-    let requestId: string | null = null;
-
     try {
-      const hasLocalUploads = localUploads.length > 0;
-
       const payload = {
         partId,
         requestType: activeType,
@@ -303,14 +263,12 @@ export default function ServiceRequestActions({
         cadOutputType: activeType === "cad_creation" ? form.cadOutputType : null,
         optimizationGoal:
           activeType === "optimization" ? form.optimizationGoal : null,
-        sourceReferenceType: hasLocalUploads
-          ? "uploaded_files"
-          : "existing_part_files",
+        sourceReferenceType: "existing_part_files",
         selectedPartFileIds: form.selectedPartFileIds,
         requestMeta: {
           hasVaultAttachments: form.selectedPartFileIds.length > 0,
-          hasUploadedAttachments: hasLocalUploads,
-          uploadedAttachmentCount: localUploads.length,
+          hasUploadedAttachments: false,
+          uploadedAttachmentCount: 0,
         },
       };
 
@@ -328,57 +286,13 @@ export default function ServiceRequestActions({
         throw new Error(data?.error || "Failed to create request.");
       }
 
-      requestId = data.id;
-      setCreatedRequestId(requestId);
-
-      if (localUploads.length > 0) {
-        const formData = new FormData();
-
-        localUploads.forEach((item) => {
-          formData.append("files", item.file);
-        });
-
-        formData.append(
-          "assetCategories",
-          JSON.stringify(localUploads.map((item) => item.assetCategory))
-        );
-
-        const uploadRes = await fetch(
-          `/api/service-requests/${requestId}/uploaded-files`,
-          {
-            method: "POST",
-            body: formData,
-          }
-        );
-
-        const uploadData = await uploadRes.json();
-
-        if (!uploadRes.ok) {
-          throw new Error(
-            uploadData?.error ||
-              "The request was created, but manual file uploads failed."
-          );
-        }
-      }
-
+      setCreatedRequestId(data.id);
       setActiveType(null);
       setForm(initialFormState);
-      setLocalUploads([]);
-      router.push(`/dashboard/requests/${requestId}`);
+      router.push(`/dashboard/requests/${data.id}`);
       router.refresh();
     } catch (err) {
-      if (requestId) {
-        setError(
-          err instanceof Error
-            ? `${err.message} You can open the created request and continue from there.`
-            : "The request was created, but manual file uploads failed."
-        );
-        setCreatedRequestId(requestId);
-      } else {
-        setError(
-          err instanceof Error ? err.message : "Failed to create request."
-        );
-      }
+      setError(err instanceof Error ? err.message : "Failed to create request.");
     } finally {
       setSubmitting(false);
     }
@@ -387,7 +301,7 @@ export default function ServiceRequestActions({
   if (!canRequest) {
     return (
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h3 className="text-lg font-semibold text-slate-900">Create request</h3>
+        <h3 className="text-lg font-semibold text-slate-900">Vault request actions</h3>
         <p className="mt-2 text-sm text-slate-600">
           You have read-only access for this part and cannot submit service
           requests.
@@ -401,23 +315,24 @@ export default function ServiceRequestActions({
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-              Step 3
-            </p>
-            <h3 className="mt-2 text-xl font-semibold text-slate-900">
-              Choose request type
+            <h3 className="text-2xl font-semibold tracking-tight text-slate-900">
+              Vault request actions
             </h3>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-              Start the right workflow for this revision. Request context stays
-              tied to this part, and you can combine selected vault files with
-              request-only uploads from your computer.
+              Launch a workflow from this selected revision. Vault requests only
+              use files already stored on the part revision.
             </p>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+          <div className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-700">
             {availableFiles.length} vault file
-            {availableFiles.length === 1 ? "" : "s"} available
+            {availableFiles.length === 1 ? "" : "s"}
           </div>
+        </div>
+
+        <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+          Manual request uploads are not available in the vault flow. To start
+          from uploaded files instead, use the standalone request path.
         </div>
 
         <div className="mt-6 grid gap-4 xl:grid-cols-3">
@@ -442,9 +357,8 @@ export default function ServiceRequestActions({
                     {modalTitle}
                   </h3>
                   <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-                    Complete the request scope, choose the relevant vault files,
-                    and attach any additional files from your computer that
-                    should stay with this request.
+                    Complete the request scope and choose which existing vault
+                    files should be attached to this request.
                   </p>
                 </div>
 
@@ -699,8 +613,8 @@ export default function ServiceRequestActions({
                       Vault attachments
                     </h4>
                     <p className="mt-2 text-sm leading-6 text-slate-600">
-                      Select only the existing vault files relevant to this
-                      request. Nothing is attached automatically.
+                      Choose only the existing files relevant to this request.
+                      Nothing is selected automatically.
                     </p>
                   </div>
                   <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
@@ -709,9 +623,9 @@ export default function ServiceRequestActions({
                 </div>
 
                 {availableFiles.length === 0 ? (
-                  <p className="mt-4 text-sm text-slate-500">
+                  <div className="mt-5 rounded-2xl border border-dashed border-slate-300 p-6 text-sm text-slate-600">
                     No files are attached to this part yet.
-                  </p>
+                  </div>
                 ) : (
                   <div className="mt-5 space-y-4">
                     {FILE_CATEGORY_ORDER.map((category) => {
@@ -795,90 +709,6 @@ export default function ServiceRequestActions({
               </section>
 
               <section className="rounded-2xl border border-slate-200 p-5">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <h4 className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-500">
-                      Manual request attachments
-                    </h4>
-                    <p className="mt-2 text-sm leading-6 text-slate-600">
-                      Add files from your computer that should travel with this
-                      request. These are attached to the request first and can be
-                      saved into the vault later.
-                    </p>
-                  </div>
-
-                  <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
-                    {localUploads.length} uploaded file
-                    {localUploads.length === 1 ? "" : "s"}
-                  </div>
-                </div>
-
-                <div className="mt-4">
-                  <label className="inline-flex cursor-pointer rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-900 transition hover:bg-slate-50">
-                    Add files from computer
-                    <input
-                      type="file"
-                      multiple
-                      className="hidden"
-                      onChange={(e) => {
-                        addLocalFiles(e.target.files);
-                        e.currentTarget.value = "";
-                      }}
-                    />
-                  </label>
-                </div>
-
-                {localUploads.length > 0 ? (
-                  <div className="mt-5 space-y-3">
-                    {localUploads.map((item) => (
-                      <div
-                        key={item.id}
-                        className="flex flex-col gap-4 rounded-2xl border border-slate-200 p-4 lg:flex-row lg:items-center lg:justify-between"
-                      >
-                        <div className="min-w-0">
-                          <div className="truncate font-medium text-slate-900">
-                            {item.file.name}
-                          </div>
-                          <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
-                            <span>{item.file.type || "unknown type"}</span>
-                            <span>{formatBytes(item.file.size)}</span>
-                          </div>
-                        </div>
-
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                          <select
-                            value={item.assetCategory}
-                            onChange={(e) =>
-                              updateLocalUploadCategory(item.id, e.target.value)
-                            }
-                            className="rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                          >
-                            {FILE_CATEGORY_ORDER.map((category) => (
-                              <option key={category} value={category}>
-                                {FILE_CATEGORY_LABELS[category]}
-                              </option>
-                            ))}
-                          </select>
-
-                          <button
-                            type="button"
-                            onClick={() => removeLocalUpload(item.id)}
-                            className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="mt-5 rounded-2xl border border-dashed border-slate-300 p-6 text-sm text-slate-600">
-                    No manual request files added yet.
-                  </div>
-                )}
-              </section>
-
-              <section className="rounded-2xl border border-slate-200 p-5">
                 <h4 className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-500">
                   Technical notes
                 </h4>
@@ -903,12 +733,12 @@ export default function ServiceRequestActions({
                   <div>{error}</div>
 
                   {createdRequestId ? (
-                    <Link
+                    <a
                       href={`/dashboard/requests/${createdRequestId}`}
                       className="inline-flex rounded-xl border border-red-300 px-3 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100"
                     >
                       Open created request
-                    </Link>
+                    </a>
                   ) : null}
                 </div>
               ) : null}
