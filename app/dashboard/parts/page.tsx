@@ -1,8 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "../../../lib/supabase/server";
-import Navbar from "../../../components/Navbar";
-import Footer from "../../../components/Footer";
 
 type PartsPageProps = {
   searchParams?: Promise<{
@@ -179,7 +177,10 @@ export default async function PartsPage({ searchParams }: PartsPageProps) {
   }
 
   if (materialFilter) {
-    filteredFamilySeedQuery = filteredFamilySeedQuery.eq("material", materialFilter);
+    filteredFamilySeedQuery = filteredFamilySeedQuery.eq(
+      "material",
+      materialFilter
+    );
   }
 
   const { data: filteredSeedParts, error } = await filteredFamilySeedQuery;
@@ -233,19 +234,19 @@ export default async function PartsPage({ searchParams }: PartsPageProps) {
   const familyGroups = buildFamilyGroups((familyParts as PartRow[] | null) ?? []);
 
   return (
-    <main className="min-h-screen bg-white text-gray-900">
-      <Navbar />
-
-      <section className="mx-auto max-w-7xl px-6 py-20">
+    <main className="min-h-screen bg-gray-50 text-gray-900">
+      <section className="mx-auto max-w-7xl px-6 py-12 lg:px-8 lg:py-16">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
-            <h1 className="text-4xl font-bold">Parts Vault</h1>
-            <p className="mt-4 text-gray-600">
+            <h1 className="text-4xl font-semibold tracking-tight text-gray-950">
+              Parts Vault
+            </h1>
+            <p className="mt-4 max-w-2xl text-gray-600">
               Manage your parts, revisions, and manufacturing metadata through a
               family-based vault view.
             </p>
 
-            <div className="mt-4 flex items-center gap-3">
+            <div className="mt-4 flex flex-wrap items-center gap-3">
               <span
                 className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${getRoleBadgeClass(
                   orgRole
@@ -266,32 +267,36 @@ export default async function PartsPage({ searchParams }: PartsPageProps) {
           {canCreatePart ? (
             <Link
               href="/dashboard/parts/new"
-              className="rounded-2xl bg-gray-900 px-5 py-3 text-sm font-medium text-white transition hover:opacity-90"
+              className="inline-flex items-center justify-center rounded-full bg-gray-950 px-5 py-3 text-sm font-medium text-white transition hover:bg-gray-800"
             >
               New Part
             </Link>
           ) : null}
         </div>
 
-        <div className="mt-8 rounded-3xl border border-gray-200 p-6 shadow-sm">
+        <div className="mt-8 rounded-[28px] border border-gray-200 bg-white p-6 shadow-sm">
           <form className="grid gap-4 md:grid-cols-4">
             <div className="md:col-span-4">
-              <label className="mb-2 block text-sm font-medium">Search</label>
+              <label className="mb-2 block text-sm font-medium text-gray-900">
+                Search
+              </label>
               <input
                 type="text"
                 name="q"
                 defaultValue={queryText}
                 placeholder="Search by part name, part number, or material"
-                className="w-full rounded-2xl border border-gray-300 px-4 py-3"
+                className="w-full rounded-2xl border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-gray-400"
               />
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-medium">Status</label>
+              <label className="mb-2 block text-sm font-medium text-gray-900">
+                Status
+              </label>
               <select
                 name="status"
                 defaultValue={statusFilter}
-                className="w-full rounded-2xl border border-gray-300 px-4 py-3"
+                className="w-full rounded-2xl border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-gray-400"
               >
                 <option value="">All</option>
                 {statusOptions.map((status) => (
@@ -303,11 +308,13 @@ export default async function PartsPage({ searchParams }: PartsPageProps) {
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-medium">Process</label>
+              <label className="mb-2 block text-sm font-medium text-gray-900">
+                Process
+              </label>
               <select
                 name="process"
                 defaultValue={processFilter}
-                className="w-full rounded-2xl border border-gray-300 px-4 py-3"
+                className="w-full rounded-2xl border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-gray-400"
               >
                 <option value="">All</option>
                 {processOptions.map((process) => (
@@ -319,11 +326,13 @@ export default async function PartsPage({ searchParams }: PartsPageProps) {
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-medium">Material</label>
+              <label className="mb-2 block text-sm font-medium text-gray-900">
+                Material
+              </label>
               <select
                 name="material"
                 defaultValue={materialFilter}
-                className="w-full rounded-2xl border border-gray-300 px-4 py-3"
+                className="w-full rounded-2xl border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-gray-400"
               >
                 <option value="">All</option>
                 {materialOptions.map((material) => (
@@ -337,14 +346,14 @@ export default async function PartsPage({ searchParams }: PartsPageProps) {
             <div className="flex items-end gap-3">
               <button
                 type="submit"
-                className="rounded-2xl bg-gray-900 px-5 py-3 text-sm font-medium text-white transition hover:opacity-90"
+                className="rounded-full bg-gray-950 px-5 py-3 text-sm font-medium text-white transition hover:bg-gray-800"
               >
                 Apply Filters
               </button>
 
               <Link
                 href="/dashboard/parts"
-                className="rounded-2xl border border-gray-300 px-5 py-3 text-sm font-medium text-gray-900 transition hover:bg-gray-50"
+                className="rounded-full border border-gray-300 bg-white px-5 py-3 text-sm font-medium text-gray-900 transition hover:bg-gray-100"
               >
                 Clear
               </Link>
@@ -352,237 +361,238 @@ export default async function PartsPage({ searchParams }: PartsPageProps) {
           </form>
         </div>
 
-        <div className="mt-10 overflow-hidden rounded-3xl border border-gray-200">
-          <div className="hidden grid-cols-[72px_minmax(0,1.6fr)_140px_140px_140px_110px_100px_120px_140px] gap-4 bg-gray-50 px-6 py-4 text-left text-sm font-medium lg:grid">
-            <div>Expand</div>
-            <div>Name</div>
-            <div>Part Number</div>
-            <div>Process</div>
-            <div>Material</div>
-            <div>Latest Rev</div>
-            <div>Count</div>
-            <div>Status</div>
-            <div>Updated</div>
-          </div>
+        <div className="mt-10 overflow-x-auto rounded-[28px] border border-gray-200 bg-white">
+          <div className="lg:min-w-[1420px]">
+            <div className="hidden grid-cols-[72px_minmax(280px,2.2fr)_180px_180px_180px_120px_100px_130px_150px] gap-4 bg-gray-50 px-6 py-4 text-left text-sm font-medium text-gray-700 lg:grid">
+              <div>Expand</div>
+              <div>Name</div>
+              <div>Part Number</div>
+              <div>Process</div>
+              <div>Material</div>
+              <div>Latest Rev</div>
+              <div>Count</div>
+              <div>Status</div>
+              <div>Updated</div>
+            </div>
 
-          {familyGroups.length > 0 ? (
-            <div className="divide-y divide-gray-200">
-              {familyGroups.map((family) => (
-                <details key={family.partFamilyId} className="group">
-                  <summary className="list-none cursor-pointer px-6 py-5 transition hover:bg-gray-50">
-                    <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[72px_minmax(0,1.6fr)_140px_140px_140px_110px_100px_120px_140px] lg:items-center lg:gap-4">
-                      <div className="flex items-center gap-3">
-                        <span className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-300 text-lg font-medium text-gray-700">
-                          <span className="group-open:hidden">+</span>
-                          <span className="hidden group-open:inline">−</span>
-                        </span>
-                        <span className="text-xs font-medium uppercase tracking-[0.12em] text-gray-400 lg:hidden">
-                          Expand
-                        </span>
-                      </div>
-
-                      <div className="min-w-0">
-                        <div className="truncate text-base font-semibold text-gray-900">
-                          {family.familyName}
-                        </div>
-                        <div className="mt-1 text-sm text-gray-500 lg:hidden">
-                          Open family to see revision history
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2 lg:block">
-                        <span className="text-xs font-medium uppercase tracking-[0.12em] text-gray-400 lg:hidden">
-                          Part Number
-                        </span>
-                        <span className="text-sm text-gray-900">
-                          {family.familyPartNumber || "-"}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-2 lg:block">
-                        <span className="text-xs font-medium uppercase tracking-[0.12em] text-gray-400 lg:hidden">
-                          Process
-                        </span>
-                        <span className="text-sm text-gray-900">
-                          {family.latestRevision.process_type || "-"}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-2 lg:block">
-                        <span className="text-xs font-medium uppercase tracking-[0.12em] text-gray-400 lg:hidden">
-                          Material
-                        </span>
-                        <span className="text-sm text-gray-900">
-                          {family.latestRevision.material || "-"}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-2 lg:block">
-                        <span className="text-xs font-medium uppercase tracking-[0.12em] text-gray-400 lg:hidden">
-                          Latest Revision
-                        </span>
-                        <span className="font-medium text-gray-900">
-                          {family.latestRevision.revision || "-"}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-2 lg:block">
-                        <span className="text-xs font-medium uppercase tracking-[0.12em] text-gray-400 lg:hidden">
-                          Revision Count
-                        </span>
-                        <span className="font-medium text-gray-900">
-                          {family.revisionCount}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-2 lg:block">
-                        <span className="text-xs font-medium uppercase tracking-[0.12em] text-gray-400 lg:hidden">
-                          Status
-                        </span>
-                        {family.latestRevision.status ? (
-                          <span
-                            className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${getStatusBadgeClass(
-                              family.latestRevision.status
-                            )}`}
-                          >
-                            {family.latestRevision.status}
+            {familyGroups.length > 0 ? (
+              <div className="divide-y divide-gray-200">
+                {familyGroups.map((family) => (
+                  <details key={family.partFamilyId} className="group">
+                    <summary className="list-none cursor-pointer px-6 py-5 transition hover:bg-gray-50">
+                      <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[72px_minmax(140px,2.2fr)_140px_140px_180px_120px_100px_130px_150px] lg:items-center lg:gap-4">
+                        <div className="flex items-center gap-3">
+                          <span className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-300 text-lg font-medium text-gray-700">
+                            <span className="group-open:hidden">+</span>
+                            <span className="hidden group-open:inline">−</span>
                           </span>
-                        ) : (
-                          "-"
-                        )}
+                          <span className="text-xs font-medium uppercase tracking-[0.12em] text-gray-400 lg:hidden">
+                            Expand
+                          </span>
+                        </div>
+
+                        <div className="min-w-0">
+                          <div className="text-base font-semibold text-gray-900 break-words">
+                            {family.familyName}
+                          </div>
+                          <div className="mt-1 text-sm text-gray-500 lg:hidden">
+                            Open family to see revision history
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 lg:block">
+                          <span className="text-xs font-medium uppercase tracking-[0.12em] text-gray-400 lg:hidden">
+                            Part Number
+                          </span>
+                          <span className="text-sm text-gray-900 break-words">
+                            {family.familyPartNumber || "-"}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 lg:block">
+                          <span className="text-xs font-medium uppercase tracking-[0.12em] text-gray-400 lg:hidden">
+                            Process
+                          </span>
+                          <span className="text-sm text-gray-900 break-words">
+                            {family.latestRevision.process_type || "-"}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 lg:block">
+                          <span className="text-xs font-medium uppercase tracking-[0.12em] text-gray-400 lg:hidden">
+                            Material
+                          </span>
+                          <span className="text-sm text-gray-900 break-words">
+                            {family.latestRevision.material || "-"}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 lg:block">
+                          <span className="text-xs font-medium uppercase tracking-[0.12em] text-gray-400 lg:hidden">
+                            Latest Revision
+                          </span>
+                          <span className="font-medium text-gray-900">
+                            {family.latestRevision.revision || "-"}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 lg:block">
+                          <span className="text-xs font-medium uppercase tracking-[0.12em] text-gray-400 lg:hidden">
+                            Revision Count
+                          </span>
+                          <span className="font-medium text-gray-900">
+                            {family.revisionCount}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 lg:block">
+                          <span className="text-xs font-medium uppercase tracking-[0.12em] text-gray-400 lg:hidden">
+                            Status
+                          </span>
+                          {family.latestRevision.status ? (
+                            <span
+                              className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${getStatusBadgeClass(
+                                family.latestRevision.status
+                              )}`}
+                            >
+                              {family.latestRevision.status}
+                            </span>
+                          ) : (
+                            "-"
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2 lg:block">
+                          <span className="text-xs font-medium uppercase tracking-[0.12em] text-gray-400 lg:hidden">
+                            Updated
+                          </span>
+                          <span className="text-sm text-gray-900">
+                            {formatDate(family.latestUpdatedAt)}
+                          </span>
+                        </div>
+                      </div>
+                    </summary>
+
+                    <div className="border-t border-gray-200 bg-gray-50/70 px-6 py-5">
+                      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-gray-500">
+                            Revision History
+                          </h2>
+                          <p className="mt-1 text-sm text-gray-600">
+                            Exact revision records for this part family.
+                          </p>
+                        </div>
+
+                        <Link
+                          href={`/dashboard/parts/${family.latestRevision.id}`}
+                          className="inline-flex rounded-xl border border-gray-300 px-3 py-2 text-xs font-medium text-gray-900 transition hover:bg-white"
+                        >
+                          Open Latest Revision
+                        </Link>
                       </div>
 
-                      <div className="flex items-center gap-2 lg:block">
-                        <span className="text-xs font-medium uppercase tracking-[0.12em] text-gray-400 lg:hidden">
-                          Updated
-                        </span>
-                        <span className="text-sm text-gray-900">
-                          {formatDate(family.latestUpdatedAt)}
-                        </span>
-                      </div>
-                    </div>
-                  </summary>
+                      <div className="space-y-3">
+                        {family.revisions.map((revision, index) => {
+                          const isLatest =
+                            revision.id === family.latestRevision.id;
 
-                  <div className="border-t border-gray-200 bg-gray-50/70 px-6 py-5">
-                    <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                      <div>
-                        <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-gray-500">
-                          Revision History
-                        </h2>
-                        <p className="mt-1 text-sm text-gray-600">
-                          Exact revision records for this part family.
-                        </p>
-                      </div>
+                          return (
+                            <div
+                              key={revision.id}
+                              className="rounded-2xl border border-gray-200 bg-white px-4 py-4"
+                            >
+                              <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                                <div className="min-w-0">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <Link
+                                      href={`/dashboard/parts/${revision.id}`}
+                                      className="text-sm font-semibold text-green-700 hover:text-green-800 hover:underline"
+                                    >
+                                      Rev {revision.revision || "-"}
+                                    </Link>
 
-                      <Link
-                        href={`/dashboard/parts/${family.latestRevision.id}`}
-                        className="inline-flex rounded-xl border border-gray-300 px-3 py-2 text-xs font-medium text-gray-900 transition hover:bg-white"
-                      >
-                        Open Latest Revision
-                      </Link>
-                    </div>
+                                    {isLatest ? (
+                                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-700">
+                                        Latest
+                                      </span>
+                                    ) : null}
 
-                    <div className="space-y-3">
-                      {family.revisions.map((revision, index) => {
-                        const isLatest = revision.id === family.latestRevision.id;
+                                    {index === 0 ? (
+                                      <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700">
+                                        Current family head
+                                      </span>
+                                    ) : null}
+                                  </div>
 
-                        return (
-                          <div
-                            key={revision.id}
-                            className="rounded-2xl border border-gray-200 bg-white px-4 py-4"
-                          >
-                            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                              <div className="min-w-0">
+                                  <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+                                    <span>
+                                      Part Number {revision.part_number || "-"}
+                                    </span>
+                                    <span>
+                                      Process {revision.process_type || "-"}
+                                    </span>
+                                    <span>
+                                      Material {revision.material || "-"}
+                                    </span>
+                                    <span>
+                                      Updated{" "}
+                                      {formatDateTime(
+                                        revision.updated_at || revision.created_at
+                                      )}
+                                    </span>
+                                  </div>
+
+                                  {revision.revision_note ? (
+                                    <p className="mt-2 text-sm text-gray-600 break-words">
+                                      {revision.revision_note}
+                                    </p>
+                                  ) : (
+                                    <p className="mt-2 text-sm text-gray-400">
+                                      No revision note added.
+                                    </p>
+                                  )}
+                                </div>
+
                                 <div className="flex flex-wrap items-center gap-2">
+                                  {revision.status ? (
+                                    <span
+                                      className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${getStatusBadgeClass(
+                                        revision.status
+                                      )}`}
+                                    >
+                                      {revision.status}
+                                    </span>
+                                  ) : null}
+
                                   <Link
                                     href={`/dashboard/parts/${revision.id}`}
-                                    className="text-sm font-semibold text-green-700 hover:text-green-800 hover:underline"
+                                    className="inline-flex rounded-xl border border-gray-300 px-3 py-2 text-xs font-medium text-gray-900 transition hover:bg-gray-50"
                                   >
-                                    Rev {revision.revision || "-"}
+                                    Open Revision
                                   </Link>
-
-                                  {isLatest ? (
-                                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-700">
-                                      Latest
-                                    </span>
-                                  ) : null}
-
-                                  {index === 0 ? (
-                                    <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700">
-                                      Current family head
-                                    </span>
-                                  ) : null}
                                 </div>
-
-                                <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
-                                  <span>
-                                    Part Number {revision.part_number || "-"}
-                                  </span>
-                                  <span>
-                                    Process {revision.process_type || "-"}
-                                  </span>
-                                  <span>
-                                    Material {revision.material || "-"}
-                                  </span>
-                                  <span>
-                                    Updated{" "}
-                                    {formatDateTime(
-                                      revision.updated_at || revision.created_at
-                                    )}
-                                  </span>
-                                </div>
-
-                                {revision.revision_note ? (
-                                  <p className="mt-2 text-sm text-gray-600">
-                                    {revision.revision_note}
-                                  </p>
-                                ) : (
-                                  <p className="mt-2 text-sm text-gray-400">
-                                    No revision note added.
-                                  </p>
-                                )}
-                              </div>
-
-                              <div className="flex flex-wrap items-center gap-2">
-                                {revision.status ? (
-                                  <span
-                                    className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${getStatusBadgeClass(
-                                      revision.status
-                                    )}`}
-                                  >
-                                    {revision.status}
-                                  </span>
-                                ) : null}
-
-                                <Link
-                                  href={`/dashboard/parts/${revision.id}`}
-                                  className="inline-flex rounded-xl border border-gray-300 px-3 py-2 text-xs font-medium text-gray-900 transition hover:bg-gray-50"
-                                >
-                                  Open Revision
-                                </Link>
                               </div>
                             </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                </details>
-              ))}
-            </div>
-          ) : (
-            <div className="px-6 py-8 text-gray-500">
-              No parts found for the current filters.
-            </div>
-          )}
+                  </details>
+                ))}
+              </div>
+            ) : (
+              <div className="px-6 py-8 text-gray-500">
+                No parts found for the current filters.
+              </div>
+            )}
+          </div>
         </div>
 
         {error ? (
           <p className="mt-6 text-sm text-red-600">Failed to load parts.</p>
         ) : null}
       </section>
-
-      <Footer />
     </main>
   );
 }
