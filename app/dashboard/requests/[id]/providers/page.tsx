@@ -136,23 +136,25 @@ export default async function RequestProvidersPage({ params }: PageProps) {
     );
   }
 
-  const providers: ProviderCandidate[] = (providerRelationships ?? [])
-    .map((row) => {
-      const org = providerOrgsById.get(row.provider_org_id);
-      if (!org) return null;
+  const providers: ProviderCandidate[] = (providerRelationships ?? []).map(
+  (row) => {
+    const org = providerOrgsById.get(row.provider_org_id);
 
-      return {
-        relationshipId: row.id,
-        providerOrgId: row.provider_org_id,
-        providerName: org.name,
-        providerSlug: org.slug,
-        relationshipStatus: row.relationship_status,
-        trustStatus: row.trust_status,
-        isPreferred: row.is_preferred,
-        providerCode: row.provider_code,
-      };
-    })
-    .filter(Boolean) as ProviderCandidate[];
+    return {
+      relationshipId: row.id,
+      providerOrgId: row.provider_org_id,
+      providerName:
+        org?.name ??
+        row.provider_code ??
+        `Provider ${row.provider_org_id.slice(0, 8)}`,
+      providerSlug: org?.slug ?? null,
+      relationshipStatus: row.relationship_status,
+      trustStatus: row.trust_status,
+      isPreferred: row.is_preferred,
+      providerCode: row.provider_code,
+    };
+  },
+);
 
   const shareableFiles: ShareableRequestFile[] = [];
 

@@ -1,15 +1,17 @@
 import type { ReactNode } from "react";
-import Navbar from "@/components/Navbar";
+import { redirect } from "next/navigation";
+import { getProviderContext, isProviderOnlyUser } from "@/lib/auth/provider-access";
 
-export default function DashboardLayout({
+export default async function DashboardLayout({
   children,
 }: {
   children: ReactNode;
 }) {
-  return (
-    <div className="min-h-screen bg-slate-50 text-gray-900">
-      <Navbar />
-      <main className="mx-auto max-w-7xl px-6 py-8">{children}</main>
-    </div>
-  );
+  const providerContext = await getProviderContext();
+
+  if (providerContext && isProviderOnlyUser(providerContext)) {
+    redirect("/provider");
+  }
+
+  return <>{children}</>;
 }
