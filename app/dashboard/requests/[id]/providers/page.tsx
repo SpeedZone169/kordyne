@@ -1,13 +1,6 @@
-"use client";
-
-import { useMemo, useState, type ChangeEvent, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
-import {
-  providerRelationshipStatusLabels,
-  providerRoundModeOptions,
-  providerTrustStatusLabels,
-  type ProviderRoundMode,
-} from "@/lib/providers";
+import { notFound } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import ProviderRoutingComposer from "./ProviderRoutingComposer";
 import type {
   PreviousRound,
   ProviderCandidate,
@@ -15,374 +8,296 @@ import type {
   ShareableRequestFile,
 } from "./types";
 
-type Props = {
-  request: ServiceRequestSummary;
-  providers: ProviderCandidate[];
-  shareableFiles: ShareableRequestFile[];
-  previousRounds: PreviousRound[];
+type PageProps = {
+  params: Promise<{
+    id: string;
+  }>;
 };
 
-function formatBytes(value?: number | null) {
-  if (!value || value <= 0) return "—";
-  const units = ["B", "KB", "MB", "GB"];
-  let size = value;
-  let unitIndex = 0;
+export default async function RequestProvidersPage({ params }: PageProps) {
+  const { id: requestId } = await params;
+  const supabase = await createClient();
 
-  while (size >= 1024 && unitIndex < units.length - 1) {
-    size /= 1024;
-    unitIndex += 1;
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError || !user) {
+    notFound();
   }
 
-  return `${size.toFixed(size >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
-}
+  const { data: memberships, error: membershipsError } = await supabase
+    .from("organization_members")
+    .select("organization_id, role")
+    .eq("user_id", user.id);
 
-function formatDate(value?: string | null) {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
+  if (membershipsError || !memberships?.length) {
+    notFound();
+  }
 
-  return new Intl.DateTimeFormat("en-IE", {
-    dateStyle: "medium",
-  }).format(date);
-}
+  const membershipOrgIds = memberships.map((m) => m.organization_id);
 
-export default function ProviderRoutingComposer({
-  request,
-  providers,
-  shareableFiles,
-  previousRounds,
-}: Props) {
-  const router = useRouter();
+  const { data: request, error: requestError } = await supabase
+    .from("service_requests")
+    .select(
+      `
+        id,
+        organization_id,
+        part_id,
+        title,
+        request_type,
+        status,
+        due_date,
+        quantity,
+        request_origin,
+        requested_item_name,
+        requested_item_reference,
+        notes,
+        created_at,
+        updated_at
+      `,
+    )
+    .eq("id", requestId)
+    .single();
 
-  const [mode, setMode] = useState<ProviderRoundMode>("competitive_quote");
-  const [selectedProviderIds, setSelectedProviderIds] = useState<string[]>([]);
-  const [selectedFileKeys, setSelectedFileKeys] = useState<string[]>([]);
-  const [targetDueDate, setTargetDueDate] = useState(request.dueDate ?? "");
-  const [requestedQuantity, setRequestedQuantity] = useState(
-    request.quantity?.toString() ?? "",
+  if (
+    requestError ||
+    !request ||
+    !membershipOrgIds.includes(request.organization_id)
+  ) {
+    notFound();
+  }
+
+  const requestSummary: ServiceRequestSummary = {
+    id: request.id,
+    organizationId: request.organization_id,
+    partId: request.part_id,
+    title: request.title,
+    requestType: request.request_type,
+    status: request.status,
+    dueDate: request.due_date,
+    quantity: request.quantity,
+    requestOrigin: request.request_origin,
+    requestedItemName: request.requested_item_name,
+    requestedItemReference: request.requested_item_reference,
+    notes: request.notes,
+    createdAt: request.created_at,
+    updatedAt: request.updated_at,
+  };
+
+  const { data: providerRelationships, error: providerRelationshipsError } =
+    await supabase
+      .from("provider_relationships")
+      .select(
+        `
+          id,
+          provider_org_id,
+          relationship_status,
+          trust_status,
+          is_preferred,
+          provider_code,
+          created_at
+        `,
+      )
+      .eq("customer_org_id", request.organization_id)
+      .in("relationship_status", ["invited", "active"])
+      .order("is_preferred", { ascending: false })
+      .order("created_at", { ascending: false });
+
+  if (providerRelationshipsError) {
+    throw new Error(providerRelationshipsError.message);
+  }
+
+  const providerOrgIds = (providerRelationships ?? []).map(
+    (row) => row.provider_org_id,
   );
-  const [responseDeadline, setResponseDeadline] = useState("");
-  const [customerNotes, setCustomerNotes] = useState(request.notes ?? "");
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  const fileKeyMap = useMemo(() => {
-    return new Map(
-      shareableFiles.map((file) => [`${file.sourceType}:${file.id}`, file]),
-    );
-  }, [shareableFiles]);
+  let providerOrgsById = new Map<
+    string,
+    { id: string; name: string; slug: string | null }
+  >();
 
-  const selectedProviders = useMemo(() => {
-    const selected = new Set(selectedProviderIds);
-    return providers.filter((provider) => selected.has(provider.relationshipId));
-  }, [providers, selectedProviderIds]);
+  if (providerOrgIds.length > 0) {
+    const { data: providerOrgs, error: providerOrgsError } = await supabase
+      .from("organizations")
+      .select("id, name, slug")
+      .in("id", providerOrgIds);
 
-  const maxProviders = mode === "competitive_quote" ? 3 : 1;
+    if (providerOrgsError) {
+      throw new Error(providerOrgsError.message);
+    }
 
-  function toggleProvider(relationshipId: string) {
-    setSelectedProviderIds((current) => {
-      const exists = current.includes(relationshipId);
-
-      if (exists) {
-        return current.filter((id) => id !== relationshipId);
-      }
-
-      if (mode === "direct_award") {
-        return [relationshipId];
-      }
-
-      if (current.length >= 3) {
-        return current;
-      }
-
-      return [...current, relationshipId];
-    });
-  }
-
-  function toggleFile(fileKey: string) {
-    setSelectedFileKeys((current) =>
-      current.includes(fileKey)
-        ? current.filter((key) => key !== fileKey)
-        : [...current, fileKey],
+    providerOrgsById = new Map(
+      (providerOrgs ?? []).map((org) => [
+        org.id,
+        { id: org.id, name: org.name, slug: org.slug },
+      ]),
     );
   }
 
-  function handleModeChange(event: ChangeEvent<HTMLInputElement>) {
-    const nextMode = event.target.value as ProviderRoundMode;
-    setMode(nextMode);
+  const providers: ProviderCandidate[] = (providerRelationships ?? [])
+    .map((row) => {
+      const org = providerOrgsById.get(row.provider_org_id);
+      if (!org) return null;
 
-    setSelectedProviderIds((current) => {
-      if (nextMode === "direct_award") {
-        return current.slice(0, 1);
-      }
-      return current.slice(0, 3);
-    });
+      return {
+        relationshipId: row.id,
+        providerOrgId: row.provider_org_id,
+        providerName: org.name,
+        providerSlug: org.slug,
+        relationshipStatus: row.relationship_status,
+        trustStatus: row.trust_status,
+        isPreferred: row.is_preferred,
+        providerCode: row.provider_code,
+      };
+    })
+    .filter(Boolean) as ProviderCandidate[];
+
+  const shareableFiles: ShareableRequestFile[] = [];
+
+  if (request.part_id) {
+    const { data: partFiles, error: partFilesError } = await supabase
+      .from("part_files")
+      .select(
+        `
+          id,
+          file_name,
+          file_type,
+          file_size_bytes,
+          asset_category,
+          storage_path,
+          created_at
+        `,
+      )
+      .eq("part_id", request.part_id)
+      .order("created_at", { ascending: false });
+
+    if (partFilesError) {
+      throw new Error(partFilesError.message);
+    }
+
+    shareableFiles.push(
+      ...(partFiles ?? []).map((file) => ({
+        id: file.id,
+        sourceType: "part_file" as const,
+        fileName: file.file_name,
+        fileType: file.file_type,
+        fileSizeBytes: file.file_size_bytes,
+        assetCategory: file.asset_category,
+        storagePath: file.storage_path,
+        createdAt: file.created_at,
+      })),
+    );
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError(null);
+  const { data: requestUploads, error: requestUploadsError } = await supabase
+    .from("service_request_uploaded_files")
+    .select(
+      `
+        id,
+        file_name,
+        file_type,
+        file_size_bytes,
+        asset_category,
+        storage_path,
+        created_at
+      `,
+    )
+    .eq("service_request_id", request.id)
+    .order("created_at", { ascending: false });
 
-    if (selectedProviderIds.length === 0) {
-      setError("Select at least one provider.");
-      return;
-    }
-
-    if (mode === "direct_award" && selectedProviderIds.length !== 1) {
-      setError("Direct award requires exactly one provider.");
-      return;
-    }
-
-    if (mode === "competitive_quote" && selectedProviderIds.length > 3) {
-      setError("Quote rounds are limited to three providers in this workflow.");
-      return;
-    }
-
-    if (selectedFileKeys.length === 0) {
-      setError("Select at least one file to share with providers.");
-      return;
-    }
-
-    setSubmitting(true);
-
-    try {
-      const providerSelections = selectedProviderIds
-        .map((relationshipId) =>
-          providers.find((provider) => provider.relationshipId === relationshipId),
-        )
-        .filter(Boolean)
-        .map((provider) => ({
-          providerRelationshipId: provider!.relationshipId,
-          providerOrgId: provider!.providerOrgId,
-        }));
-
-      const fileSelections = selectedFileKeys
-        .map((key) => fileKeyMap.get(key))
-        .filter(Boolean)
-        .map((file) => ({
-          id: file!.id,
-          sourceType: file!.sourceType,
-        }));
-
-      const response = await fetch("/api/providers/quote-rounds", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          serviceRequestId: request.id,
-          mode,
-          providerSelections,
-          fileSelections,
-          targetDueDate: targetDueDate || null,
-          requestedQuantity: requestedQuantity ? Number(requestedQuantity) : null,
-          responseDeadline: responseDeadline || null,
-          customerNotes: customerNotes || null,
-        }),
-      });
-
-      const payload = await response.json();
-
-      if (!response.ok) {
-        throw new Error(payload.error || "Failed to create provider round.");
-      }
-
-      router.push(
-        `/dashboard/requests/${request.id}/quotes?roundId=${payload.roundId}`,
-      );
-      router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
-    } finally {
-      setSubmitting(false);
-    }
+  if (requestUploadsError) {
+    throw new Error(requestUploadsError.message);
   }
+
+  shareableFiles.push(
+    ...(requestUploads ?? []).map((file) => ({
+      id: file.id,
+      sourceType: "service_request_uploaded_file" as const,
+      fileName: file.file_name,
+      fileType: file.file_type,
+      fileSizeBytes: file.file_size_bytes,
+      assetCategory: file.asset_category,
+      storagePath: file.storage_path,
+      createdAt: file.created_at,
+    })),
+  );
+
+  const { data: previousRounds, error: previousRoundsError } = await supabase
+    .from("provider_quote_rounds")
+    .select("id, round_number, mode, status, created_at")
+    .eq("service_request_id", request.id)
+    .order("round_number", { ascending: false });
+
+  if (previousRoundsError) {
+    throw new Error(previousRoundsError.message);
+  }
+
+  const rounds: PreviousRound[] =
+    previousRounds?.map((round) => ({
+      id: round.id,
+      roundNumber: round.round_number,
+      mode: round.mode,
+      status: round.status,
+      createdAt: round.created_at,
+    })) ?? [];
 
   return (
-    <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-      <div className="space-y-4">
-        <h2 className="text-xl font-semibold text-slate-900">
-          Build provider package
-        </h2>
-        <p className="text-sm text-slate-600">
-          Choose how this request should leave your internal workspace, which
-          providers will receive it, and which files are explicitly shared.
-        </p>
-
-        {error ? (
-          <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-            {error}
+    <div className="space-y-8">
+      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-slate-500">
+              Provider collaboration
+            </p>
+            <h1 className="text-2xl font-semibold text-slate-900">
+              Route request to providers
+            </h1>
+            <p className="max-w-3xl text-sm text-slate-600">
+              Create a direct award or a quote round from this request without
+              exposing your internal workspace. Providers only see the package
+              you publish to them.
+            </p>
           </div>
-        ) : null}
 
-        <div className="text-sm text-slate-600">
-          Providers available: {providers.length} · Files available:{" "}
-          {shareableFiles.length} · Previous rounds: {previousRounds.length}
+          <div className="grid min-w-[260px] grid-cols-2 gap-3 rounded-2xl bg-slate-50 p-4 text-sm">
+            <div>
+              <div className="text-slate-500">Request</div>
+              <div className="font-medium text-slate-900">
+                {requestSummary.title ||
+                  requestSummary.requestedItemName ||
+                  "Untitled request"}
+              </div>
+            </div>
+            <div>
+              <div className="text-slate-500">Type</div>
+              <div className="font-medium capitalize text-slate-900">
+                {requestSummary.requestType ?? "—"}
+              </div>
+            </div>
+            <div>
+              <div className="text-slate-500">Origin</div>
+              <div className="font-medium capitalize text-slate-900">
+                {requestSummary.requestOrigin ?? "vault"}
+              </div>
+            </div>
+            <div>
+              <div className="text-slate-500">Files available</div>
+              <div className="font-medium text-slate-900">
+                {shareableFiles.length}
+              </div>
+            </div>
+          </div>
         </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid gap-3 md:grid-cols-2">
-            {providerRoundModeOptions.map((option) => (
-              <label
-                key={option.value}
-                className={`cursor-pointer rounded-2xl border p-4 transition ${
-                  mode === option.value
-                    ? "border-slate-900 bg-slate-50"
-                    : "border-slate-200 bg-white hover:border-slate-300"
-                }`}
-              >
-                <div className="flex items-start gap-3">
-                  <input
-                    type="radio"
-                    name="round-mode"
-                    value={option.value}
-                    checked={mode === option.value}
-                    onChange={handleModeChange}
-                    className="mt-1"
-                  />
-                  <div>
-                    <div className="font-medium text-slate-900">
-                      {option.label}
-                    </div>
-                  </div>
-                </div>
-              </label>
-            ))}
-          </div>
-
-          <div className="grid gap-3">
-            {providers.map((provider) => {
-              const checked = selectedProviderIds.includes(provider.relationshipId);
-              const disabled =
-                !checked &&
-                ((mode === "direct_award" && selectedProviderIds.length >= 1) ||
-                  (mode === "competitive_quote" &&
-                    selectedProviderIds.length >= 3));
-
-              return (
-                <label
-                  key={provider.relationshipId}
-                  className={`rounded-2xl border p-4 transition ${
-                    checked
-                      ? "border-slate-900 bg-slate-50"
-                      : "border-slate-200 bg-white"
-                  } ${disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:border-slate-300"}`}
-                >
-                  <div className="flex items-start gap-3">
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      disabled={disabled}
-                      onChange={() => toggleProvider(provider.relationshipId)}
-                      className="mt-1"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="font-medium text-slate-900">
-                        {provider.providerName}
-                      </div>
-                      <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                        <span className="rounded-full bg-slate-100 px-2 py-1 text-slate-700">
-                          {providerRelationshipStatusLabels[
-                            provider.relationshipStatus
-                          ] || provider.relationshipStatus}
-                        </span>
-                        <span className="rounded-full bg-slate-100 px-2 py-1 text-slate-700">
-                          {providerTrustStatusLabels[provider.trustStatus] ||
-                            provider.trustStatus}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </label>
-              );
-            })}
-          </div>
-
-          <div className="grid gap-3">
-            {shareableFiles.map((file) => {
-              const fileKey = `${file.sourceType}:${file.id}`;
-              const checked = selectedFileKeys.includes(fileKey);
-
-              return (
-                <label
-                  key={fileKey}
-                  className={`cursor-pointer rounded-2xl border p-4 transition ${
-                    checked
-                      ? "border-slate-900 bg-slate-50"
-                      : "border-slate-200 bg-white hover:border-slate-300"
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => toggleFile(fileKey)}
-                      className="mt-1"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate font-medium text-slate-900">
-                        {file.fileName}
-                      </div>
-                      <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                        <span className="rounded-full bg-slate-100 px-2 py-1 text-slate-700">
-                          {file.sourceType === "part_file"
-                            ? "Vault file"
-                            : "Request upload"}
-                        </span>
-                        <span className="rounded-full bg-slate-100 px-2 py-1 text-slate-700">
-                          {formatBytes(file.fileSizeBytes)}
-                        </span>
-                        <span className="rounded-full bg-slate-100 px-2 py-1 text-slate-700">
-                          Added {formatDate(file.createdAt)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </label>
-              );
-            })}
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-3">
-            <input
-              type="date"
-              value={targetDueDate}
-              onChange={(event) => setTargetDueDate(event.target.value)}
-              className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-            />
-            <input
-              type="number"
-              min={1}
-              value={requestedQuantity}
-              onChange={(event) => setRequestedQuantity(event.target.value)}
-              className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-              placeholder="Quantity"
-            />
-            <input
-              type="datetime-local"
-              value={responseDeadline}
-              onChange={(event) => setResponseDeadline(event.target.value)}
-              className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-            />
-          </div>
-
-          <textarea
-            value={customerNotes}
-            onChange={(event) => setCustomerNotes(event.target.value)}
-            rows={4}
-            className="w-full rounded-2xl border border-slate-300 px-3 py-3 text-sm"
-            placeholder="Notes shared with provider"
-          />
-
-          <button
-            type="submit"
-            disabled={submitting}
-            className="inline-flex items-center rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {submitting ? "Publishing..." : "Publish provider package"}
-          </button>
-        </form>
       </div>
+
+      <ProviderRoutingComposer
+        request={requestSummary}
+        providers={providers}
+        shareableFiles={shareableFiles}
+        previousRounds={rounds}
+      />
     </div>
   );
 }
