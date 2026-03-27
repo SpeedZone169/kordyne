@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   formatCurrencyValue,
@@ -63,6 +63,10 @@ export default function Client({ data }: Props) {
   const router = useRouter();
   const selectedRound = data.selectedRound;
 
+  const [awardingPackageId, setAwardingPackageId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+
   const sortedRows = useMemo(() => {
     return [...data.rows].sort((a, b) => {
       if (a.isAwarded && !b.isAwarded) return -1;
@@ -90,6 +94,50 @@ export default function Client({ data }: Props) {
     const params = new URLSearchParams();
     params.set("roundId", roundId);
     router.push(`/dashboard/requests/${data.request.id}/quotes?${params.toString()}`);
+  }
+
+  async function handleAwardProvider(packageId: string, providerName: string) {
+    if (!selectedRound) return;
+
+    const confirmed = window.confirm(
+      `Award this request to ${providerName}?`,
+    );
+
+    if (!confirmed) return;
+
+    setActionError(null);
+    setActionSuccess(null);
+    setAwardingPackageId(packageId);
+
+    try {
+      const response = await fetch(
+        `/api/providers/quote-rounds/${selectedRound.id}/award`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            providerRequestPackageId: packageId,
+          }),
+        },
+      );
+
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(payload.error || "Failed to award provider.");
+      }
+
+      setActionSuccess(`Awarded ${providerName} successfully.`);
+      router.refresh();
+    } catch (error) {
+      setActionError(
+        error instanceof Error ? error.message : "Failed to award provider.",
+      );
+    } finally {
+      setAwardingPackageId(null);
+    }
   }
 
   return (
@@ -282,6 +330,18 @@ export default function Client({ data }: Props) {
               </button>
             </div>
 
+            {actionError ? (
+              <div className="mt-5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                {actionError}
+              </div>
+            ) : null}
+
+            {actionSuccess ? (
+              <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                {actionSuccess}
+              </div>
+            ) : null}
+
             {sortedRows.length === 0 ? (
               <div className="mt-6 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-600">
                 No provider packages found for this round yet.
@@ -290,6 +350,11 @@ export default function Client({ data }: Props) {
               <div className="mt-6 space-y-4">
                 {sortedRows.map((row) => {
                   const signals = getQuoteValueSignal(row);
+                  const awardDisabled =
+                    !row.quoteId ||
+                    row.isAwarded ||
+                    selectedRound.status === "awarded" ||
+                    awardingPackageId !== null;
 
                   return (
                     <div
@@ -451,11 +516,17 @@ export default function Client({ data }: Props) {
 
                         <button
                           type="button"
-                          disabled
-                          className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white opacity-60"
-                          title="Award flow comes next"
+                          disabled={awardDisabled}
+                          onClick={() =>
+                            handleAwardProvider(row.packageId, row.providerName)
+                          }
+                          className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                          Award provider
+                          {row.isAwarded
+                            ? "Awarded"
+                            : awardingPackageId === row.packageId
+                              ? "Awarding..."
+                              : "Award provider"}
                         </button>
                       </div>
                     </div>

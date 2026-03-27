@@ -289,7 +289,7 @@ export default function ServiceRequestActions({
       setCreatedRequestId(data.id);
       setActiveType(null);
       setForm(initialFormState);
-      router.push(`/dashboard/requests/${data.id}`);
+      router.push(`/dashboard/requests/${data.id}/providers`);
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create request.");

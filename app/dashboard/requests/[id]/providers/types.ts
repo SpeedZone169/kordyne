@@ -1,7 +1,5 @@
 import type {
   ProviderRelationshipStatus,
-  ProviderRoundMode,
-  ProviderRoundStatus,
   ProviderTrustStatus,
 } from "@/lib/providers";
 
@@ -47,7 +45,7 @@ export type ShareableRequestFile = {
 export type PreviousRound = {
   id: string;
   roundNumber: number;
-  mode: ProviderRoundMode;
-  status: ProviderRoundStatus;
+  mode: string;
+  status: string;
   createdAt: string;
 };
