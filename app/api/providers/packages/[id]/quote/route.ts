@@ -45,9 +45,9 @@ function buildExternalQuoteReference() {
 
 export async function POST(
   request: Request,
-  { params }: { params: Promise<{ packageId: string }> },
+  { params }: { params: Promise<{ id: string }> },
 ) {
-  const { packageId } = await params;
+  const { id: packageId } = await params;
   const supabase = await createClient();
 
   const {
