@@ -125,15 +125,11 @@ export default async function ProviderRequestDetailPage({
     }
   }
 
-  const { data: customerOrg, error: customerOrgError } = await supabase
+  const { data: customerOrg } = await supabase
     .from("organizations")
     .select("id, name")
     .eq("id", pkg.customer_org_id)
-    .single();
-
-  if (customerOrgError) {
-    throw new Error(customerOrgError.message);
-  }
+    .maybeSingle();
 
   const { data: serviceRequest, error: serviceRequestError } = await supabase
     .from("service_requests")
@@ -187,6 +183,7 @@ export default async function ProviderRequestDetailPage({
     .select(
       `
         id,
+        quote_reference,
         quote_version,
         status,
         currency_code,
@@ -227,6 +224,7 @@ export default async function ProviderRequestDetailPage({
   const mappedQuotes: ProviderPackageDetailQuote[] = (quotes ?? []).map(
     (quote) => ({
       id: quote.id,
+      quoteReference: quote.quote_reference,
       quoteVersion: quote.quote_version,
       status: quote.status as ProviderPackageDetailQuote["status"],
       currencyCode: quote.currency_code,
@@ -249,7 +247,8 @@ export default async function ProviderRequestDetailPage({
     package: {
       id: pkg.id,
       serviceRequestId: pkg.service_request_id,
-      customerOrgName: customerOrg?.name ?? "Unknown customer",
+      customerOrgName:
+        customerOrg?.name ?? `Customer ${pkg.customer_org_id.slice(0, 8)}`,
       packageTitle: pkg.package_title,
       packageStatus:
         pkg.package_status as ProviderPackageDetailData["package"]["packageStatus"],

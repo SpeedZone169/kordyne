@@ -11,7 +11,7 @@ export default function ProviderShellNav() {
     <aside className="w-full rounded-3xl border border-slate-200 bg-white p-5 shadow-sm lg:w-72">
       <Link href="/provider" className="flex items-center gap-3">
         <Image
-          src="/kordyne-logo.png"
+          src="/kordyne-logo.svg"
           alt="Kordyne"
           width={40}
           height={40}

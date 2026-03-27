@@ -19,6 +19,7 @@ export type ProviderPackageDetailFile = {
 
 export type ProviderPackageDetailQuote = {
   id: string;
+  quoteReference: string | null;
   quoteVersion: number;
   status: ProviderQuoteStatus;
   currencyCode: string;

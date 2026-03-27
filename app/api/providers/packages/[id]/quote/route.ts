@@ -27,11 +27,27 @@ function toNullableString(value: unknown): string | null {
   return trimmed.length ? trimmed : null;
 }
 
+function buildExternalQuoteReference() {
+  const now = new Date();
+  const yyyy = now.getFullYear().toString();
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const dd = String(now.getDate()).padStart(2, "0");
+
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let randomBlock = "";
+
+  for (let i = 0; i < 4; i += 1) {
+    randomBlock += alphabet[Math.floor(Math.random() * alphabet.length)];
+  }
+
+  return `KQ-${yyyy}${mm}${dd}-${randomBlock}`;
+}
+
 export async function POST(
   request: Request,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: Promise<{ packageId: string }> },
 ) {
-  const { id: packageId } = await params;
+  const { packageId } = await params;
   const supabase = await createClient();
 
   const {
@@ -150,7 +166,7 @@ export async function POST(
 
   const { data: latestQuotes, error: latestQuotesError } = await supabase
     .from("provider_quotes")
-    .select("id, quote_version, status")
+    .select("id, quote_version, status, quote_reference")
     .eq("provider_request_package_id", packageId)
     .order("quote_version", { ascending: false });
 
@@ -161,10 +177,14 @@ export async function POST(
     );
   }
 
-  const nextVersion = (latestQuotes?.[0]?.quote_version ?? 0) + 1;
+  const latestQuote = latestQuotes?.[0] ?? null;
+  const nextVersion = (latestQuote?.quote_version ?? 0) + 1;
   const nowIso = new Date().toISOString();
   const newPackageStatus =
     nextVersion === 1 ? "quote_submitted" : "quote_revised";
+
+  const quoteReference =
+    latestQuote?.quote_reference || buildExternalQuoteReference();
 
   if ((latestQuotes ?? []).length > 0) {
     const activeQuoteIds = latestQuotes
@@ -191,6 +211,7 @@ export async function POST(
     .insert({
       provider_request_package_id: packageId,
       provider_org_id: pkg.provider_org_id,
+      quote_reference: quoteReference,
       quote_version: nextVersion,
       status: "submitted",
       currency_code: currencyCode,
@@ -206,8 +227,9 @@ export async function POST(
       exceptions,
       submitted_by_user_id: user.id,
       submitted_at: nowIso,
+      issued_at: nowIso,
     })
-    .select("id, quote_version")
+    .select("id, quote_version, quote_reference")
     .single();
 
   if (insertQuoteError || !insertedQuote) {
@@ -217,16 +239,14 @@ export async function POST(
     );
   }
 
-  const packageUpdates: Record<string, string | null> = {
-    package_status: newPackageStatus,
-    customer_visible_status:
-      nextVersion === 1 ? "Quote submitted" : "Quote revised",
-    provider_responded_at: nowIso,
-  };
-
   const { error: packageUpdateError } = await supabase
     .from("provider_request_packages")
-    .update(packageUpdates)
+    .update({
+      package_status: newPackageStatus,
+      customer_visible_status:
+        nextVersion === 1 ? "Quote submitted" : "Quote revised",
+      provider_responded_at: nowIso,
+    })
     .eq("id", packageId);
 
   if (packageUpdateError) {
@@ -248,50 +268,36 @@ export async function POST(
     );
   }
 
-  const { error: eventError } = await supabase
-    .from("provider_request_events")
-    .insert({
-      provider_request_package_id: packageId,
-      actor_org_id: pkg.provider_org_id,
-      actor_user_id: user.id,
-      event_type: "provider_quote_submitted",
-      event_payload: {
-        quoteVersion: nextVersion,
-        totalPrice,
-        currencyCode,
-        estimatedLeadTimeDays,
-      },
-    });
+  await supabase.from("provider_request_events").insert({
+    provider_request_package_id: packageId,
+    actor_org_id: pkg.provider_org_id,
+    actor_user_id: user.id,
+    event_type: "provider_quote_submitted",
+    event_payload: {
+      quoteReference,
+      quoteVersion: nextVersion,
+      totalPrice,
+      currencyCode,
+      estimatedLeadTimeDays,
+    },
+  });
 
-  if (eventError) {
-    return NextResponse.json(
-      { error: eventError.message },
-      { status: 400 },
-    );
-  }
-
-  const { error: messageError } = await supabase.from("provider_messages").insert({
+  await supabase.from("provider_messages").insert({
     provider_request_package_id: packageId,
     sender_org_id: pkg.provider_org_id,
     sender_user_id: user.id,
     message_type: "system_event",
     message_body:
       nextVersion === 1
-        ? `Provider submitted quote v${nextVersion}.`
-        : `Provider revised quote to v${nextVersion}.`,
+        ? `Provider submitted quote ${quoteReference} v${nextVersion}.`
+        : `Provider revised quote ${quoteReference} to v${nextVersion}.`,
     is_system: true,
   });
-
-  if (messageError) {
-    return NextResponse.json(
-      { error: messageError.message },
-      { status: 400 },
-    );
-  }
 
   return NextResponse.json({
     success: true,
     quoteId: insertedQuote.id,
     quoteVersion: insertedQuote.quote_version,
+    quoteReference: insertedQuote.quote_reference,
   });
 }

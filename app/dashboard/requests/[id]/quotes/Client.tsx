@@ -336,6 +336,13 @@ export default function Client({ data }: Props) {
                             <p className="mt-1 text-sm text-slate-600">
                               {row.packageTitle || "Provider package"}
                             </p>
+
+                            {row.quoteReference ? (
+                              <p className="mt-1 text-sm text-slate-600">
+                                {row.quoteReference}
+                                {row.quoteVersion ? ` v${row.quoteVersion}` : ""}
+                              </p>
+                            ) : null}
                           </div>
 
                           <div className="flex flex-wrap gap-2">
@@ -432,12 +439,15 @@ export default function Client({ data }: Props) {
                       </div>
 
                       <div className="mt-5 flex flex-wrap gap-3">
-                        <button
-                          type="button"
-                          className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                        >
-                          Review package
-                        </button>
+                        {row.quoteId ? (
+                          <button
+                            type="button"
+                            onClick={() => router.push(`/quotes/${row.quoteId}`)}
+                            className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                          >
+                            Open formal quote
+                          </button>
+                        ) : null}
 
                         <button
                           type="button"

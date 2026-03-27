@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import {
   formatCurrencyValue,
@@ -105,8 +105,6 @@ export default function Client({ data }: Props) {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
 
-  const quoteSummary = useMemo(() => latestQuote, [latestQuote]);
-
   async function handleSubmitQuote(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitError(null);
@@ -158,8 +156,8 @@ export default function Client({ data }: Props) {
 
       setSubmitSuccess(
         latestQuote
-          ? `Quote revision v${payload.quoteVersion} submitted successfully.`
-          : `Quote v${payload.quoteVersion} submitted successfully.`,
+          ? `Quote ${payload.quoteReference} v${payload.quoteVersion} submitted successfully.`
+          : `Quote ${payload.quoteReference} v${payload.quoteVersion} submitted successfully.`,
       );
 
       router.refresh();
@@ -358,15 +356,20 @@ export default function Client({ data }: Props) {
                   Send an initial quote or revise your latest response for this
                   package.
                 </p>
+                {latestQuote?.quoteReference ? (
+                  <p className="mt-2 text-sm text-slate-600">
+                    Reference: {latestQuote.quoteReference} v{latestQuote.quoteVersion}
+                  </p>
+                ) : null}
               </div>
 
-              {quoteSummary?.status ? (
+              {latestQuote?.status ? (
                 <span
                   className={`rounded-full px-2.5 py-1 text-xs font-medium ${toneClasses(
-                    providerQuoteStatusTones[quoteSummary.status],
+                    providerQuoteStatusTones[latestQuote.status],
                   )}`}
                 >
-                  {getProviderQuoteStatusLabel(quoteSummary.status)}
+                  {getProviderQuoteStatusLabel(latestQuote.status)}
                 </span>
               ) : null}
             </div>
@@ -553,6 +556,16 @@ export default function Client({ data }: Props) {
                         : "Submit quote"}
                   </button>
 
+                  {latestQuote ? (
+                    <button
+                      type="button"
+                      onClick={() => router.push(`/quotes/${latestQuote.id}`)}
+                      className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      Open formal quote
+                    </button>
+                  ) : null}
+
                   <button
                     type="button"
                     onClick={() => router.push("/provider/requests")}
@@ -632,7 +645,9 @@ export default function Client({ data }: Props) {
                   >
                     <div className="flex flex-wrap items-center gap-2">
                       <div className="font-medium text-slate-900">
-                        Quote v{quote.quoteVersion}
+                        {quote.quoteReference
+                          ? `${quote.quoteReference} v${quote.quoteVersion}`
+                          : `Quote v${quote.quoteVersion}`}
                       </div>
                       <span
                         className={`rounded-full px-2.5 py-1 text-xs font-medium ${toneClasses(
@@ -681,6 +696,16 @@ export default function Client({ data }: Props) {
                         {quote.notes}
                       </div>
                     ) : null}
+
+                    <div className="mt-3">
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/quotes/${quote.id}`)}
+                        className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                      >
+                        Open formal quote
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>

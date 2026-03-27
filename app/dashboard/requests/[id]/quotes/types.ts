@@ -38,6 +38,8 @@ export type QuoteComparisonRowView = {
   providerRespondedAt: string | null;
   awardedAt: string | null;
   currencyCode: string;
+  quoteId: string | null;
+  quoteReference: string | null;
   quoteNotes: string | null;
   quoteSubmittedAt: string | null;
   quoteVersion: number | null;

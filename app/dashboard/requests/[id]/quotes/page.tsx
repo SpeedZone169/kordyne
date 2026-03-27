@@ -188,7 +188,9 @@ export default async function RequestQuotesPage({
   let latestQuoteByPackageId = new Map<
     string,
     {
+      id: string;
       provider_request_package_id: string;
+      quote_reference: string | null;
       quote_version: number;
       status: string;
       currency_code: string;
@@ -206,7 +208,9 @@ export default async function RequestQuotesPage({
       .from("provider_quotes")
       .select(
         `
+          id,
           provider_request_package_id,
+          quote_reference,
           quote_version,
           status,
           currency_code,
@@ -265,6 +269,8 @@ export default async function RequestQuotesPage({
       providerRespondedAt: pkg?.provider_responded_at ?? null,
       awardedAt: pkg?.awarded_at ?? null,
       currencyCode: quote?.currency_code ?? selectedRound.currencyCode ?? "EUR",
+      quoteId: quote?.id ?? null,
+      quoteReference: quote?.quote_reference ?? null,
       quoteNotes: quote?.notes ?? null,
       quoteSubmittedAt: quote?.submitted_at ?? null,
       quoteVersion: quote?.quote_version ?? null,
