@@ -8,6 +8,7 @@ const navItems = [
   { href: "/admin/users", label: "Users" },
   { href: "/admin/organizations", label: "Organizations" },
   { href: "/admin/providers", label: "Providers" },
+  { href: "/admin/requests", label: "Requests" },
   { href: "/admin/stats", label: "Statistics" },
 ];
 
@@ -53,12 +54,6 @@ export default async function AdminLayout({
               className="rounded-full border border-zinc-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-900 transition hover:bg-zinc-50"
             >
               Dashboard
-            </Link>
-            <Link
-              href="/account"
-              className="rounded-full border border-zinc-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-900 transition hover:bg-zinc-50"
-            >
-              Account
             </Link>
           </div>
         </div>

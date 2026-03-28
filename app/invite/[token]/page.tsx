@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "../../../lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import Navbar from "../../../components/Navbar";
 import Footer from "../../../components/Footer";
 import AcceptInviteButton from "../../dashboard/organization/AcceptInviteButton";
@@ -15,9 +16,17 @@ type InviteDetails = {
   status: string;
 };
 
+type InviteMetaRow = {
+  organization_id: string;
+  email: string;
+  role: string;
+  status: string;
+};
+
 export default async function InvitePage({ params }: PageProps) {
   const { token } = await params;
   const supabase = await createClient();
+  const adminSupabase = createAdminClient();
 
   const { data: inviteData, error: inviteError } = await supabase.rpc(
     "get_public_invite_details",
@@ -49,6 +58,47 @@ export default async function InvitePage({ params }: PageProps) {
     );
   }
 
+  const { data: inviteMeta } = await adminSupabase
+    .from("organization_invites")
+    .select("organization_id, email, role, status")
+    .eq("token", token)
+    .maybeSingle();
+
+  const meta = inviteMeta as InviteMetaRow | null;
+
+  let isProviderInvite = false;
+
+  if (meta?.organization_id) {
+    const { count } = await adminSupabase
+      .from("provider_relationships")
+      .select("*", { count: "exact", head: true })
+      .eq("provider_org_id", meta.organization_id);
+
+    isProviderInvite = (count ?? 0) > 0;
+  }
+
+  const inviteKind = isProviderInvite ? "provider" : "customer";
+
+  const pageTitle =
+    inviteKind === "provider" ? "Provider Invite" : "Organization Invite";
+
+  const pageIntro =
+    inviteKind === "provider"
+      ? "You have been invited to join a provider organization in Kordyne."
+      : "You have been invited to join an organization in Kordyne.";
+
+  const acceptCtaLabel =
+    inviteKind === "provider" ? "Accept Provider Invite" : "Accept Invite";
+
+  const acceptedLinkHref =
+    inviteKind === "provider" ? "/provider" : "/dashboard";
+
+  const acceptedLinkLabel =
+    inviteKind === "provider" ? "Go to Provider Portal" : "Go to Dashboard";
+
+  const createAccountHref = `/signup?invite=${encodeURIComponent(token)}`;
+  const loginHref = `/login?next=${encodeURIComponent(`/invite/${token}`)}`;
+
   const isAccepted = invite.status === "accepted";
   const isPending = invite.status === "pending";
 
@@ -61,10 +111,8 @@ export default async function InvitePage({ params }: PageProps) {
       <Navbar />
 
       <section className="mx-auto max-w-3xl px-6 py-20">
-        <h1 className="text-4xl font-bold">Organization Invite</h1>
-        <p className="mt-4 text-gray-600">
-          You have been invited to join an organization in Kordyne.
-        </p>
+        <h1 className="text-4xl font-bold">{pageTitle}</h1>
+        <p className="mt-4 text-gray-600">{pageIntro}</p>
 
         <div className="mt-10 rounded-3xl border border-gray-200 p-6 shadow-sm">
           <div className="grid gap-4 text-sm">
@@ -86,6 +134,13 @@ export default async function InvitePage({ params }: PageProps) {
             </div>
 
             <div>
+              <p className="text-gray-500">Invite Type</p>
+              <p className="font-medium capitalize text-gray-900">
+                {inviteKind}
+              </p>
+            </div>
+
+            <div>
               <p className="text-gray-500">Status</p>
               <p className="font-medium text-gray-900">{invite.status}</p>
             </div>
@@ -100,19 +155,24 @@ export default async function InvitePage({ params }: PageProps) {
 
               <div className="flex flex-wrap gap-3">
                 <Link
-                  href={`/signup?invite=${encodeURIComponent(token)}`}
+                  href={createAccountHref}
                   className="rounded-2xl bg-gray-900 px-5 py-3 text-sm font-medium text-white transition hover:opacity-90"
                 >
-                  Create Account
+                  Create Invited Account
                 </Link>
 
                 <Link
-                  href={`/login?next=${encodeURIComponent(`/invite/${token}`)}`}
+                  href={loginHref}
                   className="rounded-2xl border border-gray-300 px-5 py-3 text-sm font-medium text-gray-900 transition hover:bg-gray-50"
                 >
                   Log In
                 </Link>
               </div>
+
+              <p className="text-xs text-gray-500">
+                Invite-based account creation should stay enabled even though
+                public signup is now a placeholder page.
+              </p>
             </div>
           ) : null}
 
@@ -130,8 +190,17 @@ export default async function InvitePage({ params }: PageProps) {
           ) : null}
 
           {user && isPending && isMatchingInviteEmail ? (
-            <div className="mt-8">
-              <AcceptInviteButton inviteToken={token} />
+            <div className="mt-8 space-y-4">
+              <p className="text-sm text-gray-600">
+                You are signed in with the invited email and can now accept this{" "}
+                {inviteKind} invite.
+              </p>
+
+              <div>
+                <AcceptInviteButton inviteToken={token} />
+              </div>
+
+              <p className="text-xs text-gray-500">{acceptCtaLabel}</p>
             </div>
           ) : null}
 
@@ -142,10 +211,10 @@ export default async function InvitePage({ params }: PageProps) {
               </p>
               <div className="mt-4">
                 <Link
-                  href="/dashboard/organization"
+                  href={acceptedLinkHref}
                   className="rounded-2xl border border-gray-300 px-5 py-3 text-sm font-medium text-gray-900 transition hover:bg-gray-50"
                 >
-                  Go to Organization
+                  {acceptedLinkLabel}
                 </Link>
               </div>
             </div>

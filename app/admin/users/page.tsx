@@ -89,6 +89,89 @@ async function removeFromCompany(formData: FormData) {
   revalidatePath("/admin/organizations");
 }
 
+async function deleteUser(formData: FormData) {
+  "use server";
+
+  await requirePlatformOwner();
+
+  const userId = String(formData.get("userId") ?? "");
+  const email = String(formData.get("email") ?? "");
+
+  if (!userId) {
+    throw new Error("Missing user id.");
+  }
+
+  if (email === FIXED_OWNER_EMAIL) {
+    throw new Error("The fixed platform owner cannot be deleted here.");
+  }
+
+  const supabase = createAdminClient();
+
+  const [
+    { count: requestCount, error: requestError },
+    { count: relationshipCount, error: relationshipError },
+    { count: roundCount, error: roundError },
+  ] = await Promise.all([
+    supabase
+      .from("service_requests")
+      .select("*", { count: "exact", head: true })
+      .eq("requested_by_user_id", userId),
+    supabase
+      .from("provider_relationships")
+      .select("*", { count: "exact", head: true })
+      .eq("created_by_user_id", userId),
+    supabase
+      .from("provider_quote_rounds")
+      .select("*", { count: "exact", head: true })
+      .eq("created_by_user_id", userId),
+  ]);
+
+  if (requestError || relationshipError || roundError) {
+    throw new Error(
+      requestError?.message ||
+        relationshipError?.message ||
+        roundError?.message ||
+        "Failed to verify user dependencies."
+    );
+  }
+
+  if ((requestCount ?? 0) > 0 || (relationshipCount ?? 0) > 0 || (roundCount ?? 0) > 0) {
+    throw new Error(
+      "User has related platform records. Remove or reassign requests/provider activity before deleting this user."
+    );
+  }
+
+  const { error: membershipDeleteError } = await supabase
+    .from("organization_members")
+    .delete()
+    .eq("user_id", userId);
+
+  if (membershipDeleteError) {
+    throw new Error(membershipDeleteError.message);
+  }
+
+  const { error: profileDeleteError } = await supabase
+    .from("profiles")
+    .delete()
+    .eq("user_id", userId);
+
+  if (profileDeleteError) {
+    throw new Error(profileDeleteError.message);
+  }
+
+  const { error: authDeleteError } = await supabase.auth.admin.deleteUser(userId);
+
+  if (authDeleteError) {
+    throw new Error(
+      `Profile deleted but auth user deletion failed: ${authDeleteError.message}`
+    );
+  }
+
+  revalidatePath("/admin/users");
+  revalidatePath("/admin/organizations");
+  revalidatePath("/admin/stats");
+}
+
 function formatDate(value: string) {
   try {
     return new Date(value).toLocaleString();
@@ -262,27 +345,41 @@ export default async function AdminUsersPage() {
                     </td>
 
                     <td className="px-8 py-6">
-                      {row.membership_id && !isFixedOwner ? (
-                        <form action={removeFromCompany} className="space-y-3">
-                          <input
-                            type="hidden"
-                            name="membershipId"
-                            value={row.membership_id}
-                          />
-                          <input type="hidden" name="email" value={row.email ?? ""} />
+                      <div className="space-y-3">
+                        {row.membership_id && !isFixedOwner ? (
+                          <form action={removeFromCompany}>
+                            <input
+                              type="hidden"
+                              name="membershipId"
+                              value={row.membership_id}
+                            />
+                            <input type="hidden" name="email" value={row.email ?? ""} />
+                            <button
+                              type="submit"
+                              className="rounded-full border border-zinc-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-900 transition hover:bg-zinc-50"
+                            >
+                              Remove from company
+                            </button>
+                          </form>
+                        ) : (
+                          <span className="text-sm text-slate-400">
+                            {isFixedOwner ? "Owner is managed separately" : "—"}
+                          </span>
+                        )}
 
-                          <button
-                            type="submit"
-                            className="rounded-full border border-zinc-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-900 transition hover:bg-zinc-50"
-                          >
-                            Remove from company
-                          </button>
-                        </form>
-                      ) : (
-                        <span className="text-sm text-slate-400">
-                          {isFixedOwner ? "Owner is managed separately" : "—"}
-                        </span>
-                      )}
+                        {!isFixedOwner ? (
+                          <form action={deleteUser}>
+                            <input type="hidden" name="userId" value={row.user_id} />
+                            <input type="hidden" name="email" value={row.email ?? ""} />
+                            <button
+                              type="submit"
+                              className="rounded-full border border-red-200 bg-red-50 px-5 py-2.5 text-sm font-medium text-red-700 transition hover:bg-red-100"
+                            >
+                              Delete user
+                            </button>
+                          </form>
+                        ) : null}
+                      </div>
                     </td>
 
                     <td className="px-8 py-6 text-sm text-slate-500">

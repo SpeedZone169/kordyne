@@ -35,6 +35,39 @@ export default function AcceptInviteButton({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  async function resolvePostAcceptDestination() {
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      return "/login";
+    }
+
+    const { data: membership, error: membershipError } = await supabase
+      .from("organization_members")
+      .select("organization_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (membershipError || !membership?.organization_id) {
+      return "/dashboard";
+    }
+
+    const { count: providerRelationshipCount, error: providerLookupError } =
+      await supabase
+        .from("provider_relationships")
+        .select("*", { count: "exact", head: true })
+        .eq("provider_org_id", membership.organization_id);
+
+    if (!providerLookupError && (providerRelationshipCount ?? 0) > 0) {
+      return "/provider";
+    }
+
+    return "/dashboard";
+  }
+
   async function handleAccept() {
     if (loading) return;
 
@@ -51,7 +84,8 @@ export default function AcceptInviteButton({
         return;
       }
 
-      router.replace("/dashboard/organization");
+      const destination = await resolvePostAcceptDestination();
+      router.replace(destination);
       router.refresh();
     } finally {
       setLoading(false);
