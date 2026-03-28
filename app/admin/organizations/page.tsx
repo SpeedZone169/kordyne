@@ -12,6 +12,11 @@ type OrganizationRow = {
   created_at: string;
   plan: string;
   seat_limit: number;
+  billing_status: string;
+  onboarding_status: string;
+  plan_started_at: string | null;
+  plan_ends_at: string | null;
+  internal_notes: string | null;
 };
 
 type MembershipRow = {
@@ -45,6 +50,25 @@ function getSiteUrl() {
   );
 }
 
+function formatDate(value: string | null) {
+  if (!value) return "—";
+
+  try {
+    return new Date(value).toLocaleDateString("en-IE", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  } catch {
+    return value;
+  }
+}
+
+function toDateInputValue(value: string | null) {
+  if (!value) return "";
+  return value.slice(0, 10);
+}
+
 async function createCustomerOrganization(formData: FormData) {
   "use server";
 
@@ -53,6 +77,14 @@ async function createCustomerOrganization(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
   const plan = String(formData.get("plan") ?? "starter").trim();
   const seatLimitRaw = String(formData.get("seatLimit") ?? "5").trim();
+  const billingStatus = String(formData.get("billingStatus") ?? "pending").trim();
+  const onboardingStatus = String(
+    formData.get("onboardingStatus") ?? "lead"
+  ).trim();
+  const planStartedAt = String(formData.get("planStartedAt") ?? "").trim() || null;
+  const planEndsAt = String(formData.get("planEndsAt") ?? "").trim() || null;
+  const internalNotes = String(formData.get("internalNotes") ?? "").trim() || null;
+
   const seatLimit = Number(seatLimitRaw);
 
   if (!name) {
@@ -70,6 +102,11 @@ async function createCustomerOrganization(formData: FormData) {
     slug: slugify(name) || null,
     plan: plan || "starter",
     seat_limit: seatLimit,
+    billing_status: billingStatus || "pending",
+    onboarding_status: onboardingStatus || "lead",
+    plan_started_at: planStartedAt,
+    plan_ends_at: planEndsAt,
+    internal_notes: internalNotes,
   });
 
   if (error) {
@@ -89,6 +126,14 @@ async function updateOrganizationSettings(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
   const plan = String(formData.get("plan") ?? "starter").trim();
   const seatLimitRaw = String(formData.get("seatLimit") ?? "5").trim();
+  const billingStatus = String(formData.get("billingStatus") ?? "pending").trim();
+  const onboardingStatus = String(
+    formData.get("onboardingStatus") ?? "lead"
+  ).trim();
+  const planStartedAt = String(formData.get("planStartedAt") ?? "").trim() || null;
+  const planEndsAt = String(formData.get("planEndsAt") ?? "").trim() || null;
+  const internalNotes = String(formData.get("internalNotes") ?? "").trim() || null;
+
   const seatLimit = Number(seatLimitRaw);
 
   if (!organizationId) {
@@ -111,6 +156,11 @@ async function updateOrganizationSettings(formData: FormData) {
       name,
       plan,
       seat_limit: seatLimit,
+      billing_status: billingStatus,
+      onboarding_status: onboardingStatus,
+      plan_started_at: planStartedAt,
+      plan_ends_at: planEndsAt,
+      internal_notes: internalNotes,
     })
     .eq("id", organizationId);
 
@@ -292,7 +342,7 @@ async function deleteOrganization(formData: FormData) {
     { count: customerRelationshipCount, error: customerRelationshipError },
     { count: providerRelationshipCount, error: providerRelationshipError },
     { count: quoteRoundCount, error: quoteRoundError },
-    { count: pendingInviteCount, error: pendingInviteError },
+    { count: inviteCount, error: inviteCountError },
   ] = await Promise.all([
     supabase
       .from("organization_members")
@@ -326,7 +376,7 @@ async function deleteOrganization(formData: FormData) {
     customerRelationshipError ||
     providerRelationshipError ||
     quoteRoundError ||
-    pendingInviteError;
+    inviteCountError;
 
   if (firstError) {
     throw new Error(firstError.message);
@@ -338,10 +388,10 @@ async function deleteOrganization(formData: FormData) {
     (customerRelationshipCount ?? 0) > 0 ||
     (providerRelationshipCount ?? 0) > 0 ||
     (quoteRoundCount ?? 0) > 0 ||
-    (pendingInviteCount ?? 0) > 0
+    (inviteCount ?? 0) > 0
   ) {
     throw new Error(
-      "Organization still has related users, requests, provider links, quote rounds, or pending invites. Remove those first before deleting the organization."
+      "Organization still has related users, requests, provider links, quote rounds, or invites. Remove those first before deleting the organization."
     );
   }
 
@@ -359,14 +409,6 @@ async function deleteOrganization(formData: FormData) {
   revalidatePath("/admin/stats");
 }
 
-function formatDate(value: string) {
-  try {
-    return new Date(value).toLocaleDateString();
-  } catch {
-    return value;
-  }
-}
-
 export default async function AdminOrganizationsPage() {
   await requirePlatformOwner();
   const supabase = createAdminClient();
@@ -378,7 +420,9 @@ export default async function AdminOrganizationsPage() {
   ] = await Promise.all([
     supabase
       .from("organizations")
-      .select("id, name, slug, created_at, plan, seat_limit")
+      .select(
+        "id, name, slug, created_at, plan, seat_limit, billing_status, onboarding_status, plan_started_at, plan_ends_at, internal_notes"
+      )
       .order("created_at", { ascending: false }),
     supabase.from("organization_members").select("organization_id"),
     supabase
@@ -425,12 +469,12 @@ export default async function AdminOrganizationsPage() {
       ...organization,
       memberCount,
       pendingInvites: orgInvites,
-      onboardingState:
+      accessState:
         memberCount > 0
-          ? "Active"
+          ? "Live"
           : orgInvites.length > 0
           ? "Invite sent"
-          : "Prepared / invite pending",
+          : "Prepared",
       inviteLinks: orgInvites.map((invite) => ({
         ...invite,
         inviteUrl: `${siteUrl}/invite/${invite.token}`,
@@ -449,7 +493,8 @@ export default async function AdminOrganizationsPage() {
             Create customer company
           </h2>
           <p className="mt-3 text-sm leading-6 text-slate-600">
-            Create the company record first, assign a placeholder plan, then send the first admin invite.
+            Create the company record, assign plan and commercial placeholder state,
+            then send the first admin invite.
           </p>
 
           <form action={createCustomerOrganization} className="mt-6 space-y-4">
@@ -466,33 +511,108 @@ export default async function AdminOrganizationsPage() {
               />
             </div>
 
-            <div>
-              <label className="mb-2 block text-sm font-medium text-slate-700">
-                Placeholder plan
-              </label>
-              <select
-                name="plan"
-                defaultValue="starter"
-                className="w-full rounded-full border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
-              >
-                <option value="starter">starter</option>
-                <option value="growth">growth</option>
-                <option value="enterprise">enterprise</option>
-                <option value="custom">custom</option>
-              </select>
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-700">
+                  Plan
+                </label>
+                <select
+                  name="plan"
+                  defaultValue="starter"
+                  className="w-full rounded-full border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
+                >
+                  <option value="starter">starter</option>
+                  <option value="growth">growth</option>
+                  <option value="enterprise">enterprise</option>
+                  <option value="custom">custom</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-700">
+                  Seat limit
+                </label>
+                <input
+                  type="number"
+                  name="seatLimit"
+                  min={1}
+                  defaultValue={5}
+                  className="w-full rounded-full border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-700">
+                  Billing status
+                </label>
+                <select
+                  name="billingStatus"
+                  defaultValue="pending"
+                  className="w-full rounded-full border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
+                >
+                  <option value="pending">pending</option>
+                  <option value="paid">paid</option>
+                  <option value="trial">trial</option>
+                  <option value="overdue">overdue</option>
+                  <option value="inactive">inactive</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-700">
+                  Onboarding status
+                </label>
+                <select
+                  name="onboardingStatus"
+                  defaultValue="lead"
+                  className="w-full rounded-full border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
+                >
+                  <option value="lead">lead</option>
+                  <option value="contacted">contacted</option>
+                  <option value="approved">approved</option>
+                  <option value="invited">invited</option>
+                  <option value="active">active</option>
+                  <option value="paused">paused</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-700">
+                  Plan start date
+                </label>
+                <input
+                  type="date"
+                  name="planStartedAt"
+                  className="w-full rounded-full border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-700">
+                  Plan end date
+                </label>
+                <input
+                  type="date"
+                  name="planEndsAt"
+                  className="w-full rounded-full border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
+                />
+              </div>
             </div>
 
             <div>
               <label className="mb-2 block text-sm font-medium text-slate-700">
-                Seat limit
+                Internal notes
               </label>
-              <input
-                type="number"
-                name="seatLimit"
-                min={1}
-                defaultValue={5}
-                className="w-full rounded-full border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
-                required
+              <textarea
+                name="internalNotes"
+                rows={4}
+                className="w-full rounded-[24px] border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
+                placeholder="Commercial notes, onboarding notes, plan context..."
               />
             </div>
 
@@ -507,15 +627,21 @@ export default async function AdminOrganizationsPage() {
 
         <div className="rounded-[32px] border border-zinc-200 bg-white p-8">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-            Invite flow
+            Commercial layer
           </p>
           <h2 className="mt-3 text-2xl font-semibold tracking-tight text-slate-950">
-            Customer admin onboarding
+            Manual customer management
           </h2>
           <div className="mt-4 space-y-3 text-sm leading-6 text-slate-600">
             <p>Customers do not self-sign up yet.</p>
-            <p>You create the company here, select the placeholder plan, then invite the first company admin.</p>
-            <p>The invited person accepts through the invite link and becomes the org admin.</p>
+            <p>
+              You can now track billing state, onboarding state, plan dates,
+              seat limits, and internal notes directly from the owner console.
+            </p>
+            <p>
+              This gives you a manual commercial workflow until real pricing and
+              payment integration are connected later.
+            </p>
           </div>
 
           <div className="mt-6 flex flex-wrap gap-3">
@@ -544,7 +670,8 @@ export default async function AdminOrganizationsPage() {
             Customer companies
           </h2>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-            Update company details, placeholder plan, send the first company admin invite, and manage pending invites.
+            Update company details, commercial state, onboarding state, plan dates,
+            internal notes, and manage pending admin invites.
           </p>
         </div>
 
@@ -552,14 +679,15 @@ export default async function AdminOrganizationsPage() {
           {rows.map((organization) => (
             <div
               key={organization.id}
-              className="grid gap-6 px-8 py-6 lg:grid-cols-[1.35fr_320px_280px]"
+              className="grid gap-6 px-8 py-6 lg:grid-cols-[1.5fr_340px_280px]"
             >
               <div className="space-y-6">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                    Company
+                    Company and commercial settings
                   </p>
-                  <form action={updateOrganizationSettings} className="mt-3 space-y-3">
+
+                  <form action={updateOrganizationSettings} className="mt-3 space-y-4">
                     <input
                       type="hidden"
                       name="organizationId"
@@ -573,7 +701,7 @@ export default async function AdminOrganizationsPage() {
                       className="w-full rounded-full border border-zinc-300 bg-white px-5 py-3 text-sm text-slate-950 outline-none"
                     />
 
-                    <div className="grid gap-3 lg:grid-cols-2">
+                    <div className="grid gap-4 lg:grid-cols-2">
                       <select
                         name="plan"
                         defaultValue={organization.plan}
@@ -593,6 +721,57 @@ export default async function AdminOrganizationsPage() {
                         className="rounded-full border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
                       />
                     </div>
+
+                    <div className="grid gap-4 lg:grid-cols-2">
+                      <select
+                        name="billingStatus"
+                        defaultValue={organization.billing_status}
+                        className="rounded-full border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
+                      >
+                        <option value="pending">pending</option>
+                        <option value="paid">paid</option>
+                        <option value="trial">trial</option>
+                        <option value="overdue">overdue</option>
+                        <option value="inactive">inactive</option>
+                      </select>
+
+                      <select
+                        name="onboardingStatus"
+                        defaultValue={organization.onboarding_status}
+                        className="rounded-full border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
+                      >
+                        <option value="lead">lead</option>
+                        <option value="contacted">contacted</option>
+                        <option value="approved">approved</option>
+                        <option value="invited">invited</option>
+                        <option value="active">active</option>
+                        <option value="paused">paused</option>
+                      </select>
+                    </div>
+
+                    <div className="grid gap-4 lg:grid-cols-2">
+                      <input
+                        type="date"
+                        name="planStartedAt"
+                        defaultValue={toDateInputValue(organization.plan_started_at)}
+                        className="rounded-full border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
+                      />
+
+                      <input
+                        type="date"
+                        name="planEndsAt"
+                        defaultValue={toDateInputValue(organization.plan_ends_at)}
+                        className="rounded-full border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
+                      />
+                    </div>
+
+                    <textarea
+                      name="internalNotes"
+                      rows={5}
+                      defaultValue={organization.internal_notes || ""}
+                      className="w-full rounded-[24px] border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
+                      placeholder="Commercial notes, onboarding state, exceptions, follow-ups..."
+                    />
 
                     <div className="flex flex-wrap items-center gap-3">
                       <button
@@ -616,6 +795,7 @@ export default async function AdminOrganizationsPage() {
                   <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
                     Send first admin invite
                   </p>
+
                   <form action={sendCompanyAdminInvite} className="mt-3 space-y-3">
                     <input
                       type="hidden"
@@ -650,15 +830,29 @@ export default async function AdminOrganizationsPage() {
 
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Onboarding
+                  Status overview
                 </p>
+
                 <div className="mt-3 space-y-2 text-sm text-slate-600">
-                  <p>State: {organization.onboardingState}</p>
+                  <p>Access state: {organization.accessState}</p>
+                  <p>Onboarding status: {organization.onboarding_status}</p>
+                  <p>Billing status: {organization.billing_status}</p>
                   <p>Members: {organization.memberCount}</p>
                   <p>Plan: {organization.plan}</p>
                   <p>Seat limit: {organization.seat_limit}</p>
+                  <p>Plan starts: {formatDate(organization.plan_started_at)}</p>
+                  <p>Plan ends: {formatDate(organization.plan_ends_at)}</p>
                   <p>Created: {formatDate(organization.created_at)}</p>
                   <p>Slug: {organization.slug || "—"}</p>
+                </div>
+
+                <div className="mt-5">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                    Internal notes
+                  </p>
+                  <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600">
+                    {organization.internal_notes || "No internal notes added."}
+                  </p>
                 </div>
 
                 <div className="mt-5">
@@ -725,6 +919,7 @@ export default async function AdminOrganizationsPage() {
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
                   Delete
                 </p>
+
                 <form action={deleteOrganization} className="mt-3 space-y-3">
                   <input
                     type="hidden"
