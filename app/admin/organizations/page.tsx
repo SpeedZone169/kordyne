@@ -1,7 +1,9 @@
-import { revalidatePath } from "next/cache";
 import Link from "next/link";
+import { Resend } from "resend";
+import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requirePlatformOwner } from "@/lib/auth/platform-owner";
+import CopyInviteLinkButton from "@/components/admin/CopyInviteLinkButton";
 
 type OrganizationRow = {
   id: string;
@@ -23,6 +25,7 @@ type InviteRow = {
   role: string;
   status: string;
   created_at: string;
+  token: string;
 };
 
 function slugify(value: string) {
@@ -32,6 +35,14 @@ function slugify(value: string) {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 80);
+}
+
+function getSiteUrl() {
+  return (
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    "https://kordyne.com"
+  );
 }
 
 async function createCustomerOrganization(formData: FormData) {
@@ -125,8 +136,10 @@ async function sendCompanyAdminInvite(formData: FormData) {
     throw new Error("Organization and email are required.");
   }
 
+  const siteUrl = getSiteUrl();
+
   const response = await fetch(
-    `${process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || ""}/api/admin/organizations/${organizationId}/invite`,
+    `${siteUrl}/api/admin/organizations/${organizationId}/invite`,
     {
       method: "POST",
       headers: {
@@ -141,6 +154,120 @@ async function sendCompanyAdminInvite(formData: FormData) {
 
   if (!response.ok) {
     throw new Error(payload?.error || "Failed to send company admin invite.");
+  }
+
+  revalidatePath("/admin/organizations");
+}
+
+async function resendCompanyAdminInvite(formData: FormData) {
+  "use server";
+
+  await requirePlatformOwner();
+
+  const inviteId = String(formData.get("inviteId") ?? "");
+
+  if (!inviteId) {
+    throw new Error("Missing invite id.");
+  }
+
+  if (!process.env.RESEND_API_KEY) {
+    throw new Error("Missing RESEND_API_KEY.");
+  }
+
+  const supabase = createAdminClient();
+
+  const { data: invite, error: inviteError } = await supabase
+    .from("organization_invites")
+    .select("id, organization_id, email, role, status, token")
+    .eq("id", inviteId)
+    .maybeSingle();
+
+  if (inviteError || !invite) {
+    throw new Error("Invite not found.");
+  }
+
+  if (invite.status !== "pending") {
+    throw new Error("Only pending invites can be resent.");
+  }
+
+  const { data: organization, error: organizationError } = await supabase
+    .from("organizations")
+    .select("name")
+    .eq("id", invite.organization_id)
+    .maybeSingle();
+
+  if (organizationError || !organization) {
+    throw new Error("Organization not found.");
+  }
+
+  const siteUrl = getSiteUrl();
+  const inviteUrl = `${siteUrl}/invite/${invite.token}`;
+
+  const resend = new Resend(process.env.RESEND_API_KEY);
+
+  const { error: emailError } = await resend.emails.send({
+    from: process.env.RESEND_FROM_EMAIL || "Kordyne <noreply@kordyne.com>",
+    to: invite.email,
+    subject: `Reminder: you're invited to administer ${organization.name} on Kordyne`,
+    text: [
+      `You've been invited to join ${organization.name} on Kordyne as an admin.`,
+      "",
+      "Kordyne is the bridge between engineering, part control, and manufacturing coordination.",
+      "",
+      `Learn more here: ${siteUrl}`,
+      `Accept your invite here: ${inviteUrl}`,
+    ].join("\n"),
+    html: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111827;">
+        <h2 style="margin-bottom: 16px;">Reminder: you're invited to join Kordyne</h2>
+        <p>
+          You've been invited to join <strong>${organization.name}</strong>
+          as an <strong>admin</strong>.
+        </p>
+        <p>
+          Kordyne is the bridge between engineering, part control, and manufacturing coordination.
+        </p>
+        <p style="margin: 24px 0;">
+          <a
+            href="${inviteUrl}"
+            style="display: inline-block; background: #111827; color: #ffffff; text-decoration: none; padding: 12px 18px; border-radius: 9999px;"
+          >
+            Accept invite
+          </a>
+        </p>
+        <p><a href="${inviteUrl}">${inviteUrl}</a></p>
+      </div>
+    `,
+  });
+
+  if (emailError) {
+    throw new Error("Invite email could not be resent.");
+  }
+
+  revalidatePath("/admin/organizations");
+}
+
+async function revokeOrganizationInvite(formData: FormData) {
+  "use server";
+
+  await requirePlatformOwner();
+
+  const inviteId = String(formData.get("inviteId") ?? "");
+
+  if (!inviteId) {
+    throw new Error("Missing invite id.");
+  }
+
+  const supabase = createAdminClient();
+
+  const { error } = await supabase
+    .from("organization_invites")
+    .delete()
+    .eq("id", inviteId)
+    .eq("status", "pending");
+
+  if (error) {
+    throw new Error(error.message);
   }
 
   revalidatePath("/admin/organizations");
@@ -165,6 +292,7 @@ async function deleteOrganization(formData: FormData) {
     { count: customerRelationshipCount, error: customerRelationshipError },
     { count: providerRelationshipCount, error: providerRelationshipError },
     { count: quoteRoundCount, error: quoteRoundError },
+    { count: pendingInviteCount, error: pendingInviteError },
   ] = await Promise.all([
     supabase
       .from("organization_members")
@@ -186,6 +314,10 @@ async function deleteOrganization(formData: FormData) {
       .from("provider_quote_rounds")
       .select("*", { count: "exact", head: true })
       .eq("customer_org_id", organizationId),
+    supabase
+      .from("organization_invites")
+      .select("*", { count: "exact", head: true })
+      .eq("organization_id", organizationId),
   ]);
 
   const firstError =
@@ -193,7 +325,8 @@ async function deleteOrganization(formData: FormData) {
     requestError ||
     customerRelationshipError ||
     providerRelationshipError ||
-    quoteRoundError;
+    quoteRoundError ||
+    pendingInviteError;
 
   if (firstError) {
     throw new Error(firstError.message);
@@ -204,10 +337,11 @@ async function deleteOrganization(formData: FormData) {
     (requestCount ?? 0) > 0 ||
     (customerRelationshipCount ?? 0) > 0 ||
     (providerRelationshipCount ?? 0) > 0 ||
-    (quoteRoundCount ?? 0) > 0
+    (quoteRoundCount ?? 0) > 0 ||
+    (pendingInviteCount ?? 0) > 0
   ) {
     throw new Error(
-      "Organization still has related users, requests, provider links, or quote rounds. Remove those first before deleting the organization."
+      "Organization still has related users, requests, provider links, quote rounds, or pending invites. Remove those first before deleting the organization."
     );
   }
 
@@ -249,7 +383,7 @@ export default async function AdminOrganizationsPage() {
     supabase.from("organization_members").select("organization_id"),
     supabase
       .from("organization_invites")
-      .select("id, organization_id, email, role, status, created_at")
+      .select("id, organization_id, email, role, status, created_at, token")
       .eq("status", "pending")
       .order("created_at", { ascending: false }),
   ]);
@@ -281,6 +415,8 @@ export default async function AdminOrganizationsPage() {
     pendingInviteMap.set(invite.organization_id, current);
   }
 
+  const siteUrl = getSiteUrl();
+
   const rows = ((organizations ?? []) as OrganizationRow[]).map((organization) => {
     const orgInvites = pendingInviteMap.get(organization.id) ?? [];
     const memberCount = memberCountMap.get(organization.id) ?? 0;
@@ -289,11 +425,16 @@ export default async function AdminOrganizationsPage() {
       ...organization,
       memberCount,
       pendingInvites: orgInvites,
-      onboardingState: memberCount > 0
-        ? "Active"
-        : orgInvites.length > 0
-        ? "Invite sent"
-        : "Prepared / invite pending",
+      onboardingState:
+        memberCount > 0
+          ? "Active"
+          : orgInvites.length > 0
+          ? "Invite sent"
+          : "Prepared / invite pending",
+      inviteLinks: orgInvites.map((invite) => ({
+        ...invite,
+        inviteUrl: `${siteUrl}/invite/${invite.token}`,
+      })),
     };
   });
 
@@ -403,7 +544,7 @@ export default async function AdminOrganizationsPage() {
             Customer companies
           </h2>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-            Update company details, placeholder plan, and send the first company admin invite.
+            Update company details, placeholder plan, send the first company admin invite, and manage pending invites.
           </p>
         </div>
 
@@ -411,7 +552,7 @@ export default async function AdminOrganizationsPage() {
           {rows.map((organization) => (
             <div
               key={organization.id}
-              className="grid gap-6 px-8 py-6 lg:grid-cols-[1.35fr_280px_280px]"
+              className="grid gap-6 px-8 py-6 lg:grid-cols-[1.35fr_320px_280px]"
             >
               <div className="space-y-6">
                 <div>
@@ -524,19 +665,51 @@ export default async function AdminOrganizationsPage() {
                   <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
                     Pending invites
                   </p>
-                  <div className="mt-3 space-y-2">
-                    {organization.pendingInvites.length > 0 ? (
-                      organization.pendingInvites.map((invite) => (
+
+                  <div className="mt-3 space-y-3">
+                    {organization.inviteLinks.length > 0 ? (
+                      organization.inviteLinks.map((invite) => (
                         <div
                           key={invite.id}
-                          className="rounded-[20px] border border-zinc-200 bg-[#fafaf9] px-4 py-3"
+                          className="rounded-[20px] border border-zinc-200 bg-[#fafaf9] p-4"
                         >
                           <p className="text-sm font-medium text-slate-950">
                             {invite.email}
                           </p>
                           <p className="mt-1 text-xs text-slate-500">
-                            {invite.role} · {invite.status}
+                            {invite.role} · {invite.status} · {formatDate(invite.created_at)}
                           </p>
+
+                          <div className="mt-4 flex flex-wrap gap-2">
+                            <Link
+                              href={invite.inviteUrl}
+                              className="rounded-full border border-zinc-300 bg-white px-4 py-2 text-xs font-medium text-slate-900 transition hover:bg-zinc-50"
+                            >
+                              Open invite
+                            </Link>
+
+                            <CopyInviteLinkButton inviteUrl={invite.inviteUrl} />
+
+                            <form action={resendCompanyAdminInvite}>
+                              <input type="hidden" name="inviteId" value={invite.id} />
+                              <button
+                                type="submit"
+                                className="rounded-full border border-zinc-300 bg-white px-4 py-2 text-xs font-medium text-slate-900 transition hover:bg-zinc-50"
+                              >
+                                Resend
+                              </button>
+                            </form>
+
+                            <form action={revokeOrganizationInvite}>
+                              <input type="hidden" name="inviteId" value={invite.id} />
+                              <button
+                                type="submit"
+                                className="rounded-full border border-red-200 bg-red-50 px-4 py-2 text-xs font-medium text-red-700 transition hover:bg-red-100"
+                              >
+                                Revoke
+                              </button>
+                            </form>
+                          </div>
                         </div>
                       ))
                     ) : (

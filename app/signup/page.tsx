@@ -1,282 +1,96 @@
-"use client";
-
-import { Suspense, useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import Navbar from "../../components/Navbar";
-import Footer from "../../components/Footer";
-import TurnstileWidget from "../../components/TurnstileWidget";
-
-type InviteDetails = {
-  token: string;
-  organization_name: string;
-  email: string;
-  role: string;
-  status: string;
-};
-
-function SignupPageContent() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-
-  const inviteToken = searchParams.get("invite");
-
-  const [fullName, setFullName] = useState("");
-  const [company, setCompany] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [repeatPassword, setRepeatPassword] = useState("");
-  const [turnstileToken, setTurnstileToken] = useState("");
-  const [acceptedTerms, setAcceptedTerms] = useState(false);
-  const [inviteDetails, setInviteDetails] = useState<InviteDetails | null>(
-    null
-  );
-  const [inviteLoading, setInviteLoading] = useState(Boolean(inviteToken));
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    async function loadInvite() {
-      if (!inviteToken) {
-        setInviteLoading(false);
-        return;
-      }
-
-      setInviteLoading(true);
-      setError("");
-
-      try {
-        const res = await fetch(
-          `/api/invites/details?token=${encodeURIComponent(inviteToken)}`
-        );
-        const data = await res.json();
-
-        if (!res.ok) {
-          setError(data.error || "Unable to load invite.");
-          setInviteLoading(false);
-          return;
-        }
-
-        const invite = data.invite as InviteDetails;
-
-        if (invite.status !== "pending") {
-          setError("This invite is no longer pending.");
-          setInviteLoading(false);
-          return;
-        }
-
-        setInviteDetails(invite);
-        setCompany(invite.organization_name || "");
-        setEmail(invite.email || "");
-      } catch {
-        setError("Unable to load invite.");
-      } finally {
-        setInviteLoading(false);
-      }
-    }
-
-    loadInvite();
-  }, [inviteToken]);
-
-  async function handleSignup(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setError("");
-    setSuccess("");
-
-    if (password !== repeatPassword) {
-      setError("Passwords do not match.");
-      return;
-    }
-
-    if (!acceptedTerms) {
-      setError("You must agree to the Terms and Conditions.");
-      return;
-    }
-
-    if (!turnstileToken) {
-      setError("Please complete the verification.");
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      const res = await fetch("/api/auth/signup", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          fullName,
-          company,
-          email,
-          password,
-          repeatPassword,
-          turnstileToken,
-          acceptedTerms,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error || "Unable to create account.");
-        return;
-      }
-
-      const successMessage =
-        "We’ve sent you a confirmation email. Please confirm your email before logging in.";
-
-      setSuccess(successMessage);
-
-      setTimeout(() => {
-        if (inviteToken) {
-          router.push(
-            `/login?next=${encodeURIComponent(`/invite/${inviteToken}`)}`
-          );
-        } else {
-          router.push("/login");
-        }
-        router.refresh();
-      }, 1800);
-    } catch {
-      setError("Something went wrong. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  const isInviteSignup = Boolean(inviteDetails);
-
-  return (
-    <>
-      <h1 className="text-3xl font-bold">
-        {isInviteSignup ? "Join Organization" : "Create Account"}
-      </h1>
-
-      {isInviteSignup ? (
-        <p className="mt-4 text-gray-600">
-          You are joining <strong>{inviteDetails?.organization_name}</strong> as{" "}
-          <strong>{inviteDetails?.role}</strong>.
-        </p>
-      ) : null}
-
-      {inviteLoading ? (
-        <p className="mt-6 text-sm text-gray-600">Loading invite...</p>
-      ) : (
-        <form onSubmit={handleSignup} className="mt-8 space-y-4">
-          <input
-            type="text"
-            placeholder="Full Name"
-            className="w-full rounded-xl border px-4 py-3"
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            required
-          />
-
-          <input
-            type="text"
-            placeholder="Company"
-            className="w-full rounded-xl border px-4 py-3 disabled:bg-gray-50 disabled:text-gray-500"
-            value={company}
-            onChange={(e) => setCompany(e.target.value)}
-            required
-            disabled={isInviteSignup}
-          />
-
-          <input
-            type="email"
-            placeholder="Email"
-            className="w-full rounded-xl border px-4 py-3 disabled:bg-gray-50 disabled:text-gray-500"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            disabled={isInviteSignup}
-          />
-
-          <input
-            type="password"
-            placeholder="Password"
-            className="w-full rounded-xl border px-4 py-3"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-
-          <input
-            type="password"
-            placeholder="Repeat Password"
-            className="w-full rounded-xl border px-4 py-3"
-            value={repeatPassword}
-            onChange={(e) => setRepeatPassword(e.target.value)}
-            required
-          />
-
-          <label className="block rounded-xl border border-gray-200 p-4 text-sm text-gray-700">
-            <div className="flex items-start gap-3">
-              <input
-                type="checkbox"
-                checked={acceptedTerms}
-                onChange={(e) => setAcceptedTerms(e.target.checked)}
-                className="mt-1"
-              />
-              <div>
-                <p>
-                  I agree to the{" "}
-                  <a
-                    href="/terms"
-                    className="underline underline-offset-2 hover:no-underline"
-                  >
-                    Terms and Conditions
-                  </a>
-                  .
-                </p>
-                <p className="mt-2">
-                  Please also review our{" "}
-                  <a
-                    href="/privacy"
-                    className="underline underline-offset-2 hover:no-underline"
-                  >
-                    Privacy Policy
-                  </a>
-                  .
-                </p>
-              </div>
-            </div>
-          </label>
-
-          <TurnstileWidget onVerify={setTurnstileToken} />
-
-          <button
-            type="submit"
-            disabled={loading || inviteLoading}
-            className="w-full rounded-xl bg-gray-900 py-3 text-white disabled:opacity-60"
-          >
-            {loading ? "Creating account..." : "Sign Up"}
-          </button>
-
-          {success ? <p className="text-green-700">{success}</p> : null}
-          {error ? <p className="text-red-600">{error}</p> : null}
-        </form>
-      )}
-    </>
-  );
-}
+import Link from "next/link";
 
 export default function SignupPage() {
   return (
-    <main className="min-h-screen bg-white text-gray-900">
-      <Navbar />
+    <main className="min-h-screen bg-[#f5f5f3] text-slate-950">
+      <section className="mx-auto max-w-6xl px-6 py-16 lg:px-10 lg:py-24">
+        <div className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-start">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
+              Customer onboarding
+            </p>
 
-      <section className="mx-auto max-w-md px-6 py-20">
-        <Suspense
-          fallback={<p className="text-sm text-gray-600">Loading signup...</p>}
-        >
-          <SignupPageContent />
-        </Suspense>
+            <h1 className="mt-4 text-4xl font-semibold tracking-tight text-slate-950 lg:text-6xl">
+              Customer access is currently by approval and invitation
+            </h1>
+
+            <p className="mt-6 max-w-2xl text-base leading-7 text-slate-600">
+              Kordyne customer accounts are not open for public self-signup yet.
+              Companies are onboarded directly, assigned a plan, and invited
+              into the platform once approved.
+            </p>
+
+            <div className="mt-8 flex flex-wrap gap-3">
+              <Link
+                href="/contact"
+                className="rounded-full bg-slate-950 px-6 py-3 text-sm font-medium text-white transition hover:opacity-90"
+              >
+                Contact Kordyne
+              </Link>
+
+              <Link
+                href="/platform"
+                className="rounded-full border border-zinc-300 bg-white px-6 py-3 text-sm font-medium text-slate-900 transition hover:bg-zinc-50"
+              >
+                Explore platform
+              </Link>
+            </div>
+          </div>
+
+          <div className="rounded-[32px] border border-zinc-200 bg-white p-8">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
+              How onboarding works
+            </p>
+
+            <div className="mt-6 space-y-5">
+              <div className="rounded-[24px] border border-zinc-200 bg-[#fafaf9] p-5">
+                <p className="text-sm font-semibold text-slate-950">
+                  1. Initial discussion
+                </p>
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  You contact Kordyne and we review your manufacturing,
+                  engineering, and collaboration needs.
+                </p>
+              </div>
+
+              <div className="rounded-[24px] border border-zinc-200 bg-[#fafaf9] p-5">
+                <p className="text-sm font-semibold text-slate-950">
+                  2. Plan and onboarding approval
+                </p>
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  Your company is configured internally with a plan, seat limit,
+                  and onboarding status before user access is enabled.
+                </p>
+              </div>
+
+              <div className="rounded-[24px] border border-zinc-200 bg-[#fafaf9] p-5">
+                <p className="text-sm font-semibold text-slate-950">
+                  3. Admin invite
+                </p>
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  Your company admin receives an invite link and completes
+                  account setup through the secure invite flow.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-8 rounded-[24px] border border-zinc-200 bg-white p-5">
+              <p className="text-sm font-semibold text-slate-950">
+                Already invited?
+              </p>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                Use the invite link from your email to complete your account.
+              </p>
+              <Link
+                href="/login"
+                className="mt-4 inline-flex rounded-full border border-zinc-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-900 transition hover:bg-zinc-50"
+              >
+                Go to login
+              </Link>
+            </div>
+          </div>
+        </div>
       </section>
-
-      <Footer />
     </main>
   );
 }

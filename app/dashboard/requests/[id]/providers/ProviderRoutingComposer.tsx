@@ -20,6 +20,7 @@ type Props = {
   providers: ProviderCandidate[];
   shareableFiles: ShareableRequestFile[];
   previousRounds: PreviousRound[];
+  initialSelectedFileKeys: string[];
 };
 
 function formatBytes(value?: number | null) {
@@ -51,12 +52,15 @@ export default function ProviderRoutingComposer({
   providers,
   shareableFiles,
   previousRounds,
+  initialSelectedFileKeys,
 }: Props) {
   const router = useRouter();
 
   const [mode, setMode] = useState<ProviderRoundMode>("competitive_quote");
   const [selectedProviderIds, setSelectedProviderIds] = useState<string[]>([]);
-  const [selectedFileKeys, setSelectedFileKeys] = useState<string[]>([]);
+  const [selectedFileKeys, setSelectedFileKeys] = useState<string[]>(
+    initialSelectedFileKeys,
+  );
   const [targetDueDate, setTargetDueDate] = useState(request.dueDate ?? "");
   const [requestedQuantity, setRequestedQuantity] = useState(
     request.quantity?.toString() ?? "",
@@ -209,8 +213,8 @@ export default function ProviderRoutingComposer({
             Build provider package
           </h2>
           <p className="text-sm text-slate-600">
-            Choose how this request should leave your internal workspace, which
-            providers will receive it, and which files are explicitly shared.
+            This request is already populated from the manufacture workflow. Now
+            choose the provider route and publish.
           </p>
         </div>
 
@@ -220,8 +224,8 @@ export default function ProviderRoutingComposer({
               1. Choose route type
             </h3>
             <p className="mt-1 text-sm text-slate-600">
-              Use a quote round for price and lead-time comparison, or direct
-              award when you already know the provider.
+              Use a quote round for comparison, or direct award when you already
+              know the provider.
             </p>
           </div>
 
@@ -350,14 +354,24 @@ export default function ProviderRoutingComposer({
         </section>
 
         <section className="space-y-4 rounded-2xl border border-slate-200 p-5">
-          <div>
-            <h3 className="text-sm font-semibold text-slate-900">
-              3. Select shared files
-            </h3>
-            <p className="mt-1 text-sm text-slate-600">
-              Providers only see the files selected here. Internal files remain
-              private unless explicitly shared.
-            </p>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h3 className="text-sm font-semibold text-slate-900">
+                3. Confirm shared files
+              </h3>
+              <p className="mt-1 text-sm text-slate-600">
+                Files are preselected from the request context. Adjust them only
+                if needed.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setSelectedFileKeys(initialSelectedFileKeys)}
+              className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
+            >
+              Reset to request files
+            </button>
           </div>
 
           {shareableFiles.length === 0 ? (
@@ -426,8 +440,8 @@ export default function ProviderRoutingComposer({
               4. Package details
             </h3>
             <p className="mt-1 text-sm text-slate-600">
-              Add timeline and quantity context to help providers respond
-              accurately.
+              These values are prefilled from the request and can be updated
+              before publishing.
             </p>
           </div>
 

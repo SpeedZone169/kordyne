@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { Resend } from "resend";
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requirePlatformOwner } from "@/lib/auth/platform-owner";
+import CopyInviteLinkButton from "@/components/admin/CopyInviteLinkButton";
 
 type OrganizationRow = {
   id: string;
@@ -35,6 +37,7 @@ type InviteRow = {
   role: string;
   status: string;
   created_at: string;
+  token: string;
 };
 
 type MembershipRow = {
@@ -48,6 +51,14 @@ function slugify(value: string) {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 80);
+}
+
+function getSiteUrl() {
+  return (
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    "https://kordyne.com"
+  );
 }
 
 async function createProviderOrganizationAndLink(formData: FormData) {
@@ -160,14 +171,7 @@ async function sendProviderAdminInvite(formData: FormData) {
     throw new Error("Provider organization and email are required.");
   }
 
-  const siteUrl =
-    process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL;
-
-  if (!siteUrl) {
-    throw new Error(
-      "Set NEXT_PUBLIC_SITE_URL or NEXT_PUBLIC_APP_URL to send provider invites from admin."
-    );
-  }
+  const siteUrl = getSiteUrl();
 
   const response = await fetch(
     `${siteUrl}/api/admin/providers/${providerOrgId}/invite`,
@@ -185,6 +189,122 @@ async function sendProviderAdminInvite(formData: FormData) {
 
   if (!response.ok) {
     throw new Error(payload?.error || "Failed to send provider invite.");
+  }
+
+  revalidatePath("/admin/providers");
+}
+
+async function resendProviderAdminInvite(formData: FormData) {
+  "use server";
+
+  await requirePlatformOwner();
+
+  const inviteId = String(formData.get("inviteId") ?? "");
+
+  if (!inviteId) {
+    throw new Error("Missing invite id.");
+  }
+
+  if (!process.env.RESEND_API_KEY) {
+    throw new Error("Missing RESEND_API_KEY.");
+  }
+
+  const supabase = createAdminClient();
+
+  const { data: invite, error: inviteError } = await supabase
+    .from("organization_invites")
+    .select("id, organization_id, email, role, status, token")
+    .eq("id", inviteId)
+    .maybeSingle();
+
+  if (inviteError || !invite) {
+    throw new Error("Invite not found.");
+  }
+
+  if (invite.status !== "pending") {
+    throw new Error("Only pending invites can be resent.");
+  }
+
+  const { data: providerOrg, error: providerOrgError } = await supabase
+    .from("organizations")
+    .select("name")
+    .eq("id", invite.organization_id)
+    .maybeSingle();
+
+  if (providerOrgError || !providerOrg) {
+    throw new Error("Provider organization not found.");
+  }
+
+  const siteUrl = getSiteUrl();
+  const inviteUrl = `${siteUrl}/invite/${invite.token}`;
+  const providerInfoUrl = `${siteUrl}/providers`;
+
+  const resend = new Resend(process.env.RESEND_API_KEY);
+
+  const { error: emailError } = await resend.emails.send({
+    from: process.env.RESEND_FROM_EMAIL || "Kordyne <noreply@kordyne.com>",
+    to: invite.email,
+    subject: `Reminder: you're invited to join ${providerOrg.name} on Kordyne`,
+    text: [
+      `You've been invited to join ${providerOrg.name} on Kordyne as an admin.`,
+      "",
+      "Kordyne helps providers manage incoming manufacturing opportunities and work with customers in a structured portal.",
+      "",
+      `Learn more here: ${providerInfoUrl}`,
+      `Accept your invite here: ${inviteUrl}`,
+    ].join("\n"),
+    html: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111827;">
+        <h2 style="margin-bottom: 16px;">Reminder: you're invited to join Kordyne</h2>
+        <p>
+          You've been invited to join <strong>${providerOrg.name}</strong>
+          as an <strong>admin</strong>.
+        </p>
+        <p>
+          Kordyne helps providers manage incoming manufacturing opportunities
+          and work with customers in a structured portal.
+        </p>
+        <p style="margin: 24px 0;">
+          <a
+            href="${inviteUrl}"
+            style="display: inline-block; background: #111827; color: #ffffff; text-decoration: none; padding: 12px 18px; border-radius: 9999px;"
+          >
+            Accept invite
+          </a>
+        </p>
+        <p><a href="${inviteUrl}">${inviteUrl}</a></p>
+      </div>
+    `,
+  });
+
+  if (emailError) {
+    throw new Error("Invite email could not be resent.");
+  }
+
+  revalidatePath("/admin/providers");
+}
+
+async function revokeProviderInvite(formData: FormData) {
+  "use server";
+
+  await requirePlatformOwner();
+
+  const inviteId = String(formData.get("inviteId") ?? "");
+
+  if (!inviteId) {
+    throw new Error("Missing invite id.");
+  }
+
+  const supabase = createAdminClient();
+
+  const { error } = await supabase
+    .from("organization_invites")
+    .delete()
+    .eq("id", inviteId)
+    .eq("status", "pending");
+
+  if (error) {
+    throw new Error(error.message);
   }
 
   revalidatePath("/admin/providers");
@@ -288,7 +408,7 @@ export default async function AdminProvidersPage() {
       .order("name", { ascending: true }),
     supabase
       .from("organization_invites")
-      .select("id, organization_id, email, role, status, created_at")
+      .select("id, organization_id, email, role, status, created_at, token")
       .eq("status", "pending")
       .order("created_at", { ascending: false }),
     supabase.from("organization_members").select("organization_id"),
@@ -332,6 +452,8 @@ export default async function AdminProvidersPage() {
     );
   }
 
+  const siteUrl = getSiteUrl();
+
   const rows = ((relationships ?? []) as ProviderRelationshipRow[]).map(
     (relationship) => {
       const providerOrg = orgMap.get(relationship.provider_org_id);
@@ -348,7 +470,10 @@ export default async function AdminProvidersPage() {
           providerOrg?.name ?? relationship.provider_org_id,
         provider_org_slug: providerOrg?.slug ?? null,
         providerMemberCount,
-        pendingInvites,
+        pendingInvites: pendingInvites.map((invite) => ({
+          ...invite,
+          inviteUrl: `${siteUrl}/invite/${invite.token}`,
+        })),
         onboardingState:
           providerMemberCount > 0
             ? "Active"
@@ -459,8 +584,8 @@ export default async function AdminProvidersPage() {
               contact you and you decide to invite them.
             </p>
             <p>
-              Use the forms below each provider relationship to send the first
-              provider admin invite.
+              Use the forms below each provider relationship to send and manage
+              provider admin invites.
             </p>
           </div>
 
@@ -491,7 +616,7 @@ export default async function AdminProvidersPage() {
           </h2>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
             Manage provider relationships, send provider admin invites, and
-            track onboarding state.
+            manage pending provider invites.
           </p>
         </div>
 
@@ -559,19 +684,50 @@ export default async function AdminProvidersPage() {
                   <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
                     Pending invites
                   </p>
-                  <div className="mt-3 space-y-2">
+                  <div className="mt-3 space-y-3">
                     {row.pendingInvites.length > 0 ? (
                       row.pendingInvites.map((invite) => (
                         <div
                           key={invite.id}
-                          className="rounded-[20px] border border-zinc-200 bg-[#fafaf9] px-4 py-3"
+                          className="rounded-[20px] border border-zinc-200 bg-[#fafaf9] p-4"
                         >
                           <p className="text-sm font-medium text-slate-950">
                             {invite.email}
                           </p>
                           <p className="mt-1 text-xs text-slate-500">
-                            {invite.role} · {invite.status}
+                            {invite.role} · {invite.status} · {formatDate(invite.created_at)}
                           </p>
+
+                          <div className="mt-4 flex flex-wrap gap-2">
+                            <Link
+                              href={invite.inviteUrl}
+                              className="rounded-full border border-zinc-300 bg-white px-4 py-2 text-xs font-medium text-slate-900 transition hover:bg-zinc-50"
+                            >
+                              Open invite
+                            </Link>
+
+                            <CopyInviteLinkButton inviteUrl={invite.inviteUrl} />
+
+                            <form action={resendProviderAdminInvite}>
+                              <input type="hidden" name="inviteId" value={invite.id} />
+                              <button
+                                type="submit"
+                                className="rounded-full border border-zinc-300 bg-white px-4 py-2 text-xs font-medium text-slate-900 transition hover:bg-zinc-50"
+                              >
+                                Resend
+                              </button>
+                            </form>
+
+                            <form action={revokeProviderInvite}>
+                              <input type="hidden" name="inviteId" value={invite.id} />
+                              <button
+                                type="submit"
+                                className="rounded-full border border-red-200 bg-red-50 px-4 py-2 text-xs font-medium text-red-700 transition hover:bg-red-100"
+                              >
+                                Revoke
+                              </button>
+                            </form>
+                          </div>
                         </div>
                       ))
                     ) : (

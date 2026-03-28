@@ -119,14 +119,10 @@ export default async function RequestProvidersPage({ params }: PageProps) {
   >();
 
   if (providerOrgIds.length > 0) {
-    const { data: providerOrgs, error: providerOrgsError } = await supabase
+    const { data: providerOrgs } = await supabase
       .from("organizations")
       .select("id, name, slug")
       .in("id", providerOrgIds);
-
-    if (providerOrgsError) {
-      throw new Error(providerOrgsError.message);
-    }
 
     providerOrgsById = new Map(
       (providerOrgs ?? []).map((org) => [
@@ -137,24 +133,24 @@ export default async function RequestProvidersPage({ params }: PageProps) {
   }
 
   const providers: ProviderCandidate[] = (providerRelationships ?? []).map(
-  (row) => {
-    const org = providerOrgsById.get(row.provider_org_id);
+    (row) => {
+      const org = providerOrgsById.get(row.provider_org_id);
 
-    return {
-      relationshipId: row.id,
-      providerOrgId: row.provider_org_id,
-      providerName:
-        org?.name ??
-        row.provider_code ??
-        `Provider ${row.provider_org_id.slice(0, 8)}`,
-      providerSlug: org?.slug ?? null,
-      relationshipStatus: row.relationship_status,
-      trustStatus: row.trust_status,
-      isPreferred: row.is_preferred,
-      providerCode: row.provider_code,
-    };
-  },
-);
+      return {
+        relationshipId: row.id,
+        providerOrgId: row.provider_org_id,
+        providerName:
+          org?.name ??
+          row.provider_code ??
+          `Provider ${row.provider_org_id.slice(0, 8)}`,
+        providerSlug: org?.slug ?? null,
+        relationshipStatus: row.relationship_status,
+        trustStatus: row.trust_status,
+        isPreferred: row.is_preferred,
+        providerCode: row.provider_code,
+      };
+    },
+  );
 
   const shareableFiles: ShareableRequestFile[] = [];
 
@@ -226,6 +222,10 @@ export default async function RequestProvidersPage({ params }: PageProps) {
     })),
   );
 
+  const initialSelectedFileKeys = shareableFiles.map(
+    (file) => `${file.sourceType}:${file.id}`,
+  );
+
   const { data: previousRounds, error: previousRoundsError } = await supabase
     .from("provider_quote_rounds")
     .select("id, round_number, mode, status, created_at")
@@ -257,9 +257,8 @@ export default async function RequestProvidersPage({ params }: PageProps) {
               Route request to providers
             </h1>
             <p className="max-w-3xl text-sm text-slate-600">
-              Create a direct award or a quote round from this request without
-              exposing your internal workspace. Providers only see the package
-              you publish to them.
+              This request is already prepared. Select the provider route,
+              confirm the files and request details, and publish the package.
             </p>
           </div>
 
@@ -299,6 +298,7 @@ export default async function RequestProvidersPage({ params }: PageProps) {
         providers={providers}
         shareableFiles={shareableFiles}
         previousRounds={rounds}
+        initialSelectedFileKeys={initialSelectedFileKeys}
       />
     </div>
   );
