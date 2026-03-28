@@ -15,8 +15,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-     <Analytics /> <body>
+      <body>
         {children}
+        <Analytics />
         <Script
           src="https://challenges.cloudflare.com/turnstile/v0/api.js"
           async
