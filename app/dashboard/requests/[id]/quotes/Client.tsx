@@ -90,10 +90,24 @@ export default function Client({ data }: Props) {
     });
   }, [data.rows]);
 
+  const awardedRow = useMemo(() => {
+    return sortedRows.find((row) => row.isAwarded) ?? null;
+  }, [sortedRows]);
+
   function handleRoundChange(roundId: string) {
     const params = new URLSearchParams();
     params.set("roundId", roundId);
     router.push(`/dashboard/requests/${data.request.id}/quotes?${params.toString()}`);
+  }
+
+  function getAwardDisabledReason(row: (typeof sortedRows)[number]) {
+    if (!selectedRound) return "No quote round selected.";
+    if (selectedRound.status === "awarded") return "This round has already been awarded.";
+    if (!row.quoteId) return "No formal quote has been submitted for this package.";
+    if (row.quoteStatus !== "submitted") return "Only submitted quotes can be awarded.";
+    if (row.isAwarded) return "This provider has already been awarded.";
+    if (awardingPackageId !== null) return "Another award action is in progress.";
+    return null;
   }
 
   async function handleAwardProvider(packageId: string, providerName: string) {
@@ -129,7 +143,12 @@ export default function Client({ data }: Props) {
         throw new Error(payload.error || "Failed to award provider.");
       }
 
-      setActionSuccess(`Awarded ${providerName} successfully.`);
+      if (payload.alreadyAwarded) {
+        setActionSuccess(`${providerName} was already awarded for this round.`);
+      } else {
+        setActionSuccess(`Awarded ${providerName} successfully.`);
+      }
+
       router.refresh();
     } catch (error) {
       setActionError(
@@ -307,6 +326,44 @@ export default function Client({ data }: Props) {
                 </span>
               </div>
             </div>
+
+            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+              <h2 className="text-lg font-semibold text-slate-900">
+                Award summary
+              </h2>
+
+              {awardedRow ? (
+                <div className="mt-4 rounded-2xl border border-violet-200 bg-violet-50/60 p-4">
+                  <p className="text-sm font-medium text-violet-900">
+                    {awardedRow.providerName} is currently awarded.
+                  </p>
+                  <div className="mt-3 grid gap-3 text-sm md:grid-cols-2">
+                    <div>
+                      <div className="text-violet-700/80">Formal quote</div>
+                      <div className="font-medium text-violet-950">
+                        {awardedRow.quoteReference
+                          ? `${awardedRow.quoteReference}${
+                              awardedRow.quoteVersion
+                                ? ` v${awardedRow.quoteVersion}`
+                                : ""
+                            }`
+                          : "—"}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-violet-700/80">Awarded at</div>
+                      <div className="font-medium text-violet-950">
+                        {formatDateTime(selectedRound.awardedAt)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <p className="mt-4 text-sm text-slate-600">
+                  No provider has been awarded for this round yet.
+                </p>
+              )}
+            </div>
           </div>
 
           <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -330,6 +387,13 @@ export default function Client({ data }: Props) {
               </button>
             </div>
 
+            {selectedRound.status === "awarded" && awardedRow ? (
+              <div className="mt-5 rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-800">
+                This round has already been awarded to{" "}
+                <strong>{awardedRow.providerName}</strong>.
+              </div>
+            ) : null}
+
             {actionError ? (
               <div className="mt-5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
                 {actionError}
@@ -350,11 +414,8 @@ export default function Client({ data }: Props) {
               <div className="mt-6 space-y-4">
                 {sortedRows.map((row) => {
                   const signals = getQuoteValueSignal(row);
-                  const awardDisabled =
-                    !row.quoteId ||
-                    row.isAwarded ||
-                    selectedRound.status === "awarded" ||
-                    awardingPackageId !== null;
+                  const awardDisabledReason = getAwardDisabledReason(row);
+                  const awardDisabled = Boolean(awardDisabledReason);
 
                   return (
                     <div
@@ -503,7 +564,7 @@ export default function Client({ data }: Props) {
                         </p>
                       </div>
 
-                      <div className="mt-5 flex flex-wrap gap-3">
+                      <div className="mt-5 flex flex-wrap items-start gap-3">
                         {row.quoteId ? (
                           <button
                             type="button"
@@ -528,6 +589,12 @@ export default function Client({ data }: Props) {
                               ? "Awarding..."
                               : "Award provider"}
                         </button>
+
+                        {awardDisabledReason ? (
+                          <p className="self-center text-xs text-slate-500">
+                            {awardDisabledReason}
+                          </p>
+                        ) : null}
                       </div>
                     </div>
                   );

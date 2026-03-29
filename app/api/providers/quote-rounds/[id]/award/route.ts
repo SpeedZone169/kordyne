@@ -5,6 +5,11 @@ type AwardBody = {
   providerRequestPackageId?: string;
 };
 
+type MembershipRow = {
+  organization_id: string;
+  role: string;
+};
+
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -32,7 +37,7 @@ export async function POST(
     );
   }
 
-  const selectedPackageId = body.providerRequestPackageId;
+  const selectedPackageId = String(body.providerRequestPackageId || "").trim();
 
   if (!selectedPackageId) {
     return NextResponse.json(
@@ -43,7 +48,7 @@ export async function POST(
 
   const { data: memberships, error: membershipsError } = await supabase
     .from("organization_members")
-    .select("organization_id")
+    .select("organization_id, role")
     .eq("user_id", user.id);
 
   if (membershipsError) {
@@ -53,20 +58,27 @@ export async function POST(
     );
   }
 
-  const membershipOrgIds = (memberships ?? []).map((m) => m.organization_id);
+  const allowedMemberships = ((memberships ?? []) as MembershipRow[]).filter(
+    (membership) => ["admin", "engineer"].includes(membership.role),
+  );
 
-  if (!membershipOrgIds.length) {
+  if (!allowedMemberships.length) {
     return NextResponse.json(
-      { error: "No organization membership found for current user." },
+      { error: "You do not have permission to award providers." },
       { status: 403 },
     );
   }
+
+  const membershipOrgIds = allowedMemberships.map(
+    (membership) => membership.organization_id,
+  );
 
   const { data: round, error: roundError } = await supabase
     .from("provider_quote_rounds")
     .select(
       `
         id,
+        customer_org_id,
         service_request_id,
         status,
         selected_provider_package_id,
@@ -84,9 +96,39 @@ export async function POST(
     );
   }
 
+  if (!membershipOrgIds.includes(round.customer_org_id)) {
+    return NextResponse.json(
+      { error: "You do not have access to award this quote round." },
+      { status: 403 },
+    );
+  }
+
+  if (
+    round.awarded_at &&
+    round.selected_provider_package_id &&
+    round.selected_provider_package_id !== selectedPackageId
+  ) {
+    return NextResponse.json(
+      { error: "This round has already been awarded to another provider." },
+      { status: 409 },
+    );
+  }
+
+  if (
+    round.awarded_at &&
+    round.selected_provider_package_id === selectedPackageId
+  ) {
+    return NextResponse.json({
+      success: true,
+      roundId,
+      selectedProviderPackageId: selectedPackageId,
+      alreadyAwarded: true,
+    });
+  }
+
   const { data: serviceRequest, error: serviceRequestError } = await supabase
     .from("service_requests")
-    .select("id, organization_id, title")
+    .select("id, organization_id, title, status")
     .eq("id", round.service_request_id)
     .single();
 
@@ -97,10 +139,10 @@ export async function POST(
     );
   }
 
-  if (!membershipOrgIds.includes(serviceRequest.organization_id)) {
+  if (serviceRequest.organization_id !== round.customer_org_id) {
     return NextResponse.json(
-      { error: "You do not have access to award this quote round." },
-      { status: 403 },
+      { error: "Round and request organization mismatch." },
+      { status: 400 },
     );
   }
 
@@ -134,6 +176,27 @@ export async function POST(
   if (!selectedPackage) {
     return NextResponse.json(
       { error: "Selected provider package does not belong to this round." },
+      { status: 400 },
+    );
+  }
+
+  const { count: selectedSubmittedQuoteCount, error: selectedQuoteCountError } =
+    await supabase
+      .from("provider_quotes")
+      .select("*", { count: "exact", head: true })
+      .eq("provider_request_package_id", selectedPackageId)
+      .eq("status", "submitted");
+
+  if (selectedQuoteCountError) {
+    return NextResponse.json(
+      { error: selectedQuoteCountError.message },
+      { status: 400 },
+    );
+  }
+
+  if (!selectedSubmittedQuoteCount || selectedSubmittedQuoteCount < 1) {
+    return NextResponse.json(
+      { error: "The selected provider package does not have a submitted quote." },
       { status: 400 },
     );
   }
@@ -196,7 +259,9 @@ export async function POST(
 
   const { error: winnerQuoteUpdateError } = await supabase
     .from("provider_quotes")
-    .update({ status: "accepted" })
+    .update({
+      status: "accepted",
+    })
     .eq("provider_request_package_id", selectedPackageId)
     .eq("status", "submitted");
 
@@ -210,7 +275,9 @@ export async function POST(
   if (losingPackageIds.length > 0) {
     const { error: loserQuoteUpdateError } = await supabase
       .from("provider_quotes")
-      .update({ status: "rejected" })
+      .update({
+        status: "rejected",
+      })
       .in("provider_request_package_id", losingPackageIds)
       .eq("status", "submitted");
 
@@ -222,38 +289,56 @@ export async function POST(
     }
   }
 
-  await supabase.from("provider_request_events").insert({
-    provider_request_package_id: selectedPackageId,
-    actor_org_id: serviceRequest.organization_id,
-    actor_user_id: user.id,
-    event_type: "customer_awarded_provider",
-    event_payload: {
-      roundId,
-      serviceRequestId: serviceRequest.id,
-      selectedPackageId,
-    },
-  });
+  const { error: winnerEventError } = await supabase
+    .from("provider_request_events")
+    .insert({
+      provider_request_package_id: selectedPackageId,
+      actor_org_id: serviceRequest.organization_id,
+      actor_user_id: user.id,
+      event_type: "customer_awarded_provider",
+      event_payload: {
+        roundId,
+        serviceRequestId: serviceRequest.id,
+        selectedPackageId,
+      },
+    });
 
-  await supabase.from("provider_messages").insert({
-    provider_request_package_id: selectedPackageId,
-    sender_org_id: serviceRequest.organization_id,
-    sender_user_id: user.id,
-    message_type: "system_event",
-    message_body: "Customer awarded this provider package.",
-    is_system: true,
-  });
+  if (winnerEventError) {
+    console.error("Failed to insert winner provider event:", winnerEventError);
+  }
+
+  const { error: winnerMessageError } = await supabase
+    .from("provider_messages")
+    .insert({
+      provider_request_package_id: selectedPackageId,
+      sender_org_id: serviceRequest.organization_id,
+      sender_user_id: user.id,
+      message_type: "system_event",
+      message_body: "Customer awarded this provider package.",
+      is_system: true,
+    });
+
+  if (winnerMessageError) {
+    console.error("Failed to insert winner provider message:", winnerMessageError);
+  }
 
   if (losingPackageIds.length > 0) {
-    await supabase.from("provider_messages").insert(
-      losingPackageIds.map((packageId) => ({
-        provider_request_package_id: packageId,
-        sender_org_id: serviceRequest.organization_id,
-        sender_user_id: user.id,
-        message_type: "system_event",
-        message_body: "This provider package was not awarded.",
-        is_system: true,
-      })),
-    );
+    const { error: losingMessagesError } = await supabase
+      .from("provider_messages")
+      .insert(
+        losingPackageIds.map((packageId) => ({
+          provider_request_package_id: packageId,
+          sender_org_id: serviceRequest.organization_id,
+          sender_user_id: user.id,
+          message_type: "system_event",
+          message_body: "This provider package was not awarded.",
+          is_system: true,
+        })),
+      );
+
+    if (losingMessagesError) {
+      console.error("Failed to insert loser provider messages:", losingMessagesError);
+    }
   }
 
   return NextResponse.json({

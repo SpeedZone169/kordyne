@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import {
   formatCurrencyValue,
@@ -65,12 +65,46 @@ function toneClasses(
   }
 }
 
+function getLockMessage(packageStatus: string, quoteStatus?: string | null) {
+  if (packageStatus === "awarded") {
+    return "This package was awarded to your organization. Quote revisions are now locked.";
+  }
+
+  if (packageStatus === "not_awarded") {
+    return "This package was not awarded. Quote submission is now locked.";
+  }
+
+  if (packageStatus === "closed") {
+    return "This package has been closed. Quote submission is locked.";
+  }
+
+  if (packageStatus === "cancelled") {
+    return "This package has been cancelled. Quote submission is locked.";
+  }
+
+  if (quoteStatus === "accepted") {
+    return "Your latest submitted quote has been accepted.";
+  }
+
+  if (quoteStatus === "rejected") {
+    return "Your latest submitted quote has been rejected.";
+  }
+
+  return "Quote submission is locked for this package.";
+}
+
 export default function Client({ data }: Props) {
   const router = useRouter();
   const latestQuote = data.quotes[0] ?? null;
   const quoteLocked = ["awarded", "not_awarded", "closed", "cancelled"].includes(
     data.package.packageStatus,
   );
+
+  const awardState = useMemo(() => {
+    if (data.package.packageStatus === "awarded") return "awarded";
+    if (data.package.packageStatus === "not_awarded") return "not_awarded";
+    return "open";
+  }, [data.package.packageStatus]);
 
   const [currencyCode, setCurrencyCode] = useState(
     latestQuote?.currencyCode ?? "EUR",
@@ -155,9 +189,7 @@ export default function Client({ data }: Props) {
       }
 
       setSubmitSuccess(
-        latestQuote
-          ? `Quote ${payload.quoteReference} v${payload.quoteVersion} submitted successfully.`
-          : `Quote ${payload.quoteReference} v${payload.quoteVersion} submitted successfully.`,
+        `Quote ${payload.quoteReference} v${payload.quoteVersion} submitted successfully.`,
       );
 
       router.refresh();
@@ -216,6 +248,42 @@ export default function Client({ data }: Props) {
         </div>
       </div>
 
+      {awardState === "awarded" ? (
+        <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
+          <div className="flex flex-col gap-2">
+            <h2 className="text-lg font-semibold text-emerald-900">
+              Awarded to your organization
+            </h2>
+            <p className="text-sm text-emerald-800">
+              This provider package has been awarded. Your latest accepted quote
+              is now the winning commercial response for this round.
+            </p>
+            <div className="mt-2 flex flex-wrap gap-4 text-sm text-emerald-900">
+              <span>Awarded: {formatDateTime(data.package.awardedAt)}</span>
+              <span>Status: {data.package.customerVisibleStatus || "Awarded"}</span>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {awardState === "not_awarded" ? (
+        <div className="rounded-3xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
+          <div className="flex flex-col gap-2">
+            <h2 className="text-lg font-semibold text-amber-900">
+              Not awarded
+            </h2>
+            <p className="text-sm text-amber-800">
+              This provider package was reviewed but not selected for award.
+              Quote revisions are locked for this round.
+            </p>
+            <div className="mt-2 flex flex-wrap gap-4 text-sm text-amber-900">
+              <span>Decision recorded: {formatDateTime(data.package.awardedAt)}</span>
+              <span>Status: {data.package.customerVisibleStatus || "Not awarded"}</span>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <div className="grid gap-8 xl:grid-cols-[0.72fr_1.28fr]">
         <div className="space-y-6">
           <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -267,9 +335,16 @@ export default function Client({ data }: Props) {
               </div>
 
               <div className="flex items-start justify-between gap-4">
-                <dt className="text-slate-500">Awarded</dt>
+                <dt className="text-slate-500">Awarded / decision time</dt>
                 <dd className="text-right font-medium text-slate-900">
                   {formatDateTime(data.package.awardedAt)}
+                </dd>
+              </div>
+
+              <div className="flex items-start justify-between gap-4">
+                <dt className="text-slate-500">Customer-visible status</dt>
+                <dd className="text-right font-medium text-slate-900">
+                  {data.package.customerVisibleStatus || "—"}
                 </dd>
               </div>
             </dl>
@@ -375,8 +450,16 @@ export default function Client({ data }: Props) {
             </div>
 
             {quoteLocked ? (
-              <div className="mt-5 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5 text-sm text-slate-600">
-                Quote submission is locked for this package.
+              <div
+                className={`mt-5 rounded-2xl border p-5 text-sm ${
+                  awardState === "awarded"
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                    : awardState === "not_awarded"
+                      ? "border-amber-200 bg-amber-50 text-amber-800"
+                      : "border-dashed border-slate-300 bg-slate-50 text-slate-600"
+                }`}
+              >
+                {getLockMessage(data.package.packageStatus, latestQuote?.status)}
               </div>
             ) : (
               <form onSubmit={handleSubmitQuote} className="mt-5 space-y-5">
@@ -641,7 +724,13 @@ export default function Client({ data }: Props) {
                 {data.quotes.map((quote) => (
                   <div
                     key={quote.id}
-                    className="rounded-2xl border border-slate-200 p-4"
+                    className={`rounded-2xl border p-4 ${
+                      quote.status === "accepted"
+                        ? "border-emerald-200 bg-emerald-50/40"
+                        : quote.status === "rejected"
+                          ? "border-amber-200 bg-amber-50/40"
+                          : "border-slate-200"
+                    }`}
                   >
                     <div className="flex flex-wrap items-center gap-2">
                       <div className="font-medium text-slate-900">

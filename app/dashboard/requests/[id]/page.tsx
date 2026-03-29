@@ -10,6 +10,12 @@ import {
   getServiceRequestTypeLabel,
   getSourceReferenceTypeLabel,
 } from "@/lib/service-requests";
+import {
+  getProviderPackageStatusLabel,
+  getProviderRoundStatusLabel,
+  providerPackageStatusTones,
+  providerRoundStatusTones,
+} from "@/lib/providers";
 import type { ReactNode } from "react";
 import PromoteUploadedRequestFileButton from "./PromoteUploadedRequestFileButton";
 import StandaloneRequestManagement from "./StandaloneRequestManagement";
@@ -103,6 +109,44 @@ type ServiceRequestRow = {
   service_request_files: ServiceRequestFileRow[] | null;
 };
 
+type QuoteRoundRow = {
+  id: string;
+  round_number: number;
+  mode: string;
+  status: string;
+  target_due_date: string | null;
+  requested_quantity: number | null;
+  selected_provider_package_id: string | null;
+  published_at: string | null;
+  awarded_at: string | null;
+  closed_at: string | null;
+  created_at: string;
+};
+
+type ProviderPackageRow = {
+  id: string;
+  provider_quote_round_id: string;
+  provider_org_id: string;
+  package_status: string;
+  customer_visible_status: string | null;
+  awarded_at: string | null;
+};
+
+type ProviderQuoteRow = {
+  id: string;
+  provider_request_package_id: string;
+  status: string;
+  quote_reference: string | null;
+  quote_version: number | null;
+  submitted_at: string | null;
+  created_at: string;
+};
+
+type ProviderOrgRow = {
+  id: string;
+  name: string;
+};
+
 type AttachmentViewModel = {
   requestAttachmentId: string;
   isPrimary: boolean;
@@ -174,6 +218,30 @@ function getDisplayName(profile: RequesterProfileRow | null | undefined) {
 function getAssetCategoryLabel(value: string | null) {
   if (!value) return "Other";
   return FILE_CATEGORY_LABELS[value] || "Other";
+}
+
+function getRoundModeLabel(value: string | null) {
+  if (!value) return "—";
+  if (value === "competitive_quote") return "Competitive quote";
+  if (value === "direct_award") return "Direct award";
+  return value;
+}
+
+function toneClasses(
+  tone: "neutral" | "info" | "success" | "warning" | "danger",
+) {
+  switch (tone) {
+    case "info":
+      return "bg-sky-100 text-sky-700";
+    case "success":
+      return "bg-emerald-100 text-emerald-700";
+    case "warning":
+      return "bg-amber-100 text-amber-700";
+    case "danger":
+      return "bg-rose-100 text-rose-700";
+    default:
+      return "bg-slate-100 text-slate-700";
+  }
 }
 
 function DetailRow({
@@ -260,7 +328,7 @@ export default async function RequestDetailPage({
           created_at
         )
       )
-    `
+    `,
     )
     .eq("id", id)
     .single();
@@ -288,6 +356,7 @@ export default async function RequestDetailPage({
     INTERNAL_EDITABLE_STATUSES.includes(typedRequest.status);
   const canPromoteUploads =
     canManageInternalUploads && Boolean(typedRequest.part_id);
+  const canManageRouting = ["admin", "engineer"].includes(memberRole || "");
 
   const { data: requesterProfile } = await supabase
     .from("profiles")
@@ -312,6 +381,81 @@ export default async function RequestDetailPage({
           .eq("organization_id", typedRequest.organization_id)
           .order("updated_at", { ascending: false })
       : { data: [] as OrgPartOptionRow[] };
+
+  const { data: quoteRoundsRaw, error: quoteRoundsError } = await supabase
+    .from("provider_quote_rounds")
+    .select(
+      "id, round_number, mode, status, target_due_date, requested_quantity, selected_provider_package_id, published_at, awarded_at, closed_at, created_at"
+    )
+    .eq("service_request_id", typedRequest.id)
+    .order("created_at", { ascending: false });
+
+  if (quoteRoundsError) {
+    throw new Error(quoteRoundsError.message);
+  }
+
+  const quoteRounds = (quoteRoundsRaw ?? []) as QuoteRoundRow[];
+  const roundIds = quoteRounds.map((round) => round.id);
+
+  let providerPackages: ProviderPackageRow[] = [];
+  if (roundIds.length > 0) {
+    const { data: providerPackagesRaw, error: providerPackagesError } =
+      await supabase
+        .from("provider_request_packages")
+        .select(
+          "id, provider_quote_round_id, provider_org_id, package_status, customer_visible_status, awarded_at"
+        )
+        .in("provider_quote_round_id", roundIds);
+
+    if (providerPackagesError) {
+      throw new Error(providerPackagesError.message);
+    }
+
+    providerPackages = (providerPackagesRaw ?? []) as ProviderPackageRow[];
+  }
+
+  const packageIds = providerPackages.map((pkg) => pkg.id);
+
+  let providerQuotes: ProviderQuoteRow[] = [];
+  if (packageIds.length > 0) {
+    const { data: providerQuotesRaw, error: providerQuotesError } =
+      await supabase
+        .from("provider_quotes")
+        .select(
+          "id, provider_request_package_id, status, quote_reference, quote_version, submitted_at, created_at"
+        )
+        .in("provider_request_package_id", packageIds)
+        .order("quote_version", { ascending: false });
+
+    if (providerQuotesError) {
+      throw new Error(providerQuotesError.message);
+    }
+
+    providerQuotes = (providerQuotesRaw ?? []) as ProviderQuoteRow[];
+  }
+
+  const providerOrgIds = [
+    ...new Set(providerPackages.map((pkg) => pkg.provider_org_id)),
+  ];
+
+  let providerOrganizations: ProviderOrgRow[] = [];
+  if (providerOrgIds.length > 0) {
+    const { data: providerOrganizationsRaw, error: providerOrganizationsError } =
+      await supabase
+        .from("organizations")
+        .select("id, name")
+        .in("id", providerOrgIds);
+
+    if (providerOrganizationsError) {
+      throw new Error(providerOrganizationsError.message);
+    }
+
+    providerOrganizations = (providerOrganizationsRaw ?? []) as ProviderOrgRow[];
+  }
+
+  const providerOrgMap = new Map(
+    providerOrganizations.map((org) => [org.id, org.name]),
+  );
 
   const partOptions = ((orgParts as OrgPartOptionRow[] | null) ?? []).map(
     (part) => ({
@@ -384,6 +528,45 @@ export default async function RequestDetailPage({
     )
   ).filter(Boolean) as UploadedAttachmentViewModel[];
 
+  const latestRound = quoteRounds[0] ?? null;
+  const latestRoundPackages = latestRound
+    ? providerPackages.filter(
+        (pkg) => pkg.provider_quote_round_id === latestRound.id
+      )
+    : [];
+  const latestRoundPackageIds = latestRoundPackages.map((pkg) => pkg.id);
+  const latestRoundSubmittedQuotes = providerQuotes.filter(
+    (quote) =>
+      latestRoundPackageIds.includes(quote.provider_request_package_id) &&
+      quote.status === "submitted"
+  );
+
+  const awardedPackage =
+    latestRound?.selected_provider_package_id
+      ? providerPackages.find(
+          (pkg) => pkg.id === latestRound.selected_provider_package_id
+        ) ?? null
+      : null;
+
+  const awardedQuote = awardedPackage
+    ? providerQuotes.find(
+        (quote) =>
+          quote.provider_request_package_id === awardedPackage.id &&
+          (quote.status === "accepted" || quote.status === "submitted")
+      ) ?? null
+    : null;
+
+  const compareQuotesHref = latestRound
+    ? `/dashboard/requests/${typedRequest.id}/quotes?roundId=${latestRound.id}`
+    : `/dashboard/requests/${typedRequest.id}/quotes`;
+
+  const latestRoundProviderCount = latestRoundPackages.length;
+  const latestRoundSubmittedQuoteCount = latestRoundSubmittedQuotes.length;
+  const awardedProviderName = awardedPackage
+    ? providerOrgMap.get(awardedPackage.provider_org_id) ??
+      `Provider ${awardedPackage.provider_org_id.slice(0, 8)}`
+    : null;
+
   const statusKey = typedRequest.status as keyof typeof STATUS_BADGE_CLASSES;
 
   const requestTypeLabel = getServiceRequestTypeLabel(
@@ -392,6 +575,8 @@ export default async function RequestDetailPage({
       | "cad_creation"
       | "optimization"
   );
+
+  const latestRoundStatusKey = latestRound?.status as keyof typeof providerRoundStatusTones;
 
   return (
     <div className="space-y-6">
@@ -456,6 +641,199 @@ export default async function RequestDetailPage({
           </div>
         </div>
       </div>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">
+              Request management
+            </h2>
+            <p className="mt-2 max-w-3xl text-sm text-slate-600">
+              Use this page as the operational hub for provider routing, quote
+              comparison, award visibility, and request file management.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            {canManageRouting ? (
+              <Link
+                href={`/dashboard/requests/${typedRequest.id}/providers`}
+                className="inline-flex items-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+              >
+                {quoteRounds.length > 0 ? "Manage provider routing" : "Route to providers"}
+              </Link>
+            ) : null}
+
+            {quoteRounds.length > 0 ? (
+              <Link
+                href={compareQuotesHref}
+                className="inline-flex items-center rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Compare quotes
+              </Link>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-2xl bg-slate-50 p-4">
+            <div className="text-sm text-slate-500">Quote rounds</div>
+            <div className="mt-1 text-2xl font-semibold text-slate-900">
+              {quoteRounds.length}
+            </div>
+          </div>
+
+          <div className="rounded-2xl bg-slate-50 p-4">
+            <div className="text-sm text-slate-500">Providers in latest round</div>
+            <div className="mt-1 text-2xl font-semibold text-slate-900">
+              {latestRoundProviderCount}
+            </div>
+          </div>
+
+          <div className="rounded-2xl bg-slate-50 p-4">
+            <div className="text-sm text-slate-500">Submitted quotes</div>
+            <div className="mt-1 text-2xl font-semibold text-slate-900">
+              {latestRoundSubmittedQuoteCount}
+            </div>
+          </div>
+
+          <div className="rounded-2xl bg-slate-50 p-4">
+            <div className="text-sm text-slate-500">Awarded provider</div>
+            <div className="mt-1 text-sm font-semibold text-slate-900">
+              {awardedProviderName || "Not awarded yet"}
+            </div>
+          </div>
+        </div>
+
+        {latestRound ? (
+          <div className="mt-6 grid gap-4 lg:grid-cols-[1.2fr_1fr]">
+            <div className="rounded-2xl border border-slate-200 p-5">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-base font-semibold text-slate-900">
+                  Latest quote round
+                </h3>
+                <span
+                  className={`rounded-full px-2.5 py-1 text-xs font-medium ${toneClasses(
+                    providerRoundStatusTones[latestRoundStatusKey],
+                  )}`}
+                >
+                  {getProviderRoundStatusLabel(
+                    latestRound.status as Parameters<typeof getProviderRoundStatusLabel>[0]
+                  )}
+                </span>
+              </div>
+
+              <div className="mt-4 grid gap-3 text-sm md:grid-cols-2">
+                <div>
+                  <div className="text-slate-500">Round</div>
+                  <div className="mt-1 font-medium text-slate-900">
+                    Round {latestRound.round_number}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-slate-500">Mode</div>
+                  <div className="mt-1 font-medium text-slate-900">
+                    {getRoundModeLabel(latestRound.mode)}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-slate-500">Target due date</div>
+                  <div className="mt-1 font-medium text-slate-900">
+                    {formatDate(latestRound.target_due_date)}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-slate-500">Requested quantity</div>
+                  <div className="mt-1 font-medium text-slate-900">
+                    {latestRound.requested_quantity ?? "—"}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-slate-500">Published</div>
+                  <div className="mt-1 font-medium text-slate-900">
+                    {formatDateTime(latestRound.published_at)}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-slate-500">Awarded</div>
+                  <div className="mt-1 font-medium text-slate-900">
+                    {formatDateTime(latestRound.awarded_at)}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 p-5">
+              <h3 className="text-base font-semibold text-slate-900">
+                Award summary
+              </h3>
+
+              {awardedPackage ? (
+                <div className="mt-4 space-y-3">
+                  <div>
+                    <div className="text-sm text-slate-500">Provider</div>
+                    <div className="mt-1 font-medium text-slate-900">
+                      {awardedProviderName}
+                    </div>
+                  </div>
+
+                  <div>
+  <div className="text-sm text-slate-500">Package status</div>
+  <div className="mt-1">
+    <span
+      className={`rounded-full px-2.5 py-1 text-xs font-medium ${toneClasses(
+        providerPackageStatusTones[
+          awardedPackage.package_status as keyof typeof providerPackageStatusTones
+        ],
+      )}`}
+    >
+      {getProviderPackageStatusLabel(
+        awardedPackage.package_status as Parameters<
+          typeof getProviderPackageStatusLabel
+        >[0]
+      )}
+    </span>
+  </div>
+</div>
+
+                  <div>
+                    <div className="text-sm text-slate-500">Customer-visible status</div>
+                    <div className="mt-1 font-medium text-slate-900">
+                      {awardedPackage.customer_visible_status || "—"}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="text-sm text-slate-500">Winning quote</div>
+                    <div className="mt-1 font-medium text-slate-900">
+                      {awardedQuote?.quote_reference
+                        ? `${awardedQuote.quote_reference}${
+                            awardedQuote.quote_version
+                              ? ` v${awardedQuote.quote_version}`
+                              : ""
+                          }`
+                        : "—"}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <p className="mt-4 text-sm text-slate-600">
+                  No provider has been awarded for this request yet.
+                </p>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="mt-6 rounded-2xl border border-dashed border-slate-300 p-5 text-sm text-slate-600">
+            No provider routing activity has been created for this request yet.
+          </div>
+        )}
+      </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 className="text-lg font-semibold text-slate-900">Request details</h2>
