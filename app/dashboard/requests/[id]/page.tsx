@@ -594,51 +594,76 @@ export default async function RequestDetailPage({
           </h1>
 
           <div className="mt-3 flex flex-wrap gap-2">
-            <span
-              className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                STATUS_BADGE_CLASSES[statusKey] ?? "bg-slate-100 text-slate-700"
-              }`}
-            >
-              {getServiceRequestStatusLabel(
-                typedRequest.status as
-                  | "draft"
-                  | "submitted"
-                  | "in_review"
-                  | "awaiting_customer"
-                  | "approved"
-                  | "in_progress"
-                  | "completed"
-                  | "rejected"
-                  | "cancelled"
-              )}
-            </span>
+  <span
+    className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+      STATUS_BADGE_CLASSES[statusKey] ?? "bg-slate-100 text-slate-700"
+    }`}
+  >
+    {getServiceRequestStatusLabel(
+      typedRequest.status as
+        | "draft"
+        | "submitted"
+        | "in_review"
+        | "awaiting_customer"
+        | "approved"
+        | "in_progress"
+        | "completed"
+        | "rejected"
+        | "cancelled"
+    )}
+  </span>
 
-            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-700">
-              {requestTypeLabel}
-            </span>
+  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-700">
+    {requestTypeLabel}
+  </span>
 
-            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-700">
-              {getRequestOriginLabel(typedRequest.request_origin)}
-            </span>
+  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-700">
+    {getRequestOriginLabel(typedRequest.request_origin)}
+  </span>
 
-            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-700">
-              {typedRequest.priority
-                ? getPriorityLabel(
-                    typedRequest.priority as
-                      | "low"
-                      | "normal"
-                      | "high"
-                      | "urgent"
-                  )
-                : "No priority"}
-            </span>
+  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-700">
+    {typedRequest.priority
+      ? getPriorityLabel(
+          typedRequest.priority as
+            | "low"
+            | "normal"
+            | "high"
+            | "urgent"
+        )
+      : "No priority"}
+  </span>
 
-            {typedRequest.request_type === "manufacture_part" ? (
-              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-700">
-                {getManufacturingTypeLabel(typedRequest.manufacturing_type)}
-              </span>
-            ) : null}
-          </div>
+  {typedRequest.request_type === "manufacture_part" ? (
+    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-700">
+      {getManufacturingTypeLabel(typedRequest.manufacturing_type)}
+    </span>
+  ) : null}
+</div>
+
+<div className="mt-5 flex flex-wrap gap-3">
+  <Link
+    href={`/dashboard/requests/${typedRequest.id}/quotes`}
+    className="inline-flex rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+  >
+    View quotes
+  </Link>
+
+  <Link
+    href={`/dashboard/requests/${typedRequest.id}/invoices`}
+    className="inline-flex rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+  >
+    View invoices
+  </Link>
+
+  {["admin", "engineer"].includes(memberRole || "") ? (
+    <Link
+      href={`/dashboard/requests/${typedRequest.id}/providers`}
+      className="inline-flex rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
+    >
+      Provider routing
+    </Link>
+  ) : null}
+</div>
         </div>
       </div>
 
