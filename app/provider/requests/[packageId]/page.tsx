@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import Client from "./Client";
 import type {
+  ProviderInvoiceSummary,
   ProviderPackageDetailData,
   ProviderPackageDetailFile,
   ProviderPackageDetailQuote,
@@ -11,6 +12,26 @@ type PageProps = {
   params: Promise<{
     packageId: string;
   }>;
+};
+
+type MembershipRow = {
+  organization_id: string;
+};
+
+type ProviderInvoiceRow = {
+  id: string;
+  invoice_number: string;
+  invoice_source: "kordyne_generated" | "provider_uploaded";
+  status: string;
+  currency_code: string | null;
+  subtotal_amount: number | null;
+  tax_amount: number | null;
+  total_amount: number | null;
+  issued_at: string | null;
+  due_date: string | null;
+  paid_at: string | null;
+  uploaded_file_name: string | null;
+  created_at: string;
 };
 
 export default async function ProviderRequestDetailPage({
@@ -37,7 +58,9 @@ export default async function ProviderRequestDetailPage({
     throw new Error(membershipsError.message);
   }
 
-  const membershipOrgIds = (memberships ?? []).map((m) => m.organization_id);
+  const membershipOrgIds = (memberships as MembershipRow[] | null)?.map(
+    (m) => m.organization_id,
+  ) ?? [];
 
   if (membershipOrgIds.length === 0) {
     notFound();
@@ -208,6 +231,32 @@ export default async function ProviderRequestDetailPage({
     throw new Error(quotesError.message);
   }
 
+  const { data: invoicesRaw, error: invoicesError } = await supabase
+    .from("provider_invoices")
+    .select(
+      `
+        id,
+        invoice_number,
+        invoice_source,
+        status,
+        currency_code,
+        subtotal_amount,
+        tax_amount,
+        total_amount,
+        issued_at,
+        due_date,
+        paid_at,
+        uploaded_file_name,
+        created_at
+      `,
+    )
+    .eq("provider_request_package_id", pkg.id)
+    .order("created_at", { ascending: false });
+
+  if (invoicesError) {
+    throw new Error(invoicesError.message);
+  }
+
   const mappedFiles: ProviderPackageDetailFile[] = (files ?? []).map((file) => ({
     id: file.id,
     sourceType: file.source_type as ProviderPackageDetailFile["sourceType"],
@@ -226,7 +275,7 @@ export default async function ProviderRequestDetailPage({
       id: quote.id,
       quoteReference: quote.quote_reference,
       quoteVersion: quote.quote_version,
-      status: quote.status as ProviderPackageDetailQuote["status"],
+      status: quote.status,
       currencyCode: quote.currency_code,
       setupPrice: quote.setup_price,
       unitPrice: quote.unit_price,
@@ -243,15 +292,33 @@ export default async function ProviderRequestDetailPage({
     }),
   );
 
+  const mappedInvoices: ProviderInvoiceSummary[] = (
+    (invoicesRaw ?? []) as ProviderInvoiceRow[]
+  ).map((invoice) => ({
+    id: invoice.id,
+    invoiceNumber: invoice.invoice_number,
+    invoiceSource: invoice.invoice_source,
+    status: invoice.status,
+    currencyCode: invoice.currency_code,
+    subtotalAmount: invoice.subtotal_amount,
+    taxAmount: invoice.tax_amount,
+    totalAmount: invoice.total_amount,
+    issuedAt: invoice.issued_at,
+    dueDate: invoice.due_date,
+    paidAt: invoice.paid_at,
+    uploadedFileName: invoice.uploaded_file_name,
+    createdAt: invoice.created_at,
+  }));
+
   const data: ProviderPackageDetailData = {
     package: {
       id: pkg.id,
+      providerOrgId: pkg.provider_org_id,
       serviceRequestId: pkg.service_request_id,
       customerOrgName:
         customerOrg?.name ?? `Customer ${pkg.customer_org_id.slice(0, 8)}`,
       packageTitle: pkg.package_title,
-      packageStatus:
-        pkg.package_status as ProviderPackageDetailData["package"]["packageStatus"],
+      packageStatus: pkg.package_status,
       customerVisibleStatus: pkg.customer_visible_status,
       sharedSummary: pkg.shared_summary,
       targetDueDate: pkg.target_due_date,
@@ -280,6 +347,7 @@ export default async function ProviderRequestDetailPage({
       : null,
     files: mappedFiles,
     quotes: mappedQuotes,
+    invoices: mappedInvoices,
   };
 
   return <Client data={data} />;

@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useMemo, useState, type ChangeEvent, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 import {
   formatCurrencyValue,
   formatLeadTime,
@@ -93,8 +94,14 @@ function getLockMessage(packageStatus: string, quoteStatus?: string | null) {
   return "Quote submission is locked for this package.";
 }
 
+function getTodayInputValue() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export default function Client({ data }: Props) {
   const router = useRouter();
+  const supabase = createClient();
+
   const latestQuote = data.quotes[0] ?? null;
   const quoteLocked = ["awarded", "not_awarded", "closed", "cancelled"].includes(
     data.package.packageStatus,
@@ -138,6 +145,30 @@ export default function Client({ data }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
+
+  const [invoiceSource, setInvoiceSource] = useState<
+    "kordyne_generated" | "provider_uploaded"
+  >("kordyne_generated");
+  const [invoiceNumber, setInvoiceNumber] = useState(
+    `INV-${data.package.id.slice(0, 8).toUpperCase()}`,
+  );
+  const [invoiceCurrencyCode, setInvoiceCurrencyCode] = useState(
+    latestQuote?.currencyCode ?? "EUR",
+  );
+  const [invoiceSubtotal, setInvoiceSubtotal] = useState(
+    latestQuote?.totalPrice?.toString() ?? "",
+  );
+  const [invoiceTax, setInvoiceTax] = useState("0");
+  const [invoiceTotal, setInvoiceTotal] = useState(
+    latestQuote?.totalPrice?.toString() ?? "",
+  );
+  const [invoiceIssuedAt, setInvoiceIssuedAt] = useState(getTodayInputValue());
+  const [invoiceDueDate, setInvoiceDueDate] = useState("");
+  const [invoiceNotes, setInvoiceNotes] = useState("");
+  const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
+  const [invoiceSubmitting, setInvoiceSubmitting] = useState(false);
+  const [invoiceError, setInvoiceError] = useState<string | null>(null);
+  const [invoiceSuccess, setInvoiceSuccess] = useState<string | null>(null);
 
   async function handleSubmitQuote(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -202,6 +233,105 @@ export default function Client({ data }: Props) {
     }
   }
 
+  async function handleCreateInvoice(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setInvoiceError(null);
+    setInvoiceSuccess(null);
+
+    if (awardState !== "awarded") {
+      setInvoiceError("Invoices can only be created for awarded packages.");
+      return;
+    }
+
+    if (!invoiceNumber.trim()) {
+      setInvoiceError("Invoice number is required.");
+      return;
+    }
+
+    if (!invoiceTotal.trim()) {
+      setInvoiceError("Invoice total is required.");
+      return;
+    }
+
+    if (invoiceSource === "provider_uploaded" && !invoiceFile) {
+      setInvoiceError("Please select a PDF invoice file to upload.");
+      return;
+    }
+
+    setInvoiceSubmitting(true);
+
+    try {
+      let uploadedFilePath: string | null = null;
+      let uploadedFileName: string | null = null;
+      let uploadedFileType: string | null = null;
+
+      if (invoiceSource === "provider_uploaded" && invoiceFile) {
+        const safeFileName = invoiceFile.name.replace(/[^a-zA-Z0-9.\-_]/g, "-");
+        uploadedFilePath = `${data.package.providerOrgId}/${data.package.id}/invoice-${Date.now()}-${safeFileName}`;
+        uploadedFileName = invoiceFile.name;
+        uploadedFileType = invoiceFile.type || "application/pdf";
+
+        const { error: uploadError } = await supabase.storage
+          .from("provider-invoices")
+          .upload(uploadedFilePath, invoiceFile, {
+            upsert: true,
+            contentType: uploadedFileType,
+          });
+
+        if (uploadError) {
+          throw new Error(uploadError.message);
+        }
+      }
+
+      const response = await fetch(
+        `/api/provider/packages/${data.package.id}/invoices`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            invoiceSource,
+            invoiceNumber: invoiceNumber.trim(),
+            currencyCode: invoiceCurrencyCode.trim() || "EUR",
+            subtotalAmount: invoiceSubtotal ? Number(invoiceSubtotal) : null,
+            taxAmount: invoiceTax ? Number(invoiceTax) : 0,
+            totalAmount: invoiceTotal ? Number(invoiceTotal) : null,
+            issuedAt: invoiceIssuedAt
+              ? new Date(`${invoiceIssuedAt}T00:00:00`).toISOString()
+              : null,
+            dueDate: invoiceDueDate || null,
+            notes: invoiceNotes.trim() || null,
+            uploadedFilePath,
+            uploadedFileName,
+            uploadedFileType,
+          }),
+        },
+      );
+
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(payload.error || "Failed to create invoice.");
+      }
+
+      setInvoiceSuccess("Invoice created successfully.");
+      router.push(`/invoices/${payload.invoiceId}`);
+      router.refresh();
+    } catch (error) {
+      setInvoiceError(
+        error instanceof Error ? error.message : "Failed to create invoice.",
+      );
+    } finally {
+      setInvoiceSubmitting(false);
+    }
+  }
+
+  function handleInvoiceFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0] ?? null;
+    setInvoiceFile(file);
+  }
+
   return (
     <div className="space-y-8">
       <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -229,10 +359,16 @@ export default function Client({ data }: Props) {
               <div className="mt-1">
                 <span
                   className={`rounded-full px-2.5 py-1 text-xs font-medium ${toneClasses(
-                    providerPackageStatusTones[data.package.packageStatus],
+                    providerPackageStatusTones[
+                      data.package.packageStatus as keyof typeof providerPackageStatusTones
+                    ],
                   )}`}
                 >
-                  {getProviderPackageStatusLabel(data.package.packageStatus)}
+                  {getProviderPackageStatusLabel(
+                    data.package.packageStatus as Parameters<
+                      typeof getProviderPackageStatusLabel
+                    >[0],
+                  )}
                 </span>
               </div>
             </div>
@@ -256,7 +392,7 @@ export default function Client({ data }: Props) {
             </h2>
             <p className="text-sm text-emerald-800">
               This provider package has been awarded. Your latest accepted quote
-              is now the winning commercial response for this round.
+              is now the winning commercial response for this round and you can now issue invoices.
             </p>
             <div className="mt-2 flex flex-wrap gap-4 text-sm text-emerald-900">
               <span>Awarded: {formatDateTime(data.package.awardedAt)}</span>
@@ -441,10 +577,16 @@ export default function Client({ data }: Props) {
               {latestQuote?.status ? (
                 <span
                   className={`rounded-full px-2.5 py-1 text-xs font-medium ${toneClasses(
-                    providerQuoteStatusTones[latestQuote.status],
+                    providerQuoteStatusTones[
+                      latestQuote.status as keyof typeof providerQuoteStatusTones
+                    ],
                   )}`}
                 >
-                  {getProviderQuoteStatusLabel(latestQuote.status)}
+                  {getProviderQuoteStatusLabel(
+                    latestQuote.status as Parameters<
+                      typeof getProviderQuoteStatusLabel
+                    >[0],
+                  )}
                 </span>
               ) : null}
             </div>
@@ -662,6 +804,279 @@ export default function Client({ data }: Props) {
           </div>
 
           <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">
+                  Invoices
+                </h2>
+                <p className="mt-1 text-sm text-slate-600">
+                  Issue a Kordyne invoice template or upload your company’s invoice PDF once the package has been awarded.
+                </p>
+              </div>
+
+              <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                {data.invoices.length} invoice{data.invoices.length === 1 ? "" : "s"}
+              </div>
+            </div>
+
+            {awardState !== "awarded" ? (
+              <div className="mt-5 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5 text-sm text-slate-600">
+                Invoices become available after the package is awarded to your organization.
+              </div>
+            ) : (
+              <div className="mt-5 space-y-6">
+                <form onSubmit={handleCreateInvoice} className="space-y-5 rounded-2xl border border-slate-200 p-5">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-slate-700">
+                        Invoice source
+                      </label>
+                      <select
+                        value={invoiceSource}
+                        onChange={(event) =>
+                          setInvoiceSource(
+                            event.target.value as
+                              | "kordyne_generated"
+                              | "provider_uploaded",
+                          )
+                        }
+                        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500"
+                      >
+                        <option value="kordyne_generated">
+                          Kordyne generated invoice
+                        </option>
+                        <option value="provider_uploaded">
+                          Upload provider invoice PDF
+                        </option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-slate-700">
+                        Invoice number *
+                      </label>
+                      <input
+                        value={invoiceNumber}
+                        onChange={(event) => setInvoiceNumber(event.target.value)}
+                        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500"
+                        placeholder="INV-2026-001"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-slate-700">
+                        Currency
+                      </label>
+                      <input
+                        value={invoiceCurrencyCode}
+                        onChange={(event) =>
+                          setInvoiceCurrencyCode(event.target.value)
+                        }
+                        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500"
+                        placeholder="EUR"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-slate-700">
+                        Subtotal
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={invoiceSubtotal}
+                        onChange={(event) => setInvoiceSubtotal(event.target.value)}
+                        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-slate-700">
+                        Tax
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={invoiceTax}
+                        onChange={(event) => setInvoiceTax(event.target.value)}
+                        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-slate-700">
+                        Total *
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={invoiceTotal}
+                        onChange={(event) => setInvoiceTotal(event.target.value)}
+                        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-slate-700">
+                        Issue date
+                      </label>
+                      <input
+                        type="date"
+                        value={invoiceIssuedAt}
+                        onChange={(event) => setInvoiceIssuedAt(event.target.value)}
+                        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-slate-700">
+                        Due date
+                      </label>
+                      <input
+                        type="date"
+                        value={invoiceDueDate}
+                        onChange={(event) => setInvoiceDueDate(event.target.value)}
+                        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500"
+                      />
+                    </div>
+                  </div>
+
+                  {invoiceSource === "provider_uploaded" ? (
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-slate-700">
+                        Upload invoice PDF *
+                      </label>
+                      <input
+                        type="file"
+                        accept="application/pdf"
+                        onChange={handleInvoiceFileChange}
+                        className="block w-full text-sm text-slate-700"
+                      />
+                      <p className="text-xs text-slate-500">
+                        Upload your company’s official invoice PDF. Metadata above will still be stored for tracking.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                      Kordyne will generate the invoice document using the invoice data you enter here.
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-slate-700">
+                      Notes
+                    </label>
+                    <textarea
+                      value={invoiceNotes}
+                      onChange={(event) => setInvoiceNotes(event.target.value)}
+                      rows={4}
+                      className="w-full rounded-2xl border border-slate-300 px-3 py-3 text-sm outline-none focus:border-slate-500"
+                      placeholder="Payment instructions, bank reference, VAT notes, or internal billing notes."
+                    />
+                  </div>
+
+                  {invoiceError ? (
+                    <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                      {invoiceError}
+                    </div>
+                  ) : null}
+
+                  {invoiceSuccess ? (
+                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                      {invoiceSuccess}
+                    </div>
+                  ) : null}
+
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      type="submit"
+                      disabled={invoiceSubmitting}
+                      className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {invoiceSubmitting
+                        ? "Creating..."
+                        : invoiceSource === "provider_uploaded"
+                          ? "Upload invoice"
+                          : "Generate invoice"}
+                    </button>
+                  </div>
+                </form>
+
+                {data.invoices.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5 text-sm text-slate-600">
+                    No invoices have been created for this awarded package yet.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {data.invoices.map((invoice) => (
+                      <div
+                        key={invoice.id}
+                        className="rounded-2xl border border-slate-200 p-4"
+                      >
+                        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className="text-base font-semibold text-slate-900">
+                                {invoice.invoiceNumber}
+                              </h3>
+                              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700 capitalize">
+                                {invoice.invoiceSource.replace("_", " ")}
+                              </span>
+                              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700 capitalize">
+                                {invoice.status}
+                              </span>
+                            </div>
+
+                            <div className="mt-3 grid gap-2 text-sm text-slate-600 md:grid-cols-2">
+                              <p>
+                                Issued: {formatDate(invoice.issuedAt)}
+                              </p>
+                              <p>
+                                Due: {formatDate(invoice.dueDate)}
+                              </p>
+                              <p>
+                                Total:{" "}
+                                {formatCurrencyValue(
+                                  invoice.totalAmount,
+                                  invoice.currencyCode ?? undefined,
+                                )}
+                              </p>
+                              <p>
+                                Paid: {formatDate(invoice.paidAt)}
+                              </p>
+                              {invoice.uploadedFileName ? (
+                                <p className="md:col-span-2">
+                                  File: {invoice.uploadedFileName}
+                                </p>
+                              ) : null}
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap gap-3">
+                            <button
+                              type="button"
+                              onClick={() => router.push(`/invoices/${invoice.id}`)}
+                              className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                            >
+                              Open invoice
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
             <h2 className="text-lg font-semibold text-slate-900">
               Shared files
             </h2>
@@ -684,7 +1099,9 @@ export default function Client({ data }: Props) {
                         </div>
                         <div className="mt-2 flex flex-wrap gap-2 text-xs">
                           <span className="rounded-full bg-slate-100 px-2 py-1 text-slate-700">
-                            {providerFileSourceTypeLabels[file.sourceType]}
+                            {providerFileSourceTypeLabels[
+  file.sourceType as keyof typeof providerFileSourceTypeLabels
+] ?? file.sourceType}
                           </span>
                           {file.assetCategory ? (
                             <span className="rounded-full bg-slate-100 px-2 py-1 text-slate-700">
@@ -740,10 +1157,16 @@ export default function Client({ data }: Props) {
                       </div>
                       <span
                         className={`rounded-full px-2.5 py-1 text-xs font-medium ${toneClasses(
-                          providerQuoteStatusTones[quote.status],
+                          providerQuoteStatusTones[
+                            quote.status as keyof typeof providerQuoteStatusTones
+                          ],
                         )}`}
                       >
-                        {getProviderQuoteStatusLabel(quote.status)}
+                        {getProviderQuoteStatusLabel(
+                          quote.status as Parameters<
+                            typeof getProviderQuoteStatusLabel
+                          >[0],
+                        )}
                       </span>
                     </div>
 
@@ -753,7 +1176,7 @@ export default function Client({ data }: Props) {
                         <div className="mt-1 font-medium text-slate-900">
                           {formatCurrencyValue(
                             quote.totalPrice,
-                            quote.currencyCode,
+                            quote.currencyCode ?? undefined,
                           )}
                         </div>
                       </div>

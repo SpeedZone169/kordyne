@@ -1,18 +1,12 @@
-import type {
-  ProviderFileSourceType,
-  ProviderPackageStatus,
-  ProviderQuoteStatus,
-} from "@/lib/providers";
-
 export type ProviderPackageDetailFile = {
   id: string;
-  sourceType: ProviderFileSourceType;
+  sourceType: keyof typeof import("@/lib/providers").providerFileSourceTypeLabels;
   fileName: string;
   fileType: string | null;
   fileSizeBytes: number | null;
   assetCategory: string | null;
-  storagePath: string | null;
-  providerUploaded: boolean;
+  storagePath: string;
+  providerUploaded: boolean | null;
   sharedAt: string | null;
   createdAt: string;
 };
@@ -21,8 +15,8 @@ export type ProviderPackageDetailQuote = {
   id: string;
   quoteReference: string | null;
   quoteVersion: number;
-  status: ProviderQuoteStatus;
-  currencyCode: string;
+  status: string;
+  currencyCode: string | null;
   setupPrice: number | null;
   unitPrice: number | null;
   totalPrice: number | null;
@@ -37,13 +31,30 @@ export type ProviderPackageDetailQuote = {
   createdAt: string;
 };
 
+export type ProviderInvoiceSummary = {
+  id: string;
+  invoiceNumber: string;
+  invoiceSource: "kordyne_generated" | "provider_uploaded";
+  status: string;
+  currencyCode: string | null;
+  subtotalAmount: number | null;
+  taxAmount: number | null;
+  totalAmount: number | null;
+  issuedAt: string | null;
+  dueDate: string | null;
+  paidAt: string | null;
+  uploadedFileName: string | null;
+  createdAt: string;
+};
+
 export type ProviderPackageDetailData = {
   package: {
     id: string;
+    providerOrgId: string;
     serviceRequestId: string;
     customerOrgName: string;
     packageTitle: string | null;
-    packageStatus: ProviderPackageStatus;
+    packageStatus: string;
     customerVisibleStatus: string | null;
     sharedSummary: string | null;
     targetDueDate: string | null;
@@ -70,4 +81,5 @@ export type ProviderPackageDetailData = {
   } | null;
   files: ProviderPackageDetailFile[];
   quotes: ProviderPackageDetailQuote[];
+  invoices: ProviderInvoiceSummary[];
 };
