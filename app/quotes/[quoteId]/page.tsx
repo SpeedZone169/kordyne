@@ -4,6 +4,32 @@ import { createClient } from "@/lib/supabase/server";
 import { formatCurrencyValue, formatLeadTime } from "@/lib/providers";
 import QuoteDocumentActions from "./QuoteDocumentActions";
 
+type QuoteSnapshotData = {
+  quote?: {
+    id: string;
+    quoteReference: string | null;
+    quoteVersion: number | null;
+    status: string;
+    currencyCode: string | null;
+    setupPrice: number | null;
+    unitPrice: number | null;
+    totalPrice: number | null;
+    shippingPrice: number | null;
+    estimatedLeadTimeDays: number | null;
+    earliestStartDate: string | null;
+    estimatedCompletionDate: string | null;
+    quoteValidUntil: string | null;
+    notes: string | null;
+    exceptions: string | null;
+    issuedAt: string | null;
+    submittedAt: string | null;
+  };
+  provider?: Record<string, unknown>;
+  customer?: Record<string, unknown>;
+  package?: Record<string, unknown>;
+  request?: Record<string, unknown>;
+};
+
 type PageProps = {
   params: Promise<{
     quoteId: string;
@@ -187,7 +213,7 @@ export default async function QuoteDocumentPage({ params }: PageProps) {
       .maybeSingle(),
   ]);
 
-  const snapshotData = (snapshot?.snapshot_json ?? {}) as Record<string, any>;
+  const snapshotData = (snapshot?.snapshot_json ?? {}) as QuoteSnapshotData;
 
   const quoteData = snapshotData.quote ?? {
     id: quote.id,

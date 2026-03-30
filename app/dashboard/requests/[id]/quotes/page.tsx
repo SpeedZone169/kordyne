@@ -185,7 +185,7 @@ export default async function RequestQuotesPage({
 
   const packageIds = (packages ?? []).map((pkg) => pkg.id);
 
-  let latestQuoteByPackageId = new Map<
+  const latestQuoteByPackageId = new Map<
     string,
     {
       id: string;

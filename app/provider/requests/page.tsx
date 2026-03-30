@@ -83,7 +83,7 @@ export default async function ProviderRequestsPage() {
 
   const packageIds = (packages ?? []).map((pkg) => pkg.id);
 
-  let latestQuoteByPackageId = new Map<
+  const latestQuoteByPackageId = new Map<
     string,
     {
       provider_request_package_id: string;

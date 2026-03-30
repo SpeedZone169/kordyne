@@ -8,6 +8,55 @@ import type {
   ProviderProfileData,
 } from "./types";
 
+type ProviderCapabilityDbRow = {
+  id: string;
+  provider_org_id: string;
+  process_family: string | null;
+  process_name: string | null;
+  material_family: string | null;
+  material_name: string | null;
+  machine_type: string | null;
+  certification: string | null;
+  min_quantity: number | null;
+  max_quantity: number | null;
+  lead_time_notes: string | null;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+type ProviderPackageDbRow = {
+  id: string;
+  service_request_id: string;
+  customer_org_id: string;
+  package_status: string;
+  package_title: string | null;
+  requested_quantity: number | null;
+  customer_visible_status: string | null;
+  target_due_date: string | null;
+  response_deadline: string | null;
+  published_at: string | null;
+  viewed_at: string | null;
+  provider_responded_at: string | null;
+  awarded_at: string | null;
+  created_at: string;
+};
+
+type ProviderOrganizationRow = {
+  id: string;
+  name: string;
+};
+
+type LatestQuoteSummaryRow = {
+  provider_request_package_id: string;
+  quote_version: number;
+  status: string;
+  submitted_at: string | null;
+  total_price: number | null;
+  currency_code: string | null;
+  estimated_lead_time_days: number | null;
+};
+
 type MembershipRow = {
   organization_id: string;
   role: string;
@@ -108,7 +157,7 @@ export default async function ProviderDashboardPage() {
     supabase
       .from("provider_profiles")
       .select(
-        "organization_id, website, phone, country, city, logo_path, short_description, certifications, industries_served, capabilities_summary, software_notes, onboarding_completed_at"
+        "organization_id, website, phone, country, city, logo_path, short_description, certifications, industries_served, capabilities_summary, software_notes, onboarding_completed_at",
       )
       .in("organization_id", membershipOrgIds),
   ]);
@@ -160,7 +209,7 @@ export default async function ProviderDashboardPage() {
     supabase
       .from("provider_capabilities")
       .select(
-        "id, provider_org_id, process_family, process_name, material_family, material_name, machine_type, certification, min_quantity, max_quantity, lead_time_notes, active, created_at, updated_at"
+        "id, provider_org_id, process_family, process_name, material_family, material_name, machine_type, certification, min_quantity, max_quantity, lead_time_notes, active, created_at, updated_at",
       )
       .eq("provider_org_id", selectedOrganization.id)
       .order("active", { ascending: false })
@@ -185,7 +234,7 @@ export default async function ProviderDashboardPage() {
           provider_responded_at,
           awarded_at,
           created_at
-        `
+        `,
       )
       .eq("provider_org_id", selectedOrganization.id)
       .not("published_at", "is", null)
@@ -200,27 +249,29 @@ export default async function ProviderDashboardPage() {
     throw new Error(packagesError.message);
   }
 
-  const capabilities: ProviderCapabilityRow[] = ((capabilitiesRaw ?? []) as any[]).map(
-    (row) => ({
-      id: row.id,
-      providerOrgId: row.provider_org_id,
-      processFamily: row.process_family,
-      processName: row.process_name,
-      materialFamily: row.material_family,
-      materialName: row.material_name,
-      machineType: row.machine_type,
-      certification: row.certification,
-      minQuantity: row.min_quantity,
-      maxQuantity: row.max_quantity,
-      leadTimeNotes: row.lead_time_notes,
-      active: row.active,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-    }),
-  );
+  const capabilityRows = (capabilitiesRaw ?? []) as ProviderCapabilityDbRow[];
+
+const capabilities: ProviderCapabilityRow[] = capabilityRows.map((row) => ({
+  id: row.id,
+  providerOrgId: row.provider_org_id,
+  processFamily: row.process_family ?? "",
+  processName: row.process_name ?? "",
+  materialFamily: row.material_family,
+  materialName: row.material_name,
+  machineType: row.machine_type,
+  certification: row.certification,
+  minQuantity: row.min_quantity,
+  maxQuantity: row.max_quantity,
+  leadTimeNotes: row.lead_time_notes,
+  active: row.active,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+}));
+
+  const packageRows = (packagesRaw ?? []) as ProviderPackageDbRow[];
 
   const customerOrgIds = [
-    ...new Set((packagesRaw ?? []).map((pkg: any) => pkg.customer_org_id)),
+    ...new Set(packageRows.map((pkg) => pkg.customer_org_id)),
   ];
 
   let customerNamesById = new Map<string, string>();
@@ -236,24 +287,16 @@ export default async function ProviderDashboardPage() {
     }
 
     customerNamesById = new Map(
-      (customerOrgs ?? []).map((org) => [org.id, org.name]),
+      ((customerOrgs ?? []) as ProviderOrganizationRow[]).map((org) => [
+        org.id,
+        org.name,
+      ]),
     );
   }
 
-  const packageIds = (packagesRaw ?? []).map((pkg: any) => pkg.id);
+  const packageIds = packageRows.map((pkg) => pkg.id);
 
-  let latestQuoteByPackageId = new Map<
-    string,
-    {
-      provider_request_package_id: string;
-      quote_version: number;
-      status: string;
-      submitted_at: string | null;
-      total_price: number | null;
-      currency_code: string | null;
-      estimated_lead_time_days: number | null;
-    }
-  >();
+  const latestQuoteByPackageId = new Map<string, LatestQuoteSummaryRow>();
 
   if (packageIds.length > 0) {
     const { data: quotes, error: quotesError } = await supabase
@@ -267,7 +310,7 @@ export default async function ProviderDashboardPage() {
           total_price,
           currency_code,
           estimated_lead_time_days
-        `
+        `,
       )
       .in("provider_request_package_id", packageIds)
       .order("quote_version", { ascending: false });
@@ -276,14 +319,16 @@ export default async function ProviderDashboardPage() {
       throw new Error(quotesError.message);
     }
 
-    for (const quote of quotes ?? []) {
+    const quoteRows = (quotes ?? []) as LatestQuoteSummaryRow[];
+
+    for (const quote of quoteRows) {
       if (!latestQuoteByPackageId.has(quote.provider_request_package_id)) {
         latestQuoteByPackageId.set(quote.provider_request_package_id, quote);
       }
     }
   }
 
-  const rows: ProviderInboxRow[] = ((packagesRaw ?? []) as any[]).map((pkg) => {
+  const rows: ProviderInboxRow[] = packageRows.map((pkg) => {
     const latestQuote = latestQuoteByPackageId.get(pkg.id);
 
     return {
@@ -321,7 +366,9 @@ export default async function ProviderDashboardPage() {
       ),
   ).length;
   const respondedCount = rows.filter((row) => !!row.providerRespondedAt).length;
-  const awardedCount = rows.filter((row) => row.packageStatus === "awarded").length;
+  const awardedCount = rows.filter(
+    (row) => row.packageStatus === "awarded",
+  ).length;
   const latestSubmittedQuoteCount = rows.filter(
     (row) => row.latestQuoteStatus === "submitted",
   ).length;

@@ -103,7 +103,7 @@ export default async function CustomerRequestInvoicesPage({
 
   let invoices: InvoiceRow[] = [];
   let providerNames = new Map<string, string>();
-  let packageTitles = new Map<string, string | null>();
+  const packageTitles = new Map<string, string | null>();
 
   for (const pkg of packages ?? []) {
     packageTitles.set(pkg.id, pkg.package_title);

@@ -49,9 +49,9 @@ export default function Navbar() {
     };
   }, [supabase]);
 
-  useEffect(() => {
+  function handleNavClick() {
     setMobileOpen(false);
-  }, [pathname]);
+  }
 
   async function handleLogout() {
     await supabase.auth.signOut();
@@ -180,6 +180,7 @@ export default function Navbar() {
                 <Link
                   key={item.href}
                   href={item.href}
+                  onClick={handleNavClick}
                   className={`rounded-2xl px-4 py-3 text-sm font-medium ${
                     pathname === item.href ||
                     (item.href !== "/" && pathname?.startsWith(item.href))
@@ -197,6 +198,7 @@ export default function Navbar() {
                 <>
                   <Link
                     href="/login"
+                    onClick={handleNavClick}
                     className="inline-flex items-center justify-center rounded-full border border-gray-300 bg-white px-5 py-3 text-sm font-medium text-gray-900 transition hover:bg-gray-100"
                   >
                     Login
@@ -204,6 +206,7 @@ export default function Navbar() {
 
                   <Link
                     href="/contact"
+                    onClick={handleNavClick}
                     className="inline-flex items-center justify-center rounded-full bg-gray-950 px-5 py-3 text-sm font-medium text-white transition hover:bg-gray-800"
                   >
                     Request Demo
@@ -215,6 +218,7 @@ export default function Navbar() {
                 <>
                   <Link
                     href="/dashboard"
+                    onClick={handleNavClick}
                     className="inline-flex items-center justify-center rounded-full border border-gray-300 bg-white px-5 py-3 text-sm font-medium text-gray-900 transition hover:bg-gray-100"
                   >
                     Dashboard
@@ -222,6 +226,7 @@ export default function Navbar() {
 
                   <Link
                     href="/dashboard/account"
+                    onClick={handleNavClick}
                     className="inline-flex items-center justify-center rounded-full border border-gray-300 bg-white px-5 py-3 text-sm font-medium text-gray-900 transition hover:bg-gray-100"
                   >
                     Account

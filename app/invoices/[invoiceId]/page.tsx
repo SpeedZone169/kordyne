@@ -4,6 +4,74 @@ import { createClient } from "@/lib/supabase/server";
 import { formatCurrencyValue } from "@/lib/providers";
 import InvoiceDocumentActions from "./InvoiceDocumentActions";
 
+type InvoiceSnapshotData = {
+  invoice?: {
+    id: string;
+    invoiceNumber: string | null;
+    invoiceSource: string;
+    status: string;
+    currencyCode: string | null;
+    subtotalAmount: number | null;
+    taxAmount: number | null;
+    totalAmount: number | null;
+    issuedAt: string | null;
+    dueDate: string | null;
+    paidAt: string | null;
+    notes: string | null;
+    uploadedFilePath: string | null;
+    uploadedFileName: string | null;
+    uploadedFileType: string | null;
+  };
+  provider?: {
+    organizationId?: string;
+    displayName?: string;
+    legalName?: string | null;
+    tradingName?: string | null;
+    addressLine1?: string | null;
+    addressLine2?: string | null;
+    city?: string | null;
+    region?: string | null;
+    postalCode?: string | null;
+    country?: string | null;
+    vatNumber?: string | null;
+    companyNumber?: string | null;
+    contactName?: string | null;
+    contactEmail?: string | null;
+    contactPhone?: string | null;
+    website?: string | null;
+    logoPath?: string | null;
+    shortDescription?: string | null;
+  };
+  customer?: {
+    organizationId?: string;
+    name?: string;
+  };
+  package?: {
+    id?: string;
+    title?: string | null;
+    requestedQuantity?: number | null;
+    targetDueDate?: string | null;
+  };
+  request?: {
+    id?: string | null;
+    title?: string | null;
+    requestedItemName?: string | null;
+    requestedItemReference?: string | null;
+    targetProcess?: string | null;
+    targetMaterial?: string | null;
+  };
+  quote?: {
+    id?: string;
+    quoteReference?: string | null;
+    quoteVersion?: number | null;
+    status?: string | null;
+    currencyCode?: string | null;
+    totalPrice?: number | null;
+    estimatedLeadTimeDays?: number | null;
+    submittedAt?: string | null;
+  } | null;
+};
+
 type PageProps = {
   params: Promise<{
     invoiceId: string;
@@ -246,7 +314,7 @@ export default async function InvoiceDocumentPage({ params }: PageProps) {
     .eq("id", pkg?.service_request_id || "")
     .maybeSingle();
 
-  const snapshotData = (invoice.snapshot_json ?? {}) as Record<string, any>;
+  const snapshotData = (invoice.snapshot_json ?? {}) as InvoiceSnapshotData;
 
   const invoiceData = snapshotData.invoice ?? {
     id: invoice.id,
@@ -317,9 +385,8 @@ export default async function InvoiceDocumentPage({ params }: PageProps) {
   const quoteData = snapshotData.quote ?? null;
 
   const providerLogoUrl = providerData.logoPath
-    ? supabase.storage
-        .from("provider-assets")
-        .getPublicUrl(providerData.logoPath).data.publicUrl
+    ? supabase.storage.from("provider-assets").getPublicUrl(providerData.logoPath)
+        .data.publicUrl
     : null;
 
   const uploadedInvoiceUrl =
@@ -463,7 +530,8 @@ export default async function InvoiceDocumentPage({ params }: PageProps) {
               Uploaded provider invoice
             </p>
             <p className="mt-3 text-sm text-slate-700">
-              This invoice was uploaded by the provider as their own official finance document.
+              This invoice was uploaded by the provider as their own official finance
+              document.
             </p>
 
             <div className="mt-5 grid gap-3 md:grid-cols-2">
@@ -563,8 +631,9 @@ export default async function InvoiceDocumentPage({ params }: PageProps) {
         <div className="mt-12 flex flex-col gap-4 border-t border-slate-200 pt-6 sm:flex-row sm:items-center sm:justify-between">
           <div className="text-xs leading-5 text-slate-500">
             <p>
-              This invoice is managed through Kordyne. Commercial acceptance, payment handling,
-              tax treatment, and supplier finance obligations should follow the provider’s agreed process.
+              This invoice is managed through Kordyne. Commercial acceptance, payment
+              handling, tax treatment, and supplier finance obligations should follow the
+              provider’s agreed process.
             </p>
           </div>
 
