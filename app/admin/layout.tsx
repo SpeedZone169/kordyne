@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ReactNode } from "react";
 import { requirePlatformOwner } from "@/lib/auth/platform-owner";
+import AdminLogoutButton from "./AdminLogoutButton";
 
 const navItems = [
   { href: "/admin", label: "Overview" },
@@ -49,12 +50,7 @@ export default async function AdminLayout({
           </div>
 
           <div className="flex items-center gap-3">
-            <Link
-              href="/dashboard"
-              className="rounded-full border border-zinc-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-900 transition hover:bg-zinc-50"
-            >
-              Dashboard
-            </Link>
+            <AdminLogoutButton />
           </div>
         </div>
       </header>
