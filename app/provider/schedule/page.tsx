@@ -1,7 +1,7 @@
 import Client from "./Client";
-import { loadProviderDashboardData } from "../loadProviderDashboardData";
+import { loadProviderScheduleData } from "./loadProviderScheduleData";
 
 export default async function ProviderSchedulePage() {
-  const data = await loadProviderDashboardData();
+  const data = await loadProviderScheduleData();
   return <Client data={data} />;
 }
