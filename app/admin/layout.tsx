@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ReactNode } from "react";
 import { requirePlatformOwner } from "@/lib/auth/platform-owner";
+import { enforceMfaOrRedirect } from "@/lib/auth/mfa";
 import AdminLogoutButton from "./AdminLogoutButton";
 
 const navItems = [
@@ -19,6 +20,8 @@ export default async function AdminLayout({
   children: ReactNode;
 }) {
   const { profile } = await requirePlatformOwner();
+
+  await enforceMfaOrRedirect("/admin");
 
   return (
     <div className="min-h-screen bg-[#f5f5f3] text-slate-950">

@@ -2,15 +2,46 @@ import type { ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { requireProviderUser } from "@/lib/auth/provider-access";
+import { enforceMfaOrRedirect } from "@/lib/auth/mfa";
 import ProviderTopNav from "@/components/providers/ProviderTopNav";
 import ProviderLogoutButton from "@/components/providers/ProviderLogoutButton";
+
+function getProviderMemberRole(value: unknown): string | null {
+  if (!value || typeof value !== "object") return null;
+
+  const topLevel = value as {
+    memberRole?: unknown;
+    organization?: unknown;
+  };
+
+  if (typeof topLevel.memberRole === "string") {
+    return topLevel.memberRole;
+  }
+
+  if (topLevel.organization && typeof topLevel.organization === "object") {
+    const organization = topLevel.organization as {
+      memberRole?: unknown;
+    };
+
+    if (typeof organization.memberRole === "string") {
+      return organization.memberRole;
+    }
+  }
+
+  return null;
+}
 
 export default async function ProviderLayout({
   children,
 }: {
   children: ReactNode;
 }) {
-  await requireProviderUser();
+  const providerUser = await requireProviderUser();
+  const providerRole = getProviderMemberRole(providerUser);
+
+  if (providerRole === "admin") {
+    await enforceMfaOrRedirect("/provider");
+  }
 
   return (
     <div className="min-h-screen bg-[#f5f5f3] text-slate-950">

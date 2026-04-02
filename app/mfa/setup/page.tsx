@@ -6,9 +6,9 @@ type PageProps = {
   }>;
 };
 
-export default async function LoginPage({ searchParams }: PageProps) {
+export default async function MfaSetupPage({ searchParams }: PageProps) {
   const resolvedSearchParams = searchParams ? await searchParams : {};
-  const nextPath = resolvedSearchParams.next || "/dashboard";
+  const nextPath = resolvedSearchParams.next || "/";
 
   return <Client nextPath={nextPath} />;
 }
