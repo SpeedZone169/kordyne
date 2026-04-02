@@ -2,14 +2,6 @@ import "server-only";
 import { createClient } from "@supabase/supabase-js";
 
 export function createAdminClient() {
-  console.log(
-    "ADMIN ENV CHECK",
-    {
-      urlPresent: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
-      serviceRolePresent: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
-    }
-  );
-
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -18,9 +10,7 @@ export function createAdminClient() {
   }
 
   if (!serviceRoleKey) {
-    throw new Error(
-      "Missing SUPABASE_SERVICE_ROLE_KEY. Add it to .env.local and restart the dev server."
-    );
+    throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY");
   }
 
   return createClient(supabaseUrl, serviceRoleKey, {

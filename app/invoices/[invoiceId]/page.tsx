@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { formatCurrencyValue } from "@/lib/providers";
 import InvoiceDocumentActions from "./InvoiceDocumentActions";
+import { getProviderAssetSignedUrl } from "@/lib/storage";
 
 type InvoiceSnapshotData = {
   invoice?: {
@@ -385,9 +386,8 @@ export default async function InvoiceDocumentPage({ params }: PageProps) {
   const quoteData = snapshotData.quote ?? null;
 
   const providerLogoUrl = providerData.logoPath
-    ? supabase.storage.from("provider-assets").getPublicUrl(providerData.logoPath)
-        .data.publicUrl
-    : null;
+  ? await getProviderAssetSignedUrl(providerData.logoPath)
+  : null;
 
   const uploadedInvoiceUrl =
     invoice.invoice_source === "provider_uploaded" && invoice.uploaded_file_path

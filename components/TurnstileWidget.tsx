@@ -30,13 +30,12 @@ export default function TurnstileWidget({ onVerify }: TurnstileWidgetProps) {
   useEffect(() => {
     onVerify("");
 
+    const container = containerRef.current;
+    if (!container) return;
+
     const interval = setInterval(() => {
-      if (
-        window.turnstile &&
-        containerRef.current &&
-        containerRef.current.childNodes.length === 0
-      ) {
-        window.turnstile.render(containerRef.current, {
+      if (window.turnstile && container.childNodes.length === 0) {
+        window.turnstile.render(container, {
           sitekey: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!,
           callback: (token: string) => {
             onVerify(token);
@@ -55,8 +54,8 @@ export default function TurnstileWidget({ onVerify }: TurnstileWidgetProps) {
     return () => {
       clearInterval(interval);
 
-      if (window.turnstile && containerRef.current && window.turnstile.remove) {
-        window.turnstile.remove(containerRef.current);
+      if (window.turnstile?.remove) {
+        window.turnstile.remove(container);
       }
     };
   }, [onVerify]);

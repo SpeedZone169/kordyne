@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { formatCurrencyValue, formatLeadTime } from "@/lib/providers";
 import QuoteDocumentActions from "./QuoteDocumentActions";
+import { getProviderAssetSignedUrl } from "@/lib/storage";
 
 type QuoteSnapshotData = {
   quote?: {
@@ -283,9 +284,8 @@ export default async function QuoteDocumentPage({ params }: PageProps) {
   };
 
   const providerLogoUrl = providerData.logoPath
-    ? supabase.storage.from("provider-assets").getPublicUrl(providerData.logoPath)
-        .data.publicUrl
-    : null;
+  ? await getProviderAssetSignedUrl(providerData.logoPath)
+  : null;
 
   const providerLocation =
     [providerData.city, providerData.region, providerData.country]

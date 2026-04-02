@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { getProviderAssetSignedUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
 import type {
   ProviderCapabilityRow,
@@ -399,10 +400,8 @@ export async function loadProviderDashboardData(): Promise<ProviderDashboardData
 
   if (selectedProfile) {
     const logoPublicUrl = selectedProfile.logo_path
-      ? supabase.storage
-          .from("provider-assets")
-          .getPublicUrl(selectedProfile.logo_path).data.publicUrl
-      : null;
+  ? await getProviderAssetSignedUrl(selectedProfile.logo_path)
+  : null;
 
     profile = {
       organizationId: selectedProfile.organization_id,

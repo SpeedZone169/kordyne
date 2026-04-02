@@ -132,13 +132,6 @@ export default function Client({ data }: Props) {
         throw new Error(uploadError.message);
       }
 
-      const publicUrl = supabase.storage
-        .from("provider-assets")
-        .getPublicUrl(filePath).data.publicUrl;
-
-      setLogoPath(filePath);
-      setLogoPreviewUrl(publicUrl);
-
       const enoughForReady =
         Boolean(filePath) &&
         Boolean(shortDescription.trim()) &&
