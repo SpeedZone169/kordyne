@@ -113,39 +113,39 @@ export default async function ProviderRequestDetailPage({
       updates.customer_visible_status = "Viewed by provider";
     }
 
-    const { data: updatedPkg, error: updatePkgError } = await supabase
-      .from("provider_request_packages")
-      .update(updates)
-      .eq("id", packageId)
-      .select(
-        `
-          id,
-          service_request_id,
-          customer_org_id,
-          provider_org_id,
-          package_status,
-          package_title,
-          shared_summary,
-          target_due_date,
-          requested_quantity,
-          response_deadline,
-          customer_visible_status,
-          published_at,
-          viewed_at,
-          provider_responded_at,
-          awarded_at,
-          created_at
-        `,
-      )
-      .single();
+const { data: updatedPkg, error: updatePkgError } = await supabase
+  .from("provider_request_packages")
+  .update(updates)
+  .eq("id", packageId)
+  .select(
+    `
+      id,
+      service_request_id,
+      customer_org_id,
+      provider_org_id,
+      package_status,
+      package_title,
+      shared_summary,
+      target_due_date,
+      requested_quantity,
+      response_deadline,
+      customer_visible_status,
+      published_at,
+      viewed_at,
+      provider_responded_at,
+      awarded_at,
+      created_at
+    `,
+  )
+  .maybeSingle();
 
-    if (updatePkgError) {
-      throw new Error(updatePkgError.message);
-    }
+if (updatePkgError) {
+  throw new Error(updatePkgError.message);
+}
 
-    if (updatedPkg) {
-      pkg = updatedPkg;
-    }
+if (updatedPkg) {
+  pkg = updatedPkg;
+}
   }
 
   const { data: customerOrg } = await supabase

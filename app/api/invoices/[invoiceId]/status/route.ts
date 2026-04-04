@@ -7,10 +7,25 @@ type MembershipRow = {
 };
 
 type StatusBody = {
-  status?: "sent" | "viewed" | "paid" | "cancelled";
+  status?:
+    | "sent"
+    | "viewed"
+    | "received"
+    | "approved"
+    | "paid"
+    | "cancelled";
+  paymentReference?: string | null;
+  apNotes?: string | null;
 };
 
-const ALLOWED_STATUSES = new Set(["sent", "viewed", "paid", "cancelled"]);
+const ALLOWED_STATUSES = new Set([
+  "sent",
+  "viewed",
+  "received",
+  "approved",
+  "paid",
+  "cancelled",
+]);
 
 export async function POST(
   request: Request,
@@ -40,6 +55,12 @@ export async function POST(
   }
 
   const nextStatus = body.status;
+  const paymentReference =
+    typeof body.paymentReference === "string"
+      ? body.paymentReference.trim()
+      : null;
+  const apNotes =
+    typeof body.apNotes === "string" ? body.apNotes.trim() : null;
 
   if (!nextStatus || !ALLOWED_STATUSES.has(nextStatus)) {
     return NextResponse.json(
@@ -69,7 +90,10 @@ export async function POST(
         id,
         provider_org_id,
         customer_org_id,
-        status
+        status,
+        paid_at,
+        received_at,
+        approved_at
       `,
     )
     .eq("id", invoiceId)
@@ -89,31 +113,89 @@ export async function POST(
     (membership) => membership.organization_id === invoice.customer_org_id,
   );
 
-  if (nextStatus === "viewed") {
-    if (!isCustomerMember && !isProviderManager) {
+  const providerControlledStatuses = new Set(["sent", "cancelled"]);
+  const customerControlledStatuses = new Set([
+    "viewed",
+    "received",
+    "approved",
+    "paid",
+  ]);
+
+  if (providerControlledStatuses.has(nextStatus)) {
+    if (!isProviderManager) {
       return NextResponse.json(
-        { error: "You do not have permission to mark this invoice as viewed." },
+        { error: "Only provider managers can perform this invoice action." },
         { status: 403 },
       );
     }
-  } else if (!isProviderManager) {
+  }
+
+  if (customerControlledStatuses.has(nextStatus)) {
+    if (!isCustomerMember) {
+      return NextResponse.json(
+        { error: "Only customer organization members can perform this AP action." },
+        { status: 403 },
+      );
+    }
+  }
+
+  if (nextStatus === "approved" && !invoice.received_at) {
     return NextResponse.json(
-      { error: "Only provider managers can update this invoice status." },
-      { status: 403 },
+      { error: "Invoice must be received before it can be approved." },
+      { status: 400 },
     );
   }
 
-  const updatePayload: Record<string, string | null> = {
-    status: nextStatus,
-    updated_at: new Date().toISOString(),
-  };
-
-  if (nextStatus === "paid") {
-    updatePayload.paid_at = new Date().toISOString();
+  if (nextStatus === "paid" && !invoice.approved_at) {
+    return NextResponse.json(
+      { error: "Invoice must be approved before it can be marked paid." },
+      { status: 400 },
+    );
   }
 
-  if (nextStatus !== "paid") {
-    updatePayload.paid_at = null;
+  const nowIso = new Date().toISOString();
+
+  const updatePayload: Record<string, string | null> = {
+    status: nextStatus,
+    updated_at: nowIso,
+  };
+
+  if (nextStatus === "sent") {
+    if (!invoice.paid_at) {
+      updatePayload.issued_at = nowIso;
+    }
+  }
+
+  if (nextStatus === "viewed") {
+    if (!invoice.received_at) {
+      updatePayload.received_at = nowIso;
+      updatePayload.received_by_user_id = user.id;
+    }
+  }
+
+  if (nextStatus === "received") {
+    if (!invoice.received_at) {
+      updatePayload.received_at = nowIso;
+    }
+    updatePayload.received_by_user_id = user.id;
+    updatePayload.ap_notes = apNotes;
+  }
+
+  if (nextStatus === "approved") {
+    updatePayload.approved_at = nowIso;
+    updatePayload.approved_by_user_id = user.id;
+    updatePayload.ap_notes = apNotes;
+  }
+
+  if (nextStatus === "paid") {
+    updatePayload.paid_at = nowIso;
+    updatePayload.paid_recorded_by_user_id = user.id;
+    updatePayload.ap_notes = apNotes;
+    updatePayload.payment_reference = paymentReference;
+  }
+
+  if (nextStatus === "cancelled") {
+    // Keep audit history intact; do not erase AP fields.
   }
 
   const { error: updateError } = await supabase

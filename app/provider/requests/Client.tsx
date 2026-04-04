@@ -56,6 +56,12 @@ function toneClasses(
   }
 }
 
+function canRespondToPackage(packageStatus: string) {
+  return ["published", "viewed", "awaiting_provider_response"].includes(
+    packageStatus,
+  );
+}
+
 export default function Client({ data }: Props) {
   const router = useRouter();
 
@@ -135,164 +141,182 @@ export default function Client({ data }: Props) {
         </div>
       ) : (
         <div className="space-y-4">
-          {rows.map((row) => (
-            <div
-              key={row.packageId}
-              className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"
-            >
-              <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-                <div className="space-y-3">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="text-lg font-semibold text-slate-900">
-                        {row.packageTitle || "Provider package"}
-                      </h2>
+          {rows.map((row) => {
+            const detailHref = `/provider/requests/${row.packageId}`;
+            const canRespond = canRespondToPackage(row.packageStatus);
 
-                      <span
-                        className={`rounded-full px-2.5 py-1 text-xs font-medium ${toneClasses(
-                          providerPackageStatusTones[row.packageStatus],
-                        )}`}
-                      >
-                        {getProviderPackageStatusLabel(row.packageStatus)}
-                      </span>
+            return (
+              <div
+                key={row.packageId}
+                className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"
+              >
+                <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+                  <div className="space-y-3">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h2 className="text-lg font-semibold text-slate-900">
+                          {row.packageTitle || "Provider package"}
+                        </h2>
 
-                      {row.latestQuoteStatus ? (
                         <span
                           className={`rounded-full px-2.5 py-1 text-xs font-medium ${toneClasses(
-                            providerQuoteStatusTones[row.latestQuoteStatus],
+                            providerPackageStatusTones[row.packageStatus],
                           )}`}
                         >
-                          {getProviderQuoteStatusLabel(row.latestQuoteStatus)}
+                          {getProviderPackageStatusLabel(row.packageStatus)}
                         </span>
-                      ) : null}
+
+                        {row.latestQuoteStatus ? (
+                          <span
+                            className={`rounded-full px-2.5 py-1 text-xs font-medium ${toneClasses(
+                              providerQuoteStatusTones[row.latestQuoteStatus],
+                            )}`}
+                          >
+                            {getProviderQuoteStatusLabel(row.latestQuoteStatus)}
+                          </span>
+                        ) : null}
+                      </div>
+
+                      <p className="mt-1 text-sm text-slate-600">
+                        Customer: {row.customerOrgName}
+                      </p>
                     </div>
 
-                    <p className="mt-1 text-sm text-slate-600">
-                      Customer: {row.customerOrgName}
-                    </p>
+                    <div className="grid gap-3 text-sm md:grid-cols-2 xl:grid-cols-4">
+                      <div>
+                        <div className="text-slate-500">Due date</div>
+                        <div className="mt-1 font-medium text-slate-900">
+                          {formatDate(row.targetDueDate)}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="text-slate-500">Quantity</div>
+                        <div className="mt-1 font-medium text-slate-900">
+                          {row.requestedQuantity ?? "—"}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="text-slate-500">Response deadline</div>
+                        <div className="mt-1 font-medium text-slate-900">
+                          {formatDateTime(row.responseDeadline)}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="text-slate-500">Published</div>
+                        <div className="mt-1 font-medium text-slate-900">
+                          {formatDateTime(row.publishedAt)}
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="grid gap-3 text-sm md:grid-cols-2 xl:grid-cols-4">
-                    <div>
-                      <div className="text-slate-500">Due date</div>
-                      <div className="mt-1 font-medium text-slate-900">
-                        {formatDate(row.targetDueDate)}
+                  <div className="grid min-w-[280px] grid-cols-2 gap-3 text-sm">
+                    <div className="rounded-2xl bg-slate-50 p-3">
+                      <div className="text-slate-500">Latest quote</div>
+                      <div className="mt-1 font-semibold text-slate-900">
+                        {formatCurrencyValue(
+                          row.latestTotalPrice,
+                          row.latestCurrencyCode ?? "EUR",
+                        )}
                       </div>
                     </div>
 
-                    <div>
-                      <div className="text-slate-500">Quantity</div>
-                      <div className="mt-1 font-medium text-slate-900">
-                        {row.requestedQuantity ?? "—"}
+                    <div className="rounded-2xl bg-slate-50 p-3">
+                      <div className="text-slate-500">Lead time</div>
+                      <div className="mt-1 font-semibold text-slate-900">
+                        {formatLeadTime(row.latestLeadTimeDays)}
                       </div>
                     </div>
 
-                    <div>
-                      <div className="text-slate-500">Response deadline</div>
-                      <div className="mt-1 font-medium text-slate-900">
-                        {formatDateTime(row.responseDeadline)}
+                    <div className="rounded-2xl bg-slate-50 p-3">
+                      <div className="text-slate-500">Quote version</div>
+                      <div className="mt-1 font-semibold text-slate-900">
+                        {row.latestQuoteVersion ?? "—"}
                       </div>
                     </div>
 
-                    <div>
-                      <div className="text-slate-500">Published</div>
-                      <div className="mt-1 font-medium text-slate-900">
-                        {formatDateTime(row.publishedAt)}
+                    <div className="rounded-2xl bg-slate-50 p-3">
+                      <div className="text-slate-500">Quote submitted</div>
+                      <div className="mt-1 font-semibold text-slate-900">
+                        {formatDateTime(row.latestQuoteSubmittedAt)}
                       </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="grid min-w-[280px] grid-cols-2 gap-3 text-sm">
-                  <div className="rounded-2xl bg-slate-50 p-3">
-                    <div className="text-slate-500">Latest quote</div>
-                    <div className="mt-1 font-semibold text-slate-900">
-                      {formatCurrencyValue(
-                        row.latestTotalPrice,
-                        row.latestCurrencyCode ?? "EUR",
-                      )}
+                <div className="mt-5 grid gap-3 text-sm md:grid-cols-3 xl:grid-cols-4">
+                  <div>
+                    <div className="text-slate-500">Viewed</div>
+                    <div className="mt-1 font-medium text-slate-900">
+                      {formatDateTime(row.viewedAt)}
                     </div>
                   </div>
 
-                  <div className="rounded-2xl bg-slate-50 p-3">
-                    <div className="text-slate-500">Lead time</div>
-                    <div className="mt-1 font-semibold text-slate-900">
-                      {formatLeadTime(row.latestLeadTimeDays)}
+                  <div>
+                    <div className="text-slate-500">Responded</div>
+                    <div className="mt-1 font-medium text-slate-900">
+                      {formatDateTime(row.providerRespondedAt)}
                     </div>
                   </div>
 
-                  <div className="rounded-2xl bg-slate-50 p-3">
-                    <div className="text-slate-500">Quote version</div>
-                    <div className="mt-1 font-semibold text-slate-900">
-                      {row.latestQuoteVersion ?? "—"}
+                  <div>
+                    <div className="text-slate-500">Awarded</div>
+                    <div className="mt-1 font-medium text-slate-900">
+                      {formatDateTime(row.awardedAt)}
                     </div>
                   </div>
 
-                  <div className="rounded-2xl bg-slate-50 p-3">
-                    <div className="text-slate-500">Quote submitted</div>
-                    <div className="mt-1 font-semibold text-slate-900">
-                      {formatDateTime(row.latestQuoteSubmittedAt)}
+                  <div>
+                    <div className="text-slate-500">Customer status</div>
+                    <div className="mt-1 font-medium text-slate-900">
+                      {row.customerVisibleStatus || "—"}
                     </div>
                   </div>
+                </div>
+
+                <div className="mt-5 flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() => router.push(detailHref)}
+                    className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    Open package
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => router.push(detailHref)}
+                    className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    Open messages
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (canRespond) router.push(detailHref);
+                    }}
+                    disabled={!canRespond}
+                    className={`rounded-xl px-4 py-2 text-sm font-medium text-white ${
+                      canRespond
+                        ? "bg-slate-900 hover:bg-slate-800"
+                        : "bg-slate-900 opacity-60"
+                    }`}
+                    title={
+                      canRespond
+                        ? "Open provider package detail"
+                        : "This package is not currently open for response"
+                    }
+                  >
+                    Respond to request
+                  </button>
                 </div>
               </div>
-
-              <div className="mt-5 grid gap-3 text-sm md:grid-cols-3 xl:grid-cols-4">
-                <div>
-                  <div className="text-slate-500">Viewed</div>
-                  <div className="mt-1 font-medium text-slate-900">
-                    {formatDateTime(row.viewedAt)}
-                  </div>
-                </div>
-
-                <div>
-                  <div className="text-slate-500">Responded</div>
-                  <div className="mt-1 font-medium text-slate-900">
-                    {formatDateTime(row.providerRespondedAt)}
-                  </div>
-                </div>
-
-                <div>
-                  <div className="text-slate-500">Awarded</div>
-                  <div className="mt-1 font-medium text-slate-900">
-                    {formatDateTime(row.awardedAt)}
-                  </div>
-                </div>
-
-                <div>
-                  <div className="text-slate-500">Customer status</div>
-                  <div className="mt-1 font-medium text-slate-900">
-                    {row.customerVisibleStatus || "—"}
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-5 flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                >
-                  Open package
-                </button>
-
-                <button
-                  type="button"
-                  className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                >
-                  Open messages
-                </button>
-
-                <button
-                  type="button"
-                  disabled
-                  className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white opacity-60"
-                  title="Provider package detail comes next"
-                >
-                  Respond to request
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

@@ -18,6 +18,10 @@ type InvoiceSnapshotData = {
     issuedAt: string | null;
     dueDate: string | null;
     paidAt: string | null;
+    receivedAt?: string | null;
+    approvedAt?: string | null;
+    paymentReference?: string | null;
+    apNotes?: string | null;
     notes: string | null;
     uploadedFilePath: string | null;
     uploadedFileName: string | null;
@@ -99,6 +103,10 @@ function getInvoiceStatusClasses(status: string) {
       return "bg-rose-100 text-rose-700";
     case "viewed":
       return "bg-sky-100 text-sky-700";
+    case "received":
+      return "bg-sky-100 text-sky-700";
+    case "approved":
+      return "bg-amber-100 text-amber-700";
     case "sent":
       return "bg-amber-100 text-amber-700";
     default:
@@ -150,6 +158,10 @@ export default async function InvoiceDocumentPage({ params }: PageProps) {
         issued_at,
         due_date,
         paid_at,
+        received_at,
+        approved_at,
+        payment_reference,
+        ap_notes,
         notes,
         uploaded_file_path,
         uploaded_file_name,
@@ -218,6 +230,10 @@ export default async function InvoiceDocumentPage({ params }: PageProps) {
           issued_at,
           due_date,
           paid_at,
+          received_at,
+          approved_at,
+          payment_reference,
+          ap_notes,
           notes,
           uploaded_file_path,
           uploaded_file_name,
@@ -226,7 +242,7 @@ export default async function InvoiceDocumentPage({ params }: PageProps) {
           finalized_at
         `,
       )
-      .single();
+      .maybeSingle();
 
     if (viewedInvoice) {
       invoice = viewedInvoice;
@@ -329,6 +345,10 @@ export default async function InvoiceDocumentPage({ params }: PageProps) {
     issuedAt: invoice.issued_at,
     dueDate: invoice.due_date,
     paidAt: invoice.paid_at,
+    receivedAt: invoice.received_at,
+    approvedAt: invoice.approved_at,
+    paymentReference: invoice.payment_reference,
+    apNotes: invoice.ap_notes,
     notes: invoice.notes,
     uploadedFilePath: invoice.uploaded_file_path,
     uploadedFileName: invoice.uploaded_file_name,
@@ -386,8 +406,8 @@ export default async function InvoiceDocumentPage({ params }: PageProps) {
   const quoteData = snapshotData.quote ?? null;
 
   const providerLogoUrl = providerData.logoPath
-  ? await getProviderAssetSignedUrl(providerData.logoPath)
-  : null;
+    ? await getProviderAssetSignedUrl(providerData.logoPath)
+    : null;
 
   const uploadedInvoiceUrl =
     invoice.invoice_source === "provider_uploaded" && invoice.uploaded_file_path
@@ -464,11 +484,17 @@ export default async function InvoiceDocumentPage({ params }: PageProps) {
           <InvoiceDocumentActions
             invoiceId={invoice.id}
             status={invoice.status}
-            canManageStatus={isProviderManager}
+            canProviderManageStatus={isProviderManager}
+            canCustomerManageAp={isCustomerMember}
             canFinalizeSnapshot={isProviderManager}
             finalizedAt={invoice.finalized_at}
             invoiceSource={invoice.invoice_source}
             uploadedInvoiceUrl={uploadedInvoiceUrl}
+            receivedAt={invoice.received_at}
+            approvedAt={invoice.approved_at}
+            paidAt={invoice.paid_at}
+            paymentReference={invoice.payment_reference}
+            apNotes={invoice.ap_notes}
           />
         </div>
 
@@ -621,10 +647,31 @@ export default async function InvoiceDocumentPage({ params }: PageProps) {
             </p>
             <div className="mt-3 space-y-1 text-sm text-slate-700">
               <p>Issued: {formatDate(invoice.issued_at)}</p>
-              <p>Due: {formatDate(invoice.due_date)}</p>
+              <p>Received: {formatDate(invoice.received_at)}</p>
+              <p>Approved: {formatDate(invoice.approved_at)}</p>
               <p>Paid: {formatDate(invoice.paid_at)}</p>
               <p>Snapshot finalized: {formatDate(invoice.finalized_at)}</p>
             </div>
+          </div>
+        </div>
+
+        <div className="mt-10 grid gap-8 md:grid-cols-2">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+              AP details
+            </p>
+            <div className="mt-3 space-y-1 text-sm text-slate-700">
+              <p>Payment reference: {invoice.payment_reference || "—"}</p>
+            </div>
+          </div>
+
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+              AP notes
+            </p>
+            <p className="mt-3 text-sm leading-6 text-slate-700">
+              {invoice.ap_notes || "—"}
+            </p>
           </div>
         </div>
 

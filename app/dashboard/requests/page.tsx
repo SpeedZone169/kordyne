@@ -15,7 +15,6 @@ import {
   getSourceReferenceTypeLabel,
 } from "@/lib/service-requests";
 
-
 type RequestsPageProps = {
   searchParams?: Promise<{
     q?: string;
@@ -27,12 +26,10 @@ type RequestsPageProps = {
   }>;
 };
 
-
 type MembershipRow = {
   organization_id: string;
   role: string | null;
 };
-
 
 type PartRow = {
   id: string;
@@ -44,14 +41,12 @@ type PartRow = {
   created_at: string;
 };
 
-
 type PartFileRow = {
   id: string;
   file_name: string;
   asset_category: string | null;
   file_type: string | null;
 };
-
 
 type RequestPartRow = {
   id: string;
@@ -60,23 +55,19 @@ type RequestPartRow = {
   revision: string | null;
 };
 
-
 type ServiceRequestFileRow = {
   id: string;
 };
 
-
 type UploadedRequestFileRow = {
   id: string;
 };
-
 
 type ProfileRow = {
   user_id: string;
   full_name: string | null;
   email: string | null;
 };
-
 
 type ServiceRequestRow = {
   id: string;
@@ -102,7 +93,6 @@ type ServiceRequestRow = {
   service_request_uploaded_files: UploadedRequestFileRow[] | null;
 };
 
-
 type RequesterSummary = {
   userId: string;
   fullName: string | null;
@@ -113,6 +103,42 @@ type RequesterSummary = {
   overdue: number;
 };
 
+type ProviderPackageWorkflowRow = {
+  id: string;
+  service_request_id: string;
+  package_status: string;
+  response_deadline: string | null;
+  provider_responded_at: string | null;
+  awarded_at: string | null;
+  published_at: string | null;
+};
+
+type ProviderQuoteWorkflowRow = {
+  id: string;
+  provider_request_package_id: string;
+  status: string;
+  submitted_at: string | null;
+  created_at: string;
+};
+
+type ProviderInvoiceWorkflowRow = {
+  id: string;
+  provider_request_package_id: string;
+  status: string;
+  due_date: string | null;
+  paid_at: string | null;
+  created_at: string;
+};
+
+type RequestWorkflowSummary = {
+  tone: "neutral" | "info" | "success" | "warning";
+  label: string;
+  helper: string;
+  primaryHref: string;
+  primaryLabel: string;
+  secondaryHref: string;
+  secondaryLabel: string;
+};
 
 function formatDate(value: string | null) {
   if (!value) return "—";
@@ -122,7 +148,6 @@ function formatDate(value: string | null) {
     year: "numeric",
   }).format(new Date(value));
 }
-
 
 function formatDateTime(value: string | null) {
   if (!value) return "—";
@@ -135,7 +160,6 @@ function formatDateTime(value: string | null) {
   }).format(new Date(value));
 }
 
-
 function formatCurrencyFromCents(value: number | null) {
   if (value == null || value <= 0) return "—";
   return new Intl.NumberFormat("en-IE", {
@@ -144,7 +168,6 @@ function formatCurrencyFromCents(value: number | null) {
     maximumFractionDigits: 0,
   }).format(value / 100);
 }
-
 
 function getPriorityBadgeClass(priority: string | null) {
   switch (priority) {
@@ -161,7 +184,6 @@ function getPriorityBadgeClass(priority: string | null) {
   }
 }
 
-
 function getRoleBadgeClass(role: string | null) {
   switch (role) {
     case "admin":
@@ -175,44 +197,35 @@ function getRoleBadgeClass(role: string | null) {
   }
 }
 
-
 function isTerminalStatus(status: string) {
   return ["completed", "rejected", "cancelled"].includes(status);
 }
 
-
 function isOverdue(request: Pick<ServiceRequestRow, "due_date" | "status">) {
   if (!request.due_date || isTerminalStatus(request.status)) return false;
-
 
   const due = new Date(request.due_date);
   const now = new Date();
   due.setHours(23, 59, 59, 999);
 
-
   return due.getTime() < now.getTime();
 }
-
 
 function getDaysBetween(start: string, end: string) {
   const startDate = new Date(start).getTime();
   const endDate = new Date(end).getTime();
 
-
   if (Number.isNaN(startDate) || Number.isNaN(endDate) || endDate < startDate) {
     return null;
   }
 
-
   return (endDate - startDate) / (1000 * 60 * 60 * 24);
 }
-
 
 function getRequesterLabel(profile: ProfileRow | null | undefined) {
   if (!profile) return "Unknown user";
   return profile.full_name || profile.email || "Unknown user";
 }
-
 
 function buildRequestsHref(params: {
   part?: string;
@@ -224,7 +237,6 @@ function buildRequestsHref(params: {
 }) {
   const search = new URLSearchParams();
 
-
   if (params.part) search.set("part", params.part);
   if (params.q) search.set("q", params.q);
   if (params.status) search.set("status", params.status);
@@ -232,11 +244,9 @@ function buildRequestsHref(params: {
   if (params.mine) search.set("mine", params.mine);
   if (params.mode) search.set("mode", params.mode);
 
-
   const query = search.toString();
   return query ? `/dashboard/requests?${query}` : "/dashboard/requests";
 }
-
 
 function StepBadge({ step }: { step: string }) {
   return (
@@ -245,7 +255,6 @@ function StepBadge({ step }: { step: string }) {
     </span>
   );
 }
-
 
 function MetricCard({
   label,
@@ -265,22 +274,163 @@ function MetricCard({
   );
 }
 
+function pluralize(count: number, singular: string, plural?: string) {
+  return `${count} ${count === 1 ? singular : plural ?? `${singular}s`}`;
+}
+
+function isAwaitingProviderResponse(status: string) {
+  return ["published", "viewed", "awaiting_provider_response"].includes(status);
+}
+
+function isQuoteSubmitted(quote: Pick<ProviderQuoteWorkflowRow, "status" | "submitted_at">) {
+  return Boolean(quote.submitted_at) || quote.status === "submitted";
+}
+
+function getActionToneClasses(
+  tone: RequestWorkflowSummary["tone"],
+) {
+  switch (tone) {
+    case "info":
+      return "bg-sky-100 text-sky-700 border-sky-200";
+    case "success":
+      return "bg-emerald-100 text-emerald-700 border-emerald-200";
+    case "warning":
+      return "bg-amber-100 text-amber-800 border-amber-200";
+    default:
+      return "bg-slate-100 text-slate-700 border-slate-200";
+  }
+}
+
+function getRequestWorkflowSummary(args: {
+  request: ServiceRequestRow;
+  packages: ProviderPackageWorkflowRow[];
+  quotes: ProviderQuoteWorkflowRow[];
+  invoices: ProviderInvoiceWorkflowRow[];
+}) {
+  const { request, packages, quotes, invoices } = args;
+
+  const submittedQuotes = quotes.filter(isQuoteSubmitted);
+  const unpaidInvoices = invoices.filter((invoice) => !invoice.paid_at);
+  const awardedPackages = packages.filter(
+    (pkg) => pkg.package_status === "awarded" || Boolean(pkg.awarded_at),
+  );
+  const awaitingPackages = packages.filter(
+    (pkg) =>
+      isAwaitingProviderResponse(pkg.package_status) &&
+      !pkg.provider_responded_at,
+  );
+  const overdueAwaitingPackages = awaitingPackages.filter((pkg) => {
+    if (!pkg.response_deadline) return false;
+    return new Date(pkg.response_deadline).getTime() < Date.now();
+  });
+
+  if (unpaidInvoices.length > 0) {
+    return {
+      tone: "warning",
+      label: "Invoice received",
+      helper: `${pluralize(unpaidInvoices.length, "invoice")} ready for customer review and AP follow-up.`,
+      primaryHref: `/dashboard/requests/${request.id}/invoices`,
+      primaryLabel: "Open invoices",
+      secondaryHref: `/dashboard/requests/${request.id}`,
+      secondaryLabel: "View request",
+    } satisfies RequestWorkflowSummary;
+  }
+
+  if (awardedPackages.length > 0) {
+    return {
+      tone: "success",
+      label: "Awarded",
+      helper: "Provider award is in place. Track delivery progress and incoming invoicing.",
+      primaryHref: `/dashboard/requests/${request.id}/quotes`,
+      primaryLabel: "View award",
+      secondaryHref: `/dashboard/requests/${request.id}`,
+      secondaryLabel: "View request",
+    } satisfies RequestWorkflowSummary;
+  }
+
+  if (submittedQuotes.length > 1) {
+    return {
+      tone: "info",
+      label: "Compare quotes",
+      helper: `${pluralize(submittedQuotes.length, "provider quote")} submitted. Review and award the best option.`,
+      primaryHref: `/dashboard/requests/${request.id}/quotes`,
+      primaryLabel: "Compare quotes",
+      secondaryHref: `/dashboard/requests/${request.id}`,
+      secondaryLabel: "View request",
+    } satisfies RequestWorkflowSummary;
+  }
+
+  if (submittedQuotes.length === 1) {
+    return {
+      tone: "info",
+      label: "Quote received",
+      helper: "1 provider quote is ready for review and award decision.",
+      primaryHref: `/dashboard/requests/${request.id}/quotes`,
+      primaryLabel: "Review quote",
+      secondaryHref: `/dashboard/requests/${request.id}`,
+      secondaryLabel: "View request",
+    } satisfies RequestWorkflowSummary;
+  }
+
+  if (overdueAwaitingPackages.length > 0) {
+    return {
+      tone: "warning",
+      label: "Overdue response",
+      helper: `${pluralize(overdueAwaitingPackages.length, "provider response")} overdue. Check routing and follow up.`,
+      primaryHref: `/dashboard/requests/${request.id}/providers`,
+      primaryLabel: "Manage routing",
+      secondaryHref: `/dashboard/requests/${request.id}`,
+      secondaryLabel: "View request",
+    } satisfies RequestWorkflowSummary;
+  }
+
+  if (awaitingPackages.length > 0) {
+    return {
+      tone: "neutral",
+      label: "Awaiting quotes",
+      helper: `Waiting on ${pluralize(awaitingPackages.length, "provider response")} for this request.`,
+      primaryHref: `/dashboard/requests/${request.id}/quotes`,
+      primaryLabel: "Track quotes",
+      secondaryHref: `/dashboard/requests/${request.id}/providers`,
+      secondaryLabel: "Routing",
+    } satisfies RequestWorkflowSummary;
+  }
+
+  if (isTerminalStatus(request.status)) {
+    return {
+      tone: "neutral",
+      label: "Closed request",
+      helper: "This request is closed. Open the record for full history and documents.",
+      primaryHref: `/dashboard/requests/${request.id}`,
+      primaryLabel: "Open request",
+      secondaryHref: `/dashboard/requests/${request.id}/quotes`,
+      secondaryLabel: "View quotes",
+    } satisfies RequestWorkflowSummary;
+  }
+
+  return {
+    tone: "neutral",
+    label: "Ready to route",
+    helper: "No provider package is live yet. Publish routing when the request is ready.",
+    primaryHref: `/dashboard/requests/${request.id}/providers`,
+    primaryLabel: "Manage routing",
+    secondaryHref: `/dashboard/requests/${request.id}`,
+    secondaryLabel: "Open request",
+  } satisfies RequestWorkflowSummary;
+}
 
 export default async function RequestsPage({
   searchParams,
 }: RequestsPageProps) {
   const supabase = await createClient();
 
-
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-
   if (!user) {
     redirect("/login");
   }
-
 
   const resolvedSearchParams = searchParams ? await searchParams : {};
   const queryText = resolvedSearchParams.q?.trim() || "";
@@ -291,12 +441,10 @@ export default async function RequestsPage({
   const mode =
     resolvedSearchParams.mode === "standalone" ? "standalone" : "vault";
 
-
   const { data: memberships } = await supabase
     .from("organization_members")
     .select("organization_id, role")
     .eq("user_id", user.id);
-
 
   const membershipRows = (memberships as MembershipRow[] | null) ?? [];
   const organizationIds = membershipRows.map((m) => m.organization_id);
@@ -304,7 +452,6 @@ export default async function RequestsPage({
   const activeOrganizationId = membershipRows[0]?.organization_id || null;
   const isAdmin = orgRole === "admin";
   const canRequest = orgRole === "admin" || orgRole === "engineer";
-
 
   if (organizationIds.length === 0 || !activeOrganizationId) {
     return (
@@ -319,21 +466,17 @@ export default async function RequestsPage({
     );
   }
 
-
   const { data: orgParts } = await supabase
     .from("parts")
     .select("id, name, part_number, revision, status, updated_at, created_at")
     .in("organization_id", organizationIds)
     .order("updated_at", { ascending: false });
 
-
   const partOptions = (orgParts as PartRow[] | null) ?? [];
-
 
   const selectedPart = selectedPartId
     ? partOptions.find((part) => part.id === selectedPartId) || null
     : null;
-
 
   const { data: selectedPartFiles } =
     selectedPartId && selectedPart
@@ -343,7 +486,6 @@ export default async function RequestsPage({
           .eq("part_id", selectedPartId)
           .order("created_at", { ascending: false })
       : { data: [] as PartFileRow[] };
-
 
   let query = supabase
     .from("service_requests")
@@ -379,42 +521,39 @@ export default async function RequestsPage({
       service_request_uploaded_files (
         id
       )
-    `
+    `,
     )
     .in("organization_id", organizationIds)
     .order("created_at", { ascending: false });
 
-
   if (queryText) {
     query = query.or(
-      `title.ilike.%${queryText}%,notes.ilike.%${queryText}%,requested_item_name.ilike.%${queryText}%,requested_item_reference.ilike.%${queryText}%`
+      `title.ilike.%${queryText}%,notes.ilike.%${queryText}%,requested_item_name.ilike.%${queryText}%,requested_item_reference.ilike.%${queryText}%`,
     );
   }
-
 
   if (statusFilter) {
     query = query.eq("status", statusFilter);
   }
 
-
   if (typeFilter) {
     query = query.eq("request_type", typeFilter);
   }
-
 
   if (mineFilter) {
     query = query.eq("requested_by_user_id", user.id);
   }
 
-
   const { data: requests, error } = await query;
   const requestRows = (requests as ServiceRequestRow[] | null) ?? [];
 
-
   const requesterIds = Array.from(
-    new Set(requestRows.map((request) => request.requested_by_user_id).filter(Boolean))
+    new Set(
+      requestRows
+        .map((request) => request.requested_by_user_id)
+        .filter(Boolean),
+    ),
   );
-
 
   const { data: requesterProfiles } =
     requesterIds.length > 0
@@ -424,26 +563,117 @@ export default async function RequestsPage({
           .in("user_id", requesterIds)
       : { data: [] as ProfileRow[] };
 
-
   const requesterProfileMap = new Map(
     ((requesterProfiles as ProfileRow[] | null) ?? []).map((profile) => [
       profile.user_id,
       profile,
-    ])
+    ]),
   );
 
+  const requestIds = requestRows.map((request) => request.id);
+
+  const { data: workflowPackages, error: workflowPackagesError } =
+    requestIds.length > 0
+      ? await supabase
+          .from("provider_request_packages")
+          .select(
+            `
+              id,
+              service_request_id,
+              package_status,
+              response_deadline,
+              provider_responded_at,
+              awarded_at,
+              published_at
+            `,
+          )
+          .in("service_request_id", requestIds)
+      : { data: [] as ProviderPackageWorkflowRow[], error: null };
+
+  if (workflowPackagesError) {
+    throw new Error(workflowPackagesError.message);
+  }
+
+  const packageRows = (workflowPackages as ProviderPackageWorkflowRow[] | null) ?? [];
+  const packageIds = packageRows.map((pkg) => pkg.id);
+
+  const { data: workflowQuotes, error: workflowQuotesError } =
+    packageIds.length > 0
+      ? await supabase
+          .from("provider_quotes")
+          .select(
+            `
+              id,
+              provider_request_package_id,
+              status,
+              submitted_at,
+              created_at
+            `,
+          )
+          .in("provider_request_package_id", packageIds)
+      : { data: [] as ProviderQuoteWorkflowRow[], error: null };
+
+  if (workflowQuotesError) {
+    throw new Error(workflowQuotesError.message);
+  }
+
+  const quoteRows = (workflowQuotes as ProviderQuoteWorkflowRow[] | null) ?? [];
+
+  const { data: workflowInvoices, error: workflowInvoicesError } =
+    packageIds.length > 0
+      ? await supabase
+          .from("provider_invoices")
+          .select(
+            `
+              id,
+              provider_request_package_id,
+              status,
+              due_date,
+              paid_at,
+              created_at
+            `,
+          )
+          .in("provider_request_package_id", packageIds)
+      : { data: [] as ProviderInvoiceWorkflowRow[], error: null };
+
+  if (workflowInvoicesError) {
+    throw new Error(workflowInvoicesError.message);
+  }
+
+  const invoiceRows =
+    (workflowInvoices as ProviderInvoiceWorkflowRow[] | null) ?? [];
+
+  const packagesByRequestId = new Map<string, ProviderPackageWorkflowRow[]>();
+  for (const pkg of packageRows) {
+    const current = packagesByRequestId.get(pkg.service_request_id) ?? [];
+    current.push(pkg);
+    packagesByRequestId.set(pkg.service_request_id, current);
+  }
+
+  const quotesByPackageId = new Map<string, ProviderQuoteWorkflowRow[]>();
+  for (const quote of quoteRows) {
+    const current = quotesByPackageId.get(quote.provider_request_package_id) ?? [];
+    current.push(quote);
+    quotesByPackageId.set(quote.provider_request_package_id, current);
+  }
+
+  const invoicesByPackageId = new Map<string, ProviderInvoiceWorkflowRow[]>();
+  for (const invoice of invoiceRows) {
+    const current =
+      invoicesByPackageId.get(invoice.provider_request_package_id) ?? [];
+    current.push(invoice);
+    invoicesByPackageId.set(invoice.provider_request_package_id, current);
+  }
 
   const totalRequests = requestRows.length;
   const activeRequestsCount = requestRows.filter(
-    (request) => !isTerminalStatus(request.status)
+    (request) => !isTerminalStatus(request.status),
   ).length;
   const overdueRequestsCount = requestRows.filter(isOverdue).length;
 
-
   const completedRequests = requestRows.filter(
-    (request) => request.status === "completed" && request.completed_at
+    (request) => request.status === "completed" && request.completed_at,
   );
-
 
   const averageCompletionDays =
     completedRequests.length > 0
@@ -457,14 +687,11 @@ export default async function RequestsPage({
         ).toFixed(1)
       : null;
 
-
   const requesterSummaryMap = new Map<string, RequesterSummary>();
-
 
   for (const request of requestRows) {
     const existing = requesterSummaryMap.get(request.requested_by_user_id);
     const profile = requesterProfileMap.get(request.requested_by_user_id) ?? null;
-
 
     if (!existing) {
       requesterSummaryMap.set(request.requested_by_user_id, {
@@ -484,11 +711,9 @@ export default async function RequestsPage({
     }
   }
 
-
   const requesterSummaries = Array.from(requesterSummaryMap.values()).sort(
-    (a, b) => b.total - a.total
+    (a, b) => b.total - a.total,
   );
-
 
   return (
     <div className="space-y-8">
@@ -501,7 +726,6 @@ export default async function RequestsPage({
             >
               ← Back to dashboard
             </Link>
-
 
             <div className="flex flex-wrap gap-3">
               <Link
@@ -519,11 +743,10 @@ export default async function RequestsPage({
             </div>
           </div>
 
-
           <div className="flex flex-wrap items-center gap-3">
             <span
               className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${getRoleBadgeClass(
-                orgRole
+                orgRole,
               )}`}
             >
               {orgRole || "unknown"}
@@ -532,11 +755,10 @@ export default async function RequestsPage({
               {isAdmin
                 ? "Admin visibility across the full organization request queue."
                 : canRequest
-                ? "You can create and manage your organization requests."
-                : "Read-only visibility. Viewers can monitor requests only."}
+                  ? "You can create and manage your organization requests."
+                  : "Read-only visibility. Viewers can monitor requests only."}
             </span>
           </div>
-
 
           <div>
             <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
@@ -550,7 +772,6 @@ export default async function RequestsPage({
         </div>
       </section>
 
-
       <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:p-8">
         <div className="space-y-6">
           <div>
@@ -563,7 +784,6 @@ export default async function RequestsPage({
               begins with request uploads and links to the vault later.
             </p>
           </div>
-
 
           <div className="inline-flex w-full max-w-md rounded-2xl border border-slate-200 bg-slate-50 p-1">
             <Link
@@ -584,7 +804,6 @@ export default async function RequestsPage({
               From vault
             </Link>
 
-
             <Link
               href={buildRequestsHref({
                 q: queryText || undefined,
@@ -603,7 +822,6 @@ export default async function RequestsPage({
             </Link>
           </div>
 
-
           {mode === "vault" ? (
             <div className="space-y-6">
               <section className="rounded-2xl border border-slate-200 bg-slate-50 p-6">
@@ -616,7 +834,6 @@ export default async function RequestsPage({
                     Choose the exact revision that should anchor the request.
                   </p>
                 </div>
-
 
                 <form className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto_auto]">
                   <div>
@@ -640,7 +857,6 @@ export default async function RequestsPage({
                     </select>
                   </div>
 
-
                   <div className="flex items-end">
                     <button
                       type="submit"
@@ -650,7 +866,6 @@ export default async function RequestsPage({
                       Load part
                     </button>
                   </div>
-
 
                   <div className="flex items-end">
                     <Link
@@ -668,7 +883,6 @@ export default async function RequestsPage({
                   </div>
                 </form>
 
-
                 {selectedPart ? (
                   <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-4">
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -683,12 +897,11 @@ export default async function RequestsPage({
                           <span>
                             Updated{" "}
                             {formatDateTime(
-                              selectedPart.updated_at || selectedPart.created_at
+                              selectedPart.updated_at || selectedPart.created_at,
                             )}
                           </span>
                         </div>
                       </div>
-
 
                       <Link
                         href={`/dashboard/parts/${selectedPart.id}`}
@@ -705,7 +918,6 @@ export default async function RequestsPage({
                 )}
               </section>
 
-
               {selectedPart ? (
                 <ServiceRequestActions
                   partId={selectedPart.id}
@@ -716,7 +928,7 @@ export default async function RequestsPage({
                       fileName: file.file_name,
                       assetCategory: file.asset_category,
                       fileType: file.file_type,
-                    })
+                    }),
                   )}
                 />
               ) : null}
@@ -734,7 +946,6 @@ export default async function RequestsPage({
                 </p>
               </div>
 
-
               <div className="mt-6">
                 <StandaloneRequestActions
                   organizationId={activeOrganizationId}
@@ -746,7 +957,6 @@ export default async function RequestsPage({
         </div>
       </section>
 
-
       <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:p-8">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
@@ -754,11 +964,10 @@ export default async function RequestsPage({
               Request queue
             </h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              Review service requests across the current workspace and open each
-              record for full detail.
+              Review service requests across the current workspace and act on the
+              next commercial step without drilling into every record first.
             </p>
           </div>
-
 
           <div className="flex flex-wrap gap-2">
             <Link
@@ -797,11 +1006,9 @@ export default async function RequestsPage({
           </div>
         </div>
 
-
         <form className="mt-6 grid gap-4 md:grid-cols-4">
           <input type="hidden" name="part" value={selectedPartId} />
           <input type="hidden" name="mode" value={mode} />
-
 
           <div className="md:col-span-4">
             <label className="mb-2 block text-sm font-medium text-slate-700">
@@ -815,7 +1022,6 @@ export default async function RequestsPage({
               className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm"
             />
           </div>
-
 
           <div>
             <label className="mb-2 block text-sm font-medium text-slate-700">
@@ -835,7 +1041,6 @@ export default async function RequestsPage({
             </select>
           </div>
 
-
           <div>
             <label className="mb-2 block text-sm font-medium text-slate-700">
               Type
@@ -854,7 +1059,6 @@ export default async function RequestsPage({
             </select>
           </div>
 
-
           <div>
             <label className="mb-2 block text-sm font-medium text-slate-700">
               Scope
@@ -869,7 +1073,6 @@ export default async function RequestsPage({
             </select>
           </div>
 
-
           <div className="flex items-end gap-3">
             <button
               type="submit"
@@ -877,7 +1080,6 @@ export default async function RequestsPage({
             >
               Apply
             </button>
-
 
             <Link
               href={buildRequestsHref({
@@ -889,7 +1091,6 @@ export default async function RequestsPage({
             </Link>
           </div>
         </form>
-
 
         {error ? (
           <div className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
@@ -906,201 +1107,273 @@ export default async function RequestsPage({
                 ? request.parts[0]
                 : request.parts;
 
-
               const vaultAttachmentCount = Array.isArray(request.service_request_files)
                 ? request.service_request_files.length
                 : 0;
 
-
               const uploadedAttachmentCount = Array.isArray(
-                request.service_request_uploaded_files
+                request.service_request_uploaded_files,
               )
                 ? request.service_request_uploaded_files.length
                 : 0;
 
-
               const attachmentCount =
                 vaultAttachmentCount + uploadedAttachmentCount;
 
-
               const statusKey =
                 request.status as keyof typeof STATUS_BADGE_CLASSES;
-
 
               const requestTypeLabel = getServiceRequestTypeLabel(
                 request.request_type as
                   | "manufacture_part"
                   | "cad_creation"
-                  | "optimization"
+                  | "optimization",
               );
-
 
               const requesterProfile =
                 requesterProfileMap.get(request.requested_by_user_id) ?? null;
 
+              const requestPackages = packagesByRequestId.get(request.id) ?? [];
+              const requestQuotes = requestPackages.flatMap(
+                (pkg) => quotesByPackageId.get(pkg.id) ?? [],
+              );
+              const requestInvoices = requestPackages.flatMap(
+                (pkg) => invoicesByPackageId.get(pkg.id) ?? [],
+              );
+              const workflowSummary = getRequestWorkflowSummary({
+                request,
+                packages: requestPackages,
+                quotes: requestQuotes,
+                invoices: requestInvoices,
+              });
+
+              const submittedQuotesCount =
+                requestQuotes.filter(isQuoteSubmitted).length;
+              const awaitingResponsesCount = requestPackages.filter(
+                (pkg) =>
+                  isAwaitingProviderResponse(pkg.package_status) &&
+                  !pkg.provider_responded_at,
+              ).length;
+              const outstandingInvoicesCount = requestInvoices.filter(
+                (invoice) => !invoice.paid_at,
+              ).length;
 
               return (
-                <Link
+                <div
                   key={request.id}
-                  href={`/dashboard/requests/${request.id}`}
-                  className="block rounded-2xl border border-slate-200 p-5 transition hover:border-slate-300 hover:bg-slate-50"
+                  className="rounded-[28px] border border-slate-200 bg-white p-5 transition hover:border-slate-300 hover:shadow-sm lg:p-6"
                 >
-                  <div className="flex flex-col gap-4">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-lg font-semibold text-slate-900">
-                            {request.title || requestTypeLabel}
-                          </span>
+                  <div className="grid gap-6 lg:grid-cols-[minmax(0,1.62fr)_minmax(320px,1fr)] lg:items-start">
+                    <div className="space-y-5">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Link
+                              href={`/dashboard/requests/${request.id}`}
+                              className="text-lg font-semibold text-slate-900 transition hover:text-slate-700"
+                            >
+                              {request.title || requestTypeLabel}
+                            </Link>
 
-
-                          <span
-                            className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                              STATUS_BADGE_CLASSES[statusKey] ??
-                              "bg-slate-100 text-slate-700"
-                            }`}
-                          >
-                            {getServiceRequestStatusLabel(
-                              request.status as
-                                | "draft"
-                                | "submitted"
-                                | "in_review"
-                                | "awaiting_customer"
-                                | "approved"
-                                | "in_progress"
-                                | "completed"
-                                | "rejected"
-                                | "cancelled"
-                            )}
-                          </span>
-
-
-                          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-700">
-                            {getRequestOriginLabel(request.request_origin)}
-                          </span>
-
-
-                          {isOverdue(request) ? (
-                            <span className="rounded-full bg-red-100 px-2.5 py-1 text-xs font-medium text-red-800">
-                              Overdue
-                            </span>
-                          ) : null}
-                        </div>
-
-
-                        <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
-                          <span className="rounded-full bg-slate-100 px-2.5 py-1">
-                            {requestTypeLabel}
-                          </span>
-
-
-                          {request.request_type === "manufacture_part" ? (
-                            <span className="rounded-full bg-slate-100 px-2.5 py-1">
-                              {getManufacturingTypeLabel(
-                                request.manufacturing_type
+                            <span
+                              className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                                STATUS_BADGE_CLASSES[statusKey] ??
+                                "bg-slate-100 text-slate-700"
+                              }`}
+                            >
+                              {getServiceRequestStatusLabel(
+                                request.status as
+                                  | "draft"
+                                  | "submitted"
+                                  | "in_review"
+                                  | "awaiting_customer"
+                                  | "approved"
+                                  | "in_progress"
+                                  | "completed"
+                                  | "rejected"
+                                  | "cancelled",
                               )}
                             </span>
+
+                            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-700">
+                              {getRequestOriginLabel(request.request_origin)}
+                            </span>
+
+                            {isOverdue(request) ? (
+                              <span className="rounded-full bg-red-100 px-2.5 py-1 text-xs font-medium text-red-800">
+                                Overdue
+                              </span>
+                            ) : null}
+                          </div>
+
+                          <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
+                            <span className="rounded-full bg-slate-100 px-2.5 py-1">
+                              {requestTypeLabel}
+                            </span>
+
+                            {request.request_type === "manufacture_part" ? (
+                              <span className="rounded-full bg-slate-100 px-2.5 py-1">
+                                {getManufacturingTypeLabel(
+                                  request.manufacturing_type,
+                                )}
+                              </span>
+                            ) : null}
+
+                            <span
+                              className={`rounded-full px-2.5 py-1 font-medium ${getPriorityBadgeClass(
+                                request.priority,
+                              )}`}
+                            >
+                              {request.priority
+                                ? getPriorityLabel(
+                                    request.priority as
+                                      | "low"
+                                      | "normal"
+                                      | "high"
+                                      | "urgent",
+                                  )
+                                : "No priority"}
+                            </span>
+
+                            <span className="rounded-full bg-slate-100 px-2.5 py-1">
+                              {attachmentCount} attached
+                            </span>
+
+                            <span className="rounded-full bg-slate-100 px-2.5 py-1">
+                              {getSourceReferenceTypeLabel(
+                                request.source_reference_type,
+                              )}
+                            </span>
+
+                            {request.due_date ? (
+                              <span className="rounded-full bg-slate-100 px-2.5 py-1">
+                                Due {formatDate(request.due_date)}
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        <div className="text-xs text-slate-500 lg:text-right">
+                          <div>Created {formatDateTime(request.created_at)}</div>
+                          {request.quoted_price_cents != null ? (
+                            <div className="mt-1">
+                              Quote {formatCurrencyFromCents(request.quoted_price_cents)}
+                            </div>
                           ) : null}
+                        </div>
+                      </div>
 
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+                        <span>
+                          Requested by {getRequesterLabel(requesterProfile)}
+                        </span>
+                      </div>
 
+                      {part ? (
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                          <div className="font-medium text-slate-900">
+                            {part.name}
+                          </div>
+                          <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+                            <span>Part Number {part.part_number || "—"}</span>
+                            <span>Revision {part.revision || "—"}</span>
+                          </div>
+                        </div>
+                      ) : request.request_origin === "standalone" ? (
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                          <div className="font-medium text-slate-900">
+                            {request.requested_item_name || "Standalone item"}
+                          </div>
+                          <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+                            <span>
+                              Reference {request.requested_item_reference || "—"}
+                            </span>
+                            <span>Not yet linked to vault</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-4 text-sm text-slate-500">
+                          No linked part revision
+                        </div>
+                      )}
+
+                      {request.notes ? (
+                        <p className="line-clamp-2 text-sm leading-6 text-slate-600">
+                          {request.notes}
+                        </p>
+                      ) : null}
+                    </div>
+
+                    <aside className="rounded-[24px] border border-slate-200 bg-slate-50/80 p-5">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
                           <span
-                            className={`rounded-full px-2.5 py-1 font-medium ${getPriorityBadgeClass(
-                              request.priority
+                            className={`inline-flex rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] ${getActionToneClasses(
+                              workflowSummary.tone,
                             )}`}
                           >
-                            {request.priority
-                              ? getPriorityLabel(
-                                  request.priority as
-                                    | "low"
-                                    | "normal"
-                                    | "high"
-                                    | "urgent"
-                                )
-                              : "No priority"}
+                            {workflowSummary.label}
                           </span>
-
-
-                          <span className="rounded-full bg-slate-100 px-2.5 py-1">
-                            {attachmentCount} attached
-                          </span>
-
-
-                          <span className="rounded-full bg-slate-100 px-2.5 py-1">
-                            {getSourceReferenceTypeLabel(
-                              request.source_reference_type
-                            )}
-                          </span>
-
-
-                          {request.due_date ? (
-                            <span className="rounded-full bg-slate-100 px-2.5 py-1">
-                              Due {formatDate(request.due_date)}
-                            </span>
-                          ) : null}
+                          <h3 className="mt-3 text-lg font-semibold text-slate-900">
+                            Next action
+                          </h3>
+                          <p className="mt-2 text-sm leading-6 text-slate-600">
+                            {workflowSummary.helper}
+                          </p>
                         </div>
                       </div>
 
-
-                      <div className="text-xs text-slate-500 lg:text-right">
-                        <div>Created {formatDateTime(request.created_at)}</div>
-                        {request.quoted_price_cents != null ? (
-                          <div className="mt-1">
-                            Quote {formatCurrencyFromCents(request.quoted_price_cents)}
+                      <div className="mt-5 grid grid-cols-2 gap-3">
+                        <div className="rounded-2xl bg-white p-4 shadow-sm">
+                          <div className="text-xs font-medium uppercase tracking-[0.14em] text-slate-500">
+                            Quote activity
                           </div>
-                        ) : null}
-                      </div>
-                    </div>
-
-
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
-                      <span>
-                        Requested by {getRequesterLabel(requesterProfile)}
-                      </span>
-                    </div>
-
-
-                    {part ? (
-                      <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                        <div className="font-medium text-slate-900">
-                          {part.name}
+                          <div className="mt-2 text-base font-semibold text-slate-900">
+                            {submittedQuotesCount > 0
+                              ? `${submittedQuotesCount} received`
+                              : awaitingResponsesCount > 0
+                                ? `${awaitingResponsesCount} awaiting`
+                                : "Not started"}
+                          </div>
                         </div>
-                        <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
-                          <span>Part Number {part.part_number || "—"}</span>
-                          <span>Revision {part.revision || "—"}</span>
-                        </div>
-                      </div>
-                    ) : request.request_origin === "standalone" ? (
-                      <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                        <div className="font-medium text-slate-900">
-                          {request.requested_item_name || "Standalone item"}
-                        </div>
-                        <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
-                          <span>
-                            Reference {request.requested_item_reference || "—"}
-                          </span>
-                          <span>Not yet linked to vault</span>
+
+                        <div className="rounded-2xl bg-white p-4 shadow-sm">
+                          <div className="text-xs font-medium uppercase tracking-[0.14em] text-slate-500">
+                            Invoice activity
+                          </div>
+                          <div className="mt-2 text-base font-semibold text-slate-900">
+                            {outstandingInvoicesCount > 0
+                              ? `${outstandingInvoicesCount} open`
+                              : requestInvoices.length > 0
+                                ? "Completed"
+                                : "No invoices"}
+                          </div>
                         </div>
                       </div>
-                    ) : (
-                      <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-4 text-sm text-slate-500">
-                        No linked part revision
+
+                      <div className="mt-5 flex flex-wrap gap-3">
+                        <Link
+                          href={workflowSummary.primaryHref}
+                          className="inline-flex rounded-2xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:opacity-90"
+                        >
+                          {workflowSummary.primaryLabel}
+                        </Link>
+
+                        <Link
+                          href={workflowSummary.secondaryHref}
+                          className="inline-flex rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-900 transition hover:bg-slate-50"
+                        >
+                          {workflowSummary.secondaryLabel}
+                        </Link>
                       </div>
-                    )}
-
-
-                    {request.notes ? (
-                      <p className="line-clamp-2 text-sm leading-6 text-slate-600">
-                        {request.notes}
-                      </p>
-                    ) : null}
+                    </aside>
                   </div>
-                </Link>
+                </div>
               );
             })}
           </div>
         )}
       </section>
-
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard
@@ -1125,7 +1398,6 @@ export default async function RequestsPage({
         />
       </section>
 
-
       {isAdmin ? (
         <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:p-8">
           <div className="flex flex-wrap items-start justify-between gap-4">
@@ -1139,13 +1411,11 @@ export default async function RequestsPage({
               </p>
             </div>
 
-
             <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
               {requesterSummaries.length} requester
               {requesterSummaries.length === 1 ? "" : "s"}
             </div>
           </div>
-
 
           {requesterSummaries.length === 0 ? (
             <div className="mt-6 rounded-2xl border border-dashed border-slate-300 p-6 text-sm text-slate-600">
@@ -1168,12 +1438,10 @@ export default async function RequestsPage({
                       </div>
                     </div>
 
-
                     <div className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">
                       {summary.total} request{summary.total === 1 ? "" : "s"}
                     </div>
                   </div>
-
 
                   <div className="mt-4 grid grid-cols-3 gap-3">
                     <div className="rounded-xl bg-slate-50 p-3">
@@ -1183,14 +1451,12 @@ export default async function RequestsPage({
                       </div>
                     </div>
 
-
                     <div className="rounded-xl bg-slate-50 p-3">
                       <div className="text-xs text-slate-500">Completed</div>
                       <div className="mt-1 text-lg font-semibold text-slate-900">
                         {summary.completed}
                       </div>
                     </div>
-
 
                     <div className="rounded-xl bg-slate-50 p-3">
                       <div className="text-xs text-slate-500">Overdue</div>

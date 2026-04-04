@@ -300,33 +300,50 @@ export async function POST(request: Request) {
   const roundNumber = (latestRound?.round_number ?? 0) + 1;
   const nowIso = new Date().toISOString();
 
-  const { data: round, error: roundError } = await supabase
-    .from("provider_quote_rounds")
-    .insert({
-      service_request_id: serviceRequestId,
-      customer_org_id: customerOrgId,
-      round_number: roundNumber,
-      mode,
-      status: "published",
-      response_deadline: responseDeadline || null,
-      target_due_date: targetDueDate || serviceRequest.due_date || null,
-      requested_quantity:
-        typeof requestedQuantity === "number"
-          ? requestedQuantity
-          : serviceRequest.quantity ?? null,
-      customer_notes: customerNotes || null,
-      created_by_user_id: user.id,
-      published_at: nowIso,
-    })
-    .select("id, round_number")
-    .single();
+  const { error: roundInsertError } = await supabase
+  .from("provider_quote_rounds")
+  .insert({
+    service_request_id: serviceRequestId,
+    customer_org_id: customerOrgId,
+    round_number: roundNumber,
+    mode,
+    status: "published",
+    response_deadline: responseDeadline || null,
+    target_due_date: targetDueDate || serviceRequest.due_date || null,
+    requested_quantity:
+      typeof requestedQuantity === "number"
+        ? requestedQuantity
+        : serviceRequest.quantity ?? null,
+    customer_notes: customerNotes || null,
+    created_by_user_id: user.id,
+    published_at: nowIso,
+  });
 
-  if (roundError || !round) {
-    return NextResponse.json(
-      { error: roundError?.message || "Failed to create quote round." },
-      { status: 400 },
-    );
-  }
+if (roundInsertError) {
+  return NextResponse.json(
+    { error: roundInsertError.message || "Failed to create quote round." },
+    { status: 400 },
+  );
+}
+
+const { data: round, error: roundFetchError } = await supabase
+  .from("provider_quote_rounds")
+  .select("id, round_number")
+  .eq("service_request_id", serviceRequestId)
+  .eq("customer_org_id", customerOrgId)
+  .eq("round_number", roundNumber)
+  .eq("created_by_user_id", user.id)
+  .eq("published_at", nowIso)
+  .order("created_at", { ascending: false })
+  .limit(1)
+  .single();
+
+if (roundFetchError || !round) {
+  return NextResponse.json(
+    { error: roundFetchError?.message || "Quote round created but could not be reloaded." },
+    { status: 400 },
+  );
+}
 
   const packageTitleBase =
     serviceRequest.title ||
