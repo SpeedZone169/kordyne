@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import {
+  absoluteUrl,
+  getOrgNotificationRecipients,
+  sendWorkflowEmail,
+} from "@/lib/email";
 
 type SubmitQuoteBody = {
   currencyCode?: string | null;
@@ -125,6 +130,8 @@ export async function POST(
         provider_quote_round_id,
         provider_org_id,
         customer_org_id,
+        service_request_id,
+        package_title,
         package_status,
         published_at
       `,
@@ -154,9 +161,7 @@ export async function POST(
   }
 
   if (
-    ["awarded", "not_awarded", "closed", "cancelled"].includes(
-      pkg.package_status,
-    )
+    ["awarded", "not_awarded", "closed", "cancelled"].includes(pkg.package_status)
   ) {
     return NextResponse.json(
       { error: "This package is no longer accepting quote submissions." },
@@ -293,6 +298,70 @@ export async function POST(
         : `Provider revised quote ${quoteReference} to v${nextVersion}.`,
     is_system: true,
   });
+
+  try {
+    const [{ data: providerOrg }, { data: serviceRequest }] = await Promise.all([
+      supabase
+        .from("organizations")
+        .select("name")
+        .eq("id", pkg.provider_org_id)
+        .maybeSingle(),
+      supabase
+        .from("service_requests")
+        .select("id, title, requested_item_name")
+        .eq("id", pkg.service_request_id)
+        .maybeSingle(),
+    ]);
+
+    const recipients = await getOrgNotificationRecipients(pkg.customer_org_id);
+
+    if (recipients.length) {
+      await sendWorkflowEmail({
+        to: recipients.map((recipient) => recipient.email),
+        subject: `Quote submitted by ${providerOrg?.name ?? "Provider"}`,
+        previewText: "A provider quote is ready for internal review.",
+        eyebrow: "Kordyne quote response",
+        headline: "A provider quote has been submitted",
+        intro:
+          "A provider submitted a formal quote in Kordyne. Review pricing, lead time, and package details to continue the award workflow.",
+        detailRows: [
+          {
+            label: "Provider",
+            value: providerOrg?.name ?? "Provider",
+          },
+          {
+            label: "Request",
+            value:
+              serviceRequest?.title ||
+              serviceRequest?.requested_item_name ||
+              "Manufacturing request",
+          },
+          {
+            label: "Quote reference",
+            value: `${quoteReference} v${nextVersion}`,
+          },
+          {
+            label: "Total price",
+            value: `${currencyCode} ${totalPrice.toFixed(2)}`,
+          },
+          {
+            label: "Lead time",
+            value: `${estimatedLeadTimeDays} day(s)`,
+          },
+        ],
+        primaryActionLabel: "Review quotes",
+        primaryActionUrl: absoluteUrl(
+          `/dashboard/requests/${pkg.service_request_id}/quotes`,
+        ),
+        secondaryActionLabel: "Open request",
+        secondaryActionUrl: absoluteUrl(
+          `/dashboard/requests/${pkg.service_request_id}`,
+        ),
+      });
+    }
+  } catch (error) {
+    console.error("Failed to send customer quote notification:", error);
+  }
 
   return NextResponse.json({
     success: true,

@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import {
+  absoluteUrl,
+  getOrgNotificationRecipients,
+  sendWorkflowEmail,
+} from "@/lib/email";
 
 type AwardBody = {
   providerRequestPackageId?: string;
@@ -78,6 +83,7 @@ export async function POST(
     .select(
       `
         id,
+        round_number,
         customer_org_id,
         service_request_id,
         status,
@@ -152,6 +158,7 @@ export async function POST(
       `
         id,
         provider_org_id,
+        package_title,
         package_status
       `,
     )
@@ -339,6 +346,48 @@ export async function POST(
     if (losingMessagesError) {
       console.error("Failed to insert loser provider messages:", losingMessagesError);
     }
+  }
+
+  try {
+    const recipients = await getOrgNotificationRecipients(
+      selectedPackage.provider_org_id,
+    );
+
+    if (recipients.length) {
+      await sendWorkflowEmail({
+        to: recipients.map((recipient) => recipient.email),
+        subject: `Awarded: ${serviceRequest.title ?? "Manufacturing request"}`,
+        previewText: "Your provider package has been awarded in Kordyne.",
+        eyebrow: "Kordyne award decision",
+        headline: "Your provider package has been awarded",
+        intro:
+          "The customer has selected your provider package for this round. Open the package to continue execution and invoicing workflows.",
+        detailRows: [
+          {
+            label: "Request",
+            value: serviceRequest.title ?? "Manufacturing request",
+          },
+          {
+            label: "Round",
+            value: `Round ${round.round_number}`,
+          },
+          {
+            label: "Package",
+            value: selectedPackage.package_title ?? "Provider package",
+          },
+          {
+            label: "Awarded at",
+            value: nowIso,
+          },
+        ],
+        primaryActionLabel: "Open awarded package",
+        primaryActionUrl: absoluteUrl(`/provider/requests/${selectedPackageId}`),
+        secondaryActionLabel: "Open provider portal",
+        secondaryActionUrl: absoluteUrl("/providers/login"),
+      });
+    }
+  } catch (error) {
+    console.error("Failed to send award notification email:", error);
   }
 
   return NextResponse.json({

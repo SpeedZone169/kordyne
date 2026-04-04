@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import {
+  absoluteUrl,
+  getOrgNotificationRecipients,
+  sendWorkflowEmail,
+} from "@/lib/email";
 
 type MembershipRow = {
   organization_id: string;
@@ -18,7 +23,7 @@ type CreateInvoiceBody = {
   currencyCode?: string;
   subtotalAmount?: number | null;
   taxAmount?: number | null;
-  totalAmount?: number | null; // current invoice amount
+  totalAmount?: number | null;
   issuedAt?: string | null;
   dueDate?: string | null;
   notes?: string | null;
@@ -198,7 +203,10 @@ export async function POST(
 
   if (!latestAcceptedQuote || latestAcceptedQuote.total_price == null) {
     return NextResponse.json(
-      { error: "An accepted quote with a total amount is required before invoicing." },
+      {
+        error:
+          "An accepted quote with a total amount is required before invoicing.",
+      },
       { status: 400 },
     );
   }
@@ -212,10 +220,11 @@ export async function POST(
     );
   }
 
-  const { data: existingInvoicesRaw, error: existingInvoicesError } = await supabase
-    .from("provider_invoices")
-    .select("id, total_amount, status")
-    .eq("provider_request_package_id", packageId);
+  const { data: existingInvoicesRaw, error: existingInvoicesError } =
+    await supabase
+      .from("provider_invoices")
+      .select("id, total_amount, status")
+      .eq("provider_request_package_id", packageId);
 
   if (existingInvoicesError) {
     return NextResponse.json(
@@ -254,8 +263,7 @@ export async function POST(
   if (currentInvoiceAmount > remainingBeforeInvoice) {
     return NextResponse.json(
       {
-        error:
-          "Invoice amount exceeds the remaining purchase order value.",
+        error: "Invoice amount exceeds the remaining purchase order value.",
         fullPoAmount,
         alreadyInvoicedAmount,
         remainingBeforeInvoice,
@@ -345,9 +353,7 @@ export async function POST(
       snapshot_json: snapshotJson,
       created_by_user_id: user.id,
       finalized_at:
-        invoiceSource === "kordyne_generated"
-          ? new Date().toISOString()
-          : null,
+        invoiceSource === "kordyne_generated" ? new Date().toISOString() : null,
       updated_at: new Date().toISOString(),
     })
     .select("id")
@@ -358,6 +364,68 @@ export async function POST(
       { error: invoiceError?.message || "Failed to create invoice." },
       { status: 400 },
     );
+  }
+
+  try {
+    const [{ data: providerOrg }, { data: serviceRequest }] = await Promise.all([
+      supabase
+        .from("organizations")
+        .select("name")
+        .eq("id", pkg.provider_org_id)
+        .maybeSingle(),
+      supabase
+        .from("service_requests")
+        .select("id, title, requested_item_name")
+        .eq("id", pkg.service_request_id)
+        .maybeSingle(),
+    ]);
+
+    const recipients = await getOrgNotificationRecipients(pkg.customer_org_id);
+
+    if (recipients.length) {
+      await sendWorkflowEmail({
+        to: recipients.map((recipient) => recipient.email),
+        subject: `Invoice ${invoiceNumber} issued`,
+        previewText: "A provider invoice is ready for AP review in Kordyne.",
+        eyebrow: "Kordyne invoicing",
+        headline: "A provider invoice has been issued",
+        intro:
+          "A provider issued a new invoice in Kordyne. Review the invoice, receipt details, and AP workflow on the customer side.",
+        detailRows: [
+          {
+            label: "Provider",
+            value: providerOrg?.name ?? "Provider",
+          },
+          {
+            label: "Request",
+            value:
+              serviceRequest?.title ||
+              serviceRequest?.requested_item_name ||
+              "Manufacturing request",
+          },
+          {
+            label: "Invoice",
+            value: invoiceNumber,
+          },
+          {
+            label: "Amount",
+            value: `${currencyCode} ${totalAmount.toFixed(2)}`,
+          },
+          {
+            label: "Type",
+            value: remainingAfterInvoice === 0 ? "Final" : "Partial",
+          },
+        ],
+        primaryActionLabel: "Open invoice",
+        primaryActionUrl: absoluteUrl(`/invoices/${invoice.id}`),
+        secondaryActionLabel: "Open request invoices",
+        secondaryActionUrl: absoluteUrl(
+          `/dashboard/requests/${pkg.service_request_id}/invoices`,
+        ),
+      });
+    }
+  } catch (error) {
+    console.error("Failed to send invoice notification email:", error);
   }
 
   return NextResponse.json({

@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import {
+  absoluteUrl,
+  getOrgNotificationRecipients,
+  sendWorkflowEmail,
+} from "@/lib/email";
 
 type ProviderSelectionInput = {
   providerRelationshipId: string;
@@ -92,8 +97,12 @@ export async function POST(request: Request) {
     );
   }
 
-  const uniqueRelationshipIds = [...new Set(providerSelections.map((p) => p.providerRelationshipId))];
-  const uniqueProviderOrgIds = [...new Set(providerSelections.map((p) => p.providerOrgId))];
+  const uniqueRelationshipIds = [
+    ...new Set(providerSelections.map((p) => p.providerRelationshipId)),
+  ];
+  const uniqueProviderOrgIds = [
+    ...new Set(providerSelections.map((p) => p.providerOrgId)),
+  ];
 
   if (uniqueRelationshipIds.length !== providerSelections.length) {
     return NextResponse.json(
@@ -146,6 +155,12 @@ export async function POST(request: Request) {
 
   const customerOrgId = serviceRequest.organization_id;
 
+  const { data: customerOrg } = await supabase
+    .from("organizations")
+    .select("name")
+    .eq("id", customerOrgId)
+    .maybeSingle();
+
   const { data: relationships, error: relationshipsError } = await supabase
     .from("provider_relationships")
     .select(
@@ -187,7 +202,10 @@ export async function POST(request: Request) {
 
     if (relationship.customer_org_id !== customerOrgId) {
       return NextResponse.json(
-        { error: "A selected provider relationship does not belong to this request organization." },
+        {
+          error:
+            "A selected provider relationship does not belong to this request organization.",
+        },
         { status: 403 },
       );
     }
@@ -243,7 +261,9 @@ export async function POST(request: Request) {
 
     const { data, error } = await supabase
       .from("part_files")
-      .select("id, file_name, file_type, file_size_bytes, asset_category, storage_path")
+      .select(
+        "id, file_name, file_type, file_size_bytes, asset_category, storage_path",
+      )
       .eq("part_id", serviceRequest.part_id)
       .in("id", partFileIds);
 
@@ -264,7 +284,9 @@ export async function POST(request: Request) {
   if (requestUploadIds.length > 0) {
     const { data, error } = await supabase
       .from("service_request_uploaded_files")
-      .select("id, file_name, file_type, file_size_bytes, asset_category, storage_path")
+      .select(
+        "id, file_name, file_type, file_size_bytes, asset_category, storage_path",
+      )
       .eq("service_request_id", serviceRequestId)
       .in("id", requestUploadIds);
 
@@ -301,49 +323,53 @@ export async function POST(request: Request) {
   const nowIso = new Date().toISOString();
 
   const { error: roundInsertError } = await supabase
-  .from("provider_quote_rounds")
-  .insert({
-    service_request_id: serviceRequestId,
-    customer_org_id: customerOrgId,
-    round_number: roundNumber,
-    mode,
-    status: "published",
-    response_deadline: responseDeadline || null,
-    target_due_date: targetDueDate || serviceRequest.due_date || null,
-    requested_quantity:
-      typeof requestedQuantity === "number"
-        ? requestedQuantity
-        : serviceRequest.quantity ?? null,
-    customer_notes: customerNotes || null,
-    created_by_user_id: user.id,
-    published_at: nowIso,
-  });
+    .from("provider_quote_rounds")
+    .insert({
+      service_request_id: serviceRequestId,
+      customer_org_id: customerOrgId,
+      round_number: roundNumber,
+      mode,
+      status: "published",
+      response_deadline: responseDeadline || null,
+      target_due_date: targetDueDate || serviceRequest.due_date || null,
+      requested_quantity:
+        typeof requestedQuantity === "number"
+          ? requestedQuantity
+          : serviceRequest.quantity ?? null,
+      customer_notes: customerNotes || null,
+      created_by_user_id: user.id,
+      published_at: nowIso,
+    });
 
-if (roundInsertError) {
-  return NextResponse.json(
-    { error: roundInsertError.message || "Failed to create quote round." },
-    { status: 400 },
-  );
-}
+  if (roundInsertError) {
+    return NextResponse.json(
+      { error: roundInsertError.message || "Failed to create quote round." },
+      { status: 400 },
+    );
+  }
 
-const { data: round, error: roundFetchError } = await supabase
-  .from("provider_quote_rounds")
-  .select("id, round_number")
-  .eq("service_request_id", serviceRequestId)
-  .eq("customer_org_id", customerOrgId)
-  .eq("round_number", roundNumber)
-  .eq("created_by_user_id", user.id)
-  .eq("published_at", nowIso)
-  .order("created_at", { ascending: false })
-  .limit(1)
-  .single();
+  const { data: round, error: roundFetchError } = await supabase
+    .from("provider_quote_rounds")
+    .select("id, round_number")
+    .eq("service_request_id", serviceRequestId)
+    .eq("customer_org_id", customerOrgId)
+    .eq("round_number", roundNumber)
+    .eq("created_by_user_id", user.id)
+    .eq("published_at", nowIso)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .single();
 
-if (roundFetchError || !round) {
-  return NextResponse.json(
-    { error: roundFetchError?.message || "Quote round created but could not be reloaded." },
-    { status: 400 },
-  );
-}
+  if (roundFetchError || !round) {
+    return NextResponse.json(
+      {
+        error:
+          roundFetchError?.message ||
+          "Quote round created but could not be reloaded.",
+      },
+      { status: 400 },
+    );
+  }
 
   const packageTitleBase =
     serviceRequest.title ||
@@ -484,6 +510,66 @@ if (roundFetchError || !round) {
       { error: messagesError.message },
       { status: 400 },
     );
+  }
+
+  const requestLabel =
+    serviceRequest.title || serviceRequest.requested_item_name || "Manufacturing request";
+
+  const publishEmailResults = await Promise.allSettled(
+    insertedPackages.map(async (pkg) => {
+      const recipients = await getOrgNotificationRecipients(pkg.provider_org_id);
+
+      if (!recipients.length) return;
+
+      await sendWorkflowEmail({
+        to: recipients.map((recipient) => recipient.email),
+        subject:
+          mode === "competitive_quote"
+            ? `New quote request from ${customerOrg?.name ?? "Kordyne customer"}`
+            : `Direct award from ${customerOrg?.name ?? "Kordyne customer"}`,
+        previewText:
+          mode === "competitive_quote"
+            ? "A new provider package is ready for response."
+            : "A direct-award provider package is ready.",
+        eyebrow: "Kordyne provider routing",
+        headline:
+          mode === "competitive_quote"
+            ? "A new quote request has been published"
+            : "A direct-award package has been published",
+        intro:
+          "Your organization has received a new provider package in Kordyne. Review the package, files, and timing inside the provider portal.",
+        detailRows: [
+          {
+            label: "Customer",
+            value: customerOrg?.name ?? "Customer",
+          },
+          {
+            label: "Request",
+            value: requestLabel,
+          },
+          {
+            label: "Round",
+            value: `Round ${round.round_number}`,
+          },
+          {
+            label: "Response deadline",
+            value: responseDeadline || "—",
+          },
+        ],
+        primaryActionLabel: "Open package",
+        primaryActionUrl: absoluteUrl(`/provider/requests/${pkg.id}`),
+        secondaryActionLabel: "Open provider portal",
+        secondaryActionUrl: absoluteUrl("/providers/login"),
+        footerNote:
+          "You are receiving this because your organization is assigned to this provider package.",
+      });
+    }),
+  );
+
+  for (const result of publishEmailResults) {
+    if (result.status === "rejected") {
+      console.error("Failed to send provider package email:", result.reason);
+    }
   }
 
   return NextResponse.json({
