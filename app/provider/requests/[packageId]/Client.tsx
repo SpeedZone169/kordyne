@@ -98,11 +98,37 @@ function getTodayInputValue() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function roundMoney(value: number) {
+  return Math.round(value * 100) / 100;
+}
+
 export default function Client({ data }: Props) {
   const router = useRouter();
   const supabase = createClient();
 
   const latestQuote = data.quotes[0] ?? null;
+  const latestAcceptedQuote =
+    data.quotes.find((quote) => quote.status === "accepted") ?? latestQuote;
+
+  const fullPoAmount = roundMoney(Number(latestAcceptedQuote?.totalPrice ?? 0));
+
+  const alreadyInvoicedAmount = roundMoney(
+    data.invoices.reduce((sum, invoice) => {
+      const status = String(invoice.status || "").toLowerCase();
+
+      if (status === "void" || status === "cancelled" || status === "canceled") {
+        return sum;
+      }
+
+      const amount = Number(invoice.totalAmount ?? 0);
+      return Number.isFinite(amount) ? sum + amount : sum;
+    }, 0),
+  );
+
+  const remainingInvoiceAmount = roundMoney(
+    Math.max(fullPoAmount - alreadyInvoicedAmount, 0),
+  );
+
   const quoteLocked = ["awarded", "not_awarded", "closed", "cancelled"].includes(
     data.package.packageStatus,
   );
@@ -150,17 +176,17 @@ export default function Client({ data }: Props) {
     "kordyne_generated" | "provider_uploaded"
   >("kordyne_generated");
   const [invoiceNumber, setInvoiceNumber] = useState(
-    `INV-${data.package.id.slice(0, 8).toUpperCase()}`,
+    `INV-${data.package.id.slice(0, 8).toUpperCase()}-${data.invoices.length + 1}`,
   );
   const [invoiceCurrencyCode, setInvoiceCurrencyCode] = useState(
-    latestQuote?.currencyCode ?? "EUR",
+    latestAcceptedQuote?.currencyCode ?? "EUR",
   );
   const [invoiceSubtotal, setInvoiceSubtotal] = useState(
-    latestQuote?.totalPrice?.toString() ?? "",
+    remainingInvoiceAmount > 0 ? remainingInvoiceAmount.toFixed(2) : "",
   );
   const [invoiceTax, setInvoiceTax] = useState("0");
   const [invoiceTotal, setInvoiceTotal] = useState(
-    latestQuote?.totalPrice?.toString() ?? "",
+    remainingInvoiceAmount > 0 ? remainingInvoiceAmount.toFixed(2) : "",
   );
   const [invoiceIssuedAt, setInvoiceIssuedAt] = useState(getTodayInputValue());
   const [invoiceDueDate, setInvoiceDueDate] = useState("");
@@ -169,6 +195,15 @@ export default function Client({ data }: Props) {
   const [invoiceSubmitting, setInvoiceSubmitting] = useState(false);
   const [invoiceError, setInvoiceError] = useState<string | null>(null);
   const [invoiceSuccess, setInvoiceSuccess] = useState<string | null>(null);
+
+  const currentInvoiceAmount = roundMoney(Number(invoiceTotal || 0));
+  const remainingAfterCurrentInvoice = roundMoney(
+    Math.max(remainingInvoiceAmount - currentInvoiceAmount, 0),
+  );
+  const invoiceKindPreview =
+    currentInvoiceAmount > 0 && remainingAfterCurrentInvoice === 0
+      ? "Final invoice"
+      : "Partial invoice";
 
   async function handleSubmitQuote(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -249,13 +284,40 @@ export default function Client({ data }: Props) {
     }
 
     if (!invoiceTotal.trim()) {
-      setInvoiceError("Invoice total is required.");
+      setInvoiceError("Invoice amount is required.");
       return;
     }
 
-    if (invoiceSource === "provider_uploaded" && !invoiceFile) {
-      setInvoiceError("Please select a PDF invoice file to upload.");
+    const parsedInvoiceTotal = Number(invoiceTotal);
+
+    if (!Number.isFinite(parsedInvoiceTotal) || parsedInvoiceTotal <= 0) {
+      setInvoiceError("Invoice amount must be greater than zero.");
       return;
+    }
+
+    if (parsedInvoiceTotal > remainingInvoiceAmount) {
+      setInvoiceError(
+        `Invoice amount exceeds the remaining PO value of ${formatCurrencyValue(
+          remainingInvoiceAmount,
+          invoiceCurrencyCode || undefined,
+        )}.`,
+      );
+      return;
+    }
+
+    if (invoiceSource === "provider_uploaded") {
+      if (!invoiceFile) {
+        setInvoiceError("Please select a PDF invoice file to upload.");
+        return;
+      }
+
+      const isPdfType = invoiceFile.type === "application/pdf";
+      const isPdfName = invoiceFile.name.toLowerCase().endsWith(".pdf");
+
+      if (!isPdfType || !isPdfName) {
+        setInvoiceError("Only PDF invoice uploads are allowed.");
+        return;
+      }
     }
 
     setInvoiceSubmitting(true);
@@ -329,6 +391,23 @@ export default function Client({ data }: Props) {
 
   function handleInvoiceFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0] ?? null;
+
+    if (!file) {
+      setInvoiceFile(null);
+      return;
+    }
+
+    const isPdfType = file.type === "application/pdf";
+    const isPdfName = file.name.toLowerCase().endsWith(".pdf");
+
+    if (!isPdfType || !isPdfName) {
+      setInvoiceError("Only PDF invoice uploads are allowed.");
+      setInvoiceFile(null);
+      event.target.value = "";
+      return;
+    }
+
+    setInvoiceError(null);
     setInvoiceFile(file);
   }
 
@@ -810,7 +889,8 @@ export default function Client({ data }: Props) {
                   Invoices
                 </h2>
                 <p className="mt-1 text-sm text-slate-600">
-                  Issue a Kordyne invoice template or upload your company’s invoice PDF once the package has been awarded.
+                  Issue a full or partial invoice after award. Each invoice can store its own invoice
+                  number, amount, and official PDF so customers can receipt against the correct amount.
                 </p>
               </div>
 
@@ -825,7 +905,79 @@ export default function Client({ data }: Props) {
               </div>
             ) : (
               <div className="mt-5 space-y-6">
-                <form onSubmit={handleCreateInvoice} className="space-y-5 rounded-2xl border border-slate-200 p-5">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <h3 className="text-base font-semibold text-slate-900">
+                        Purchase order summary
+                      </h3>
+                      <p className="mt-1 text-sm text-slate-600">
+                        Each invoice is recorded separately. Partial invoices can be
+                        issued now, and additional invoices can be added later until
+                        the full PO value is reached.
+                      </p>
+                    </div>
+
+                    <div className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700">
+                      {invoiceKindPreview}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    <div className="rounded-xl border border-slate-200 bg-white p-4">
+                      <div className="text-xs uppercase tracking-wide text-slate-500">
+                        Full PO amount
+                      </div>
+                      <div className="mt-2 text-lg font-semibold text-slate-900">
+                        {formatCurrencyValue(
+                          fullPoAmount,
+                          invoiceCurrencyCode || undefined,
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-slate-200 bg-white p-4">
+                      <div className="text-xs uppercase tracking-wide text-slate-500">
+                        Already invoiced
+                      </div>
+                      <div className="mt-2 text-lg font-semibold text-slate-900">
+                        {formatCurrencyValue(
+                          alreadyInvoicedAmount,
+                          invoiceCurrencyCode || undefined,
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-slate-200 bg-white p-4">
+                      <div className="text-xs uppercase tracking-wide text-slate-500">
+                        Remaining before this invoice
+                      </div>
+                      <div className="mt-2 text-lg font-semibold text-slate-900">
+                        {formatCurrencyValue(
+                          remainingInvoiceAmount,
+                          invoiceCurrencyCode || undefined,
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-slate-200 bg-white p-4">
+                      <div className="text-xs uppercase tracking-wide text-slate-500">
+                        Remaining after this invoice
+                      </div>
+                      <div className="mt-2 text-lg font-semibold text-slate-900">
+                        {formatCurrencyValue(
+                          remainingAfterCurrentInvoice,
+                          invoiceCurrencyCode || undefined,
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <form
+                  onSubmit={handleCreateInvoice}
+                  className="space-y-5 rounded-2xl border border-slate-200 p-5"
+                >
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-slate-700">
@@ -908,7 +1060,7 @@ export default function Client({ data }: Props) {
 
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-slate-700">
-                        Total *
+                        Current invoice amount *
                       </label>
                       <input
                         type="number"
@@ -959,7 +1111,8 @@ export default function Client({ data }: Props) {
                         className="block w-full text-sm text-slate-700"
                       />
                       <p className="text-xs text-slate-500">
-                        Upload your company’s official invoice PDF. Metadata above will still be stored for tracking.
+                        Upload one official PDF for this invoice only. If you invoice another portion later,
+                        create a new invoice with its own invoice number and PDF.
                       </p>
                     </div>
                   ) : (
@@ -1100,8 +1253,8 @@ export default function Client({ data }: Props) {
                         <div className="mt-2 flex flex-wrap gap-2 text-xs">
                           <span className="rounded-full bg-slate-100 px-2 py-1 text-slate-700">
                             {providerFileSourceTypeLabels[
-  file.sourceType as keyof typeof providerFileSourceTypeLabels
-] ?? file.sourceType}
+                              file.sourceType as keyof typeof providerFileSourceTypeLabels
+                            ] ?? file.sourceType}
                           </span>
                           {file.assetCategory ? (
                             <span className="rounded-full bg-slate-100 px-2 py-1 text-slate-700">

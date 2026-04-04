@@ -6,13 +6,19 @@ type MembershipRow = {
   role: string;
 };
 
+type ExistingInvoiceRow = {
+  id: string;
+  total_amount: number | null;
+  status: string | null;
+};
+
 type CreateInvoiceBody = {
   invoiceSource?: "kordyne_generated" | "provider_uploaded";
   invoiceNumber?: string;
   currencyCode?: string;
   subtotalAmount?: number | null;
   taxAmount?: number | null;
-  totalAmount?: number | null;
+  totalAmount?: number | null; // current invoice amount
   issuedAt?: string | null;
   dueDate?: string | null;
   notes?: string | null;
@@ -20,6 +26,17 @@ type CreateInvoiceBody = {
   uploadedFileName?: string | null;
   uploadedFileType?: string | null;
 };
+
+function toPositiveNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return parsed;
+}
+
+function roundMoney(value: number) {
+  return Math.round(value * 100) / 100;
+}
 
 export async function POST(
   request: Request,
@@ -50,16 +67,12 @@ export async function POST(
 
   const invoiceSource = body.invoiceSource;
   const invoiceNumber = String(body.invoiceNumber || "").trim();
-  const currencyCode = String(body.currencyCode || "EUR").trim().toUpperCase();
-  const subtotalAmount = body.subtotalAmount ?? null;
-  const taxAmount = body.taxAmount ?? 0;
-  const totalAmount = body.totalAmount ?? null;
-  const issuedAt = body.issuedAt || new Date().toISOString();
-  const dueDate = body.dueDate || null;
-  const notes = body.notes || null;
   const uploadedFilePath = body.uploadedFilePath || null;
   const uploadedFileName = body.uploadedFileName || null;
   const uploadedFileType = body.uploadedFileType || null;
+  const issuedAt = body.issuedAt || new Date().toISOString();
+  const dueDate = body.dueDate || null;
+  const notes = body.notes || null;
 
   if (
     invoiceSource !== "kordyne_generated" &&
@@ -78,11 +91,27 @@ export async function POST(
     );
   }
 
-  if (invoiceSource === "provider_uploaded" && !uploadedFilePath) {
-    return NextResponse.json(
-      { error: "Uploaded invoice file is required." },
-      { status: 400 },
-    );
+  if (invoiceSource === "provider_uploaded") {
+    if (!uploadedFilePath) {
+      return NextResponse.json(
+        { error: "Uploaded invoice file is required." },
+        { status: 400 },
+      );
+    }
+
+    if (uploadedFileType && uploadedFileType !== "application/pdf") {
+      return NextResponse.json(
+        { error: "Only PDF invoice uploads are allowed." },
+        { status: 400 },
+      );
+    }
+
+    if (uploadedFileName && !uploadedFileName.toLowerCase().endsWith(".pdf")) {
+      return NextResponse.json(
+        { error: "Uploaded invoice file must be a PDF." },
+        { status: 400 },
+      );
+    }
   }
 
   const { data: membershipsRaw, error: membershipsError } = await supabase
@@ -141,7 +170,7 @@ export async function POST(
     );
   }
 
-  const { data: latestAcceptedQuote } = await supabase
+  const { data: latestAcceptedQuote, error: quoteError } = await supabase
     .from("provider_quotes")
     .select(
       `
@@ -160,6 +189,105 @@ export async function POST(
     .limit(1)
     .maybeSingle();
 
+  if (quoteError) {
+    return NextResponse.json(
+      { error: quoteError.message },
+      { status: 400 },
+    );
+  }
+
+  if (!latestAcceptedQuote || latestAcceptedQuote.total_price == null) {
+    return NextResponse.json(
+      { error: "An accepted quote with a total amount is required before invoicing." },
+      { status: 400 },
+    );
+  }
+
+  const fullPoAmount = roundMoney(Number(latestAcceptedQuote.total_price));
+
+  if (!Number.isFinite(fullPoAmount) || fullPoAmount <= 0) {
+    return NextResponse.json(
+      { error: "The accepted quote total is invalid for invoicing." },
+      { status: 400 },
+    );
+  }
+
+  const { data: existingInvoicesRaw, error: existingInvoicesError } = await supabase
+    .from("provider_invoices")
+    .select("id, total_amount, status")
+    .eq("provider_request_package_id", packageId);
+
+  if (existingInvoicesError) {
+    return NextResponse.json(
+      { error: existingInvoicesError.message },
+      { status: 400 },
+    );
+  }
+
+  const existingInvoices = (existingInvoicesRaw ?? []) as ExistingInvoiceRow[];
+
+  const alreadyInvoicedAmount = roundMoney(
+    existingInvoices.reduce((sum, invoice) => {
+      const status = (invoice.status || "").toLowerCase();
+      if (status === "void" || status === "cancelled" || status === "canceled") {
+        return sum;
+      }
+
+      const value = Number(invoice.total_amount ?? 0);
+      return Number.isFinite(value) ? sum + value : sum;
+    }, 0),
+  );
+
+  const remainingBeforeInvoice = roundMoney(
+    Math.max(fullPoAmount - alreadyInvoicedAmount, 0),
+  );
+
+  const currentInvoiceAmount = toPositiveNumber(body.totalAmount);
+
+  if (currentInvoiceAmount == null) {
+    return NextResponse.json(
+      { error: "Invoice amount is required and must be greater than zero." },
+      { status: 400 },
+    );
+  }
+
+  if (currentInvoiceAmount > remainingBeforeInvoice) {
+    return NextResponse.json(
+      {
+        error:
+          "Invoice amount exceeds the remaining purchase order value.",
+        fullPoAmount,
+        alreadyInvoicedAmount,
+        remainingBeforeInvoice,
+      },
+      { status: 400 },
+    );
+  }
+
+  const totalAmount = roundMoney(currentInvoiceAmount);
+  const taxAmount = roundMoney(Number(body.taxAmount ?? 0));
+  const subtotalAmount =
+    body.subtotalAmount != null
+      ? roundMoney(Number(body.subtotalAmount))
+      : roundMoney(totalAmount - taxAmount);
+
+  if (!Number.isFinite(subtotalAmount) || subtotalAmount < 0) {
+    return NextResponse.json(
+      { error: "Subtotal amount is invalid." },
+      { status: 400 },
+    );
+  }
+
+  const remainingAfterInvoice = roundMoney(
+    Math.max(remainingBeforeInvoice - totalAmount, 0),
+  );
+
+  const currencyCode = String(
+    body.currencyCode || latestAcceptedQuote.currency_code || "EUR",
+  )
+    .trim()
+    .toUpperCase();
+
   const snapshotJson = {
     invoice: {
       invoiceNumber,
@@ -174,25 +302,31 @@ export async function POST(
       uploadedFilePath,
       uploadedFileName,
       uploadedFileType,
+      invoiceKind: remainingAfterInvoice === 0 ? "final" : "partial",
     },
-    quote: latestAcceptedQuote
-      ? {
-          id: latestAcceptedQuote.id,
-          quoteReference: latestAcceptedQuote.quote_reference,
-          quoteVersion: latestAcceptedQuote.quote_version,
-          status: latestAcceptedQuote.status,
-          currencyCode: latestAcceptedQuote.currency_code,
-          totalPrice: latestAcceptedQuote.total_price,
-          submittedAt: latestAcceptedQuote.submitted_at,
-        }
-      : null,
+    quote: {
+      id: latestAcceptedQuote.id,
+      quoteReference: latestAcceptedQuote.quote_reference,
+      quoteVersion: latestAcceptedQuote.quote_version,
+      status: latestAcceptedQuote.status,
+      currencyCode: latestAcceptedQuote.currency_code,
+      totalPrice: latestAcceptedQuote.total_price,
+      submittedAt: latestAcceptedQuote.submitted_at,
+    },
+    purchaseOrderSummary: {
+      fullPoAmount,
+      alreadyInvoicedAmount,
+      remainingBeforeInvoice,
+      currentInvoiceAmount: totalAmount,
+      remainingAfterInvoice,
+    },
   };
 
   const { data: invoice, error: invoiceError } = await supabase
     .from("provider_invoices")
     .insert({
       provider_request_package_id: pkg.id,
-      provider_quote_id: latestAcceptedQuote?.id ?? null,
+      provider_quote_id: latestAcceptedQuote.id,
       provider_org_id: pkg.provider_org_id,
       customer_org_id: pkg.customer_org_id,
       invoice_source: invoiceSource,
@@ -210,7 +344,10 @@ export async function POST(
       uploaded_file_type: uploadedFileType,
       snapshot_json: snapshotJson,
       created_by_user_id: user.id,
-      finalized_at: invoiceSource === "kordyne_generated" ? new Date().toISOString() : null,
+      finalized_at:
+        invoiceSource === "kordyne_generated"
+          ? new Date().toISOString()
+          : null,
       updated_at: new Date().toISOString(),
     })
     .select("id")
@@ -226,5 +363,13 @@ export async function POST(
   return NextResponse.json({
     success: true,
     invoiceId: invoice.id,
+    poSummary: {
+      fullPoAmount,
+      alreadyInvoicedAmount,
+      currentInvoiceAmount: totalAmount,
+      remainingBeforeInvoice,
+      remainingAfterInvoice,
+      invoiceKind: remainingAfterInvoice === 0 ? "final" : "partial",
+    },
   });
 }
