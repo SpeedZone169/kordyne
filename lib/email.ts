@@ -26,13 +26,26 @@ type WorkflowEmailInput = {
   footerNote?: string;
 };
 
-const resend = process.env.RESEND_API_KEY
-  ? new Resend(process.env.RESEND_API_KEY)
-  : null;
+const resendApiKey =
+  process.env.RESEND_NOTIFICATIONS_API_KEY ||
+  process.env.RESEND_API_KEY ||
+  "";
 
-const fromEmail = process.env.RESEND_FROM_EMAIL ?? "";
+const resend = resendApiKey ? new Resend(resendApiKey) : null;
+
+const fromEmail =
+  process.env.RESEND_NOTIFICATIONS_FROM_EMAIL ||
+  process.env.RESEND_FROM_EMAIL ||
+  "";
+
+const replyTo =
+  process.env.RESEND_NOTIFICATIONS_REPLY_TO ||
+  process.env.RESEND_REPLY_TO ||
+  undefined;
+
 const appBaseUrl = (
   process.env.APP_BASE_URL ??
+  process.env.NEXT_PUBLIC_SITE_URL ??
   process.env.NEXT_PUBLIC_APP_URL ??
   ""
 ).replace(/\/+$/, "");
@@ -85,17 +98,22 @@ export async function getOrgNotificationRecipients(
     throw new Error(profilesError.message);
   }
 
-  return [...new Map(
-    (profiles ?? [])
-      .filter((profile) => typeof profile.email === "string" && profile.email.trim().length > 0)
-      .map((profile) => [
-        profile.email.trim().toLowerCase(),
-        {
-          email: profile.email.trim(),
-          fullName: profile.full_name ?? null,
-        },
-      ]),
-  ).values()];
+  return [
+    ...new Map(
+      (profiles ?? [])
+        .filter(
+          (profile) =>
+            typeof profile.email === "string" && profile.email.trim().length > 0,
+        )
+        .map((profile) => [
+          profile.email.trim().toLowerCase(),
+          {
+            email: profile.email.trim(),
+            fullName: profile.full_name ?? null,
+          },
+        ]),
+    ).values(),
+  ];
 }
 
 function buildWorkflowEmailHtml(input: WorkflowEmailInput) {
@@ -254,18 +272,29 @@ function buildWorkflowEmailHtml(input: WorkflowEmailInput) {
 }
 
 export async function sendWorkflowEmail(input: WorkflowEmailInput) {
+  console.log("[workflow-email] config", {
+    usingNotificationsApiKey: Boolean(process.env.RESEND_NOTIFICATIONS_API_KEY),
+    usingDefaultApiKey:
+      !process.env.RESEND_NOTIFICATIONS_API_KEY &&
+      Boolean(process.env.RESEND_API_KEY),
+    fromEmail,
+    replyTo,
+    logoUrl,
+  });
+
   if (!resend || !fromEmail) {
-    console.warn("Email skipped: RESEND_API_KEY or RESEND_FROM_EMAIL is not configured.");
+    console.warn("[workflow-email] skipped: missing resend client or from email");
     return { skipped: true };
   }
 
-  const uniqueRecipients = [...new Set(
-    input.to
-      .map((value) => value.trim())
-      .filter((value) => value.length > 0),
-  )];
+  const uniqueRecipients = [
+    ...new Set(
+      input.to.map((value) => value.trim()).filter((value) => value.length > 0),
+    ),
+  ];
 
   if (!uniqueRecipients.length) {
+    console.warn("[workflow-email] skipped: no recipients");
     return { skipped: true };
   }
 
@@ -274,11 +303,15 @@ export async function sendWorkflowEmail(input: WorkflowEmailInput) {
     to: uniqueRecipients,
     subject: input.subject,
     html: buildWorkflowEmailHtml(input),
+    ...(replyTo ? { replyTo } : {}),
   });
 
   if (error) {
+    console.error("[workflow-email] resend send failed", error);
     throw new Error(error.message);
   }
+
+  console.log("[workflow-email] resend send success", data);
 
   return data;
 }
