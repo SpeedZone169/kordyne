@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import StlPreview from "./StlPreview";
+import ApsStepPreview from "./ApsStepPreview";
 
 type PreviewFile = {
   id: string;
@@ -214,7 +215,7 @@ export default function PartFilesViewer({ files }: Props) {
 
                               {isStep ? (
                                 <span className="inline-flex rounded-full bg-violet-100 px-2.5 py-1 text-[11px] font-medium text-violet-700">
-                                  STEP next
+                                  Live STEP
                                 </span>
                               ) : null}
 
@@ -274,7 +275,7 @@ export default function PartFilesViewer({ files }: Props) {
 
                   {isStepSelected ? (
                     <span className="inline-flex rounded-full bg-violet-100 px-2.5 py-1 text-xs font-medium text-violet-700">
-                      STEP viewer next
+                      Live STEP viewer
                     </span>
                   ) : null}
                 </div>
@@ -339,62 +340,12 @@ export default function PartFilesViewer({ files }: Props) {
                   />
                 ) : null}
 
-                {selectedFile.previewKind === "cad" && isStepSelected ? (
-                  <div className="flex h-full min-h-[560px] flex-col items-center justify-center bg-[radial-gradient(circle_at_top,#f5f3ff,#f8fafc_55%,#ffffff)] px-8 text-center">
-                    <div className="max-w-xl">
-                      <span className="inline-flex rounded-full bg-violet-100 px-3 py-1 text-xs font-medium text-violet-700">
-                        STEP / STP ready for APS layer
-                      </span>
-
-                      <h4 className="mt-4 text-2xl font-semibold tracking-tight text-slate-950">
-                        Advanced CAD viewing is the next step
-                      </h4>
-
-                      <p className="mt-3 text-sm leading-7 text-slate-600">
-                        STEP files are best handled through the dedicated CAD viewer
-                        layer. This preview surface is already reserved for that next
-                        integration so the page stays consistent and high-end.
-                      </p>
-
-                      <div className="mt-6 grid gap-3 rounded-[24px] border border-slate-200 bg-white p-5 text-left shadow-sm sm:grid-cols-2">
-                        <div>
-                          <div className="text-xs uppercase tracking-[0.16em] text-slate-500">
-                            File
-                          </div>
-                          <div className="mt-2 font-medium text-slate-900">
-                            {selectedFile.fileName}
-                          </div>
-                        </div>
-
-                        <div>
-                          <div className="text-xs uppercase tracking-[0.16em] text-slate-500">
-                            Type
-                          </div>
-                          <div className="mt-2 font-medium text-slate-900">
-                            {selectedFile.fileType || "STEP file"}
-                          </div>
-                        </div>
-
-                        <div>
-                          <div className="text-xs uppercase tracking-[0.16em] text-slate-500">
-                            Uploaded
-                          </div>
-                          <div className="mt-2 font-medium text-slate-900">
-                            {formatDateTime(selectedFile.createdAt)}
-                          </div>
-                        </div>
-
-                        <div>
-                          <div className="text-xs uppercase tracking-[0.16em] text-slate-500">
-                            Size
-                          </div>
-                          <div className="mt-2 font-medium text-slate-900">
-                            {formatBytes(selectedFile.fileSizeBytes)}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                {selectedFile.previewKind === "cad" &&
+                isStepSelected ? (
+                  <ApsStepPreview
+                    fileId={selectedFile.id}
+                    fileName={selectedFile.fileName}
+                  />
                 ) : null}
 
                 {selectedFile.previewKind === "cad" &&
@@ -411,9 +362,9 @@ export default function PartFilesViewer({ files }: Props) {
                       </h4>
 
                       <p className="mt-3 text-sm leading-7 text-slate-600">
-                        The preview area is already in place. STL is now live, and the
-                        next pass will expand this same premium surface for additional
-                        CAD formats.
+                        The preview area is already in place. STL is now live, and
+                        STEP is handled with APS. Additional CAD formats can be added
+                        into the same premium panel later.
                       </p>
                     </div>
                   </div>
