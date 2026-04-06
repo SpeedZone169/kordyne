@@ -34,6 +34,95 @@ type ProviderInvoiceRow = {
   created_at: string;
 };
 
+type ProviderPackageFileRow = {
+  id: string;
+  source_type: string;
+  file_name: string;
+  file_type: string | null;
+  file_size_bytes: number | null;
+  asset_category: string | null;
+  storage_path: string;
+  provider_uploaded: boolean | null;
+  shared_at: string | null;
+  created_at: string;
+};
+
+function getPreviewKind(
+  fileName: string,
+  fileType: string | null,
+): "image" | "pdf" | "cad" | "other" {
+  const extension = fileName.split(".").pop()?.toLowerCase() ?? "";
+  const mime = (fileType || "").toLowerCase();
+
+  if (
+    mime.startsWith("image/") ||
+    ["png", "jpg", "jpeg", "webp", "gif", "bmp", "svg"].includes(extension)
+  ) {
+    return "image";
+  }
+
+  if (mime === "application/pdf" || extension === "pdf") {
+    return "pdf";
+  }
+
+  if (["stl", "step", "stp"].includes(extension)) {
+    return "cad";
+  }
+
+  return "other";
+}
+
+function getCandidateBuckets(file: ProviderPackageFileRow) {
+  if (file.provider_uploaded) {
+    return ["provider-package-files", "provider-files"];
+  }
+
+  if (file.source_type === "part_file") {
+    return ["part-files"];
+  }
+
+  if (file.source_type === "service_request_uploaded_file") {
+    return [
+      "service-request-files",
+      "service-request-uploads",
+      "service-request-uploaded-files",
+    ];
+  }
+
+  return [
+    "provider-package-files",
+    "part-files",
+    "service-request-files",
+    "service-request-uploads",
+  ];
+}
+
+async function createSignedUrlFromCandidateBuckets(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  file: ProviderPackageFileRow,
+  downloadFileName?: string,
+) {
+  const buckets = getCandidateBuckets(file);
+
+  for (const bucket of buckets) {
+    const result = await supabase.storage.from(bucket).createSignedUrl(
+      file.storage_path,
+      60 * 10,
+      downloadFileName
+        ? {
+            download: downloadFileName,
+          }
+        : undefined,
+    );
+
+    if (!result.error && result.data?.signedUrl) {
+      return result.data.signedUrl;
+    }
+  }
+
+  return null;
+}
+
 export default async function ProviderRequestDetailPage({
   params,
 }: PageProps) {
@@ -113,39 +202,39 @@ export default async function ProviderRequestDetailPage({
       updates.customer_visible_status = "Viewed by provider";
     }
 
-const { data: updatedPkg, error: updatePkgError } = await supabase
-  .from("provider_request_packages")
-  .update(updates)
-  .eq("id", packageId)
-  .select(
-    `
-      id,
-      service_request_id,
-      customer_org_id,
-      provider_org_id,
-      package_status,
-      package_title,
-      shared_summary,
-      target_due_date,
-      requested_quantity,
-      response_deadline,
-      customer_visible_status,
-      published_at,
-      viewed_at,
-      provider_responded_at,
-      awarded_at,
-      created_at
-    `,
-  )
-  .maybeSingle();
+    const { data: updatedPkg, error: updatePkgError } = await supabase
+      .from("provider_request_packages")
+      .update(updates)
+      .eq("id", packageId)
+      .select(
+        `
+          id,
+          service_request_id,
+          customer_org_id,
+          provider_org_id,
+          package_status,
+          package_title,
+          shared_summary,
+          target_due_date,
+          requested_quantity,
+          response_deadline,
+          customer_visible_status,
+          published_at,
+          viewed_at,
+          provider_responded_at,
+          awarded_at,
+          created_at
+        `,
+      )
+      .maybeSingle();
 
-if (updatePkgError) {
-  throw new Error(updatePkgError.message);
-}
+    if (updatePkgError) {
+      throw new Error(updatePkgError.message);
+    }
 
-if (updatedPkg) {
-  pkg = updatedPkg;
-}
+    if (updatedPkg) {
+      pkg = updatedPkg;
+    }
   }
 
   const { data: customerOrg } = await supabase
@@ -257,18 +346,36 @@ if (updatedPkg) {
     throw new Error(invoicesError.message);
   }
 
-  const mappedFiles: ProviderPackageDetailFile[] = (files ?? []).map((file) => ({
-    id: file.id,
-    sourceType: file.source_type as ProviderPackageDetailFile["sourceType"],
-    fileName: file.file_name,
-    fileType: file.file_type,
-    fileSizeBytes: file.file_size_bytes,
-    assetCategory: file.asset_category,
-    storagePath: file.storage_path,
-    providerUploaded: file.provider_uploaded,
-    sharedAt: file.shared_at,
-    createdAt: file.created_at,
-  }));
+  const fileRows = (files ?? []) as ProviderPackageFileRow[];
+
+  const mappedFiles: ProviderPackageDetailFile[] = await Promise.all(
+    fileRows.map(async (file) => {
+      const previewKind = getPreviewKind(file.file_name, file.file_type);
+
+      const [previewUrl, downloadUrl] = await Promise.all([
+        previewKind === "pdf" || previewKind === "image"
+          ? createSignedUrlFromCandidateBuckets(supabase, file)
+          : createSignedUrlFromCandidateBuckets(supabase, file, file.file_name),
+        createSignedUrlFromCandidateBuckets(supabase, file, file.file_name),
+      ]);
+
+      return {
+        id: file.id,
+        sourceType: file.source_type as ProviderPackageDetailFile["sourceType"],
+        fileName: file.file_name,
+        fileType: file.file_type,
+        fileSizeBytes: file.file_size_bytes,
+        assetCategory: file.asset_category,
+        storagePath: file.storage_path,
+        providerUploaded: file.provider_uploaded,
+        sharedAt: file.shared_at,
+        createdAt: file.created_at,
+        previewUrl,
+        downloadUrl,
+        previewKind,
+      };
+    }),
+  );
 
   const mappedQuotes: ProviderPackageDetailQuote[] = (quotes ?? []).map(
     (quote) => ({

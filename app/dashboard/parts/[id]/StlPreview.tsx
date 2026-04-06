@@ -10,135 +10,123 @@ type Props = {
   fileName: string;
 };
 
+type Status = "loading" | "ready" | "error";
+
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return "Could not load STL preview.";
+}
+
 export default function StlPreview({ url, fileName }: Props) {
-  const mountRef = useRef<HTMLDivElement | null>(null);
-  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [status, setStatus] = useState<Status>("loading");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    const mountEl = mountRef.current;
+    const container = containerRef.current;
 
-    if (!mountEl) {
+    if (!container) {
       return;
     }
 
-    let animationFrameId = 0;
     let disposed = false;
+    let animationFrameId = 0;
 
-    setStatus("loading");
-    setErrorMessage(null);
+    container.innerHTML = "";
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color("#f8fafc");
 
-    const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 5000);
-    camera.position.set(160, 120, 160);
+    const camera = new THREE.PerspectiveCamera(
+      45,
+      Math.max(container.clientWidth, 1) / Math.max(container.clientHeight, 1),
+      0.1,
+      5000,
+    );
+
+    camera.position.set(120, 120, 120);
 
     const renderer = new THREE.WebGLRenderer({
       antialias: true,
-      alpha: false,
-      powerPreference: "high-performance",
+      alpha: true,
     });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-    mountEl.innerHTML = "";
-    mountEl.appendChild(renderer.domElement);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(
+      Math.max(container.clientWidth, 1),
+      Math.max(container.clientHeight, 1),
+    );
+    container.appendChild(renderer.domElement);
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
-    controls.dampingFactor = 0.06;
-    controls.screenSpacePanning = false;
-    controls.minDistance = 10;
-    controls.maxDistance = 3000;
+    controls.dampingFactor = 0.08;
+    controls.screenSpacePanning = true;
 
-    const ambientLight = new THREE.HemisphereLight("#ffffff", "#cbd5e1", 1.1);
-    scene.add(ambientLight);
+    const ambientLight = new THREE.AmbientLight("#ffffff", 1.25);
+    const directionalLight = new THREE.DirectionalLight("#ffffff", 1.15);
+    directionalLight.position.set(120, 180, 140);
 
-    const keyLight = new THREE.DirectionalLight("#ffffff", 1.25);
-    keyLight.position.set(120, 180, 140);
-    scene.add(keyLight);
+    const directionalLightTwo = new THREE.DirectionalLight("#ffffff", 0.6);
+    directionalLightTwo.position.set(-120, 80, -100);
 
-    const fillLight = new THREE.DirectionalLight("#ffffff", 0.65);
-    fillLight.position.set(-120, 80, -100);
-    scene.add(fillLight);
+    scene.add(ambientLight, directionalLight, directionalLightTwo);
 
-    const grid = new THREE.GridHelper(260, 16, "#cbd5e1", "#e2e8f0");
-    grid.position.y = -50;
-    scene.add(grid);
+    let mesh: THREE.Mesh<THREE.BufferGeometry, THREE.Material> | null = null;
 
-    const material = new THREE.MeshStandardMaterial({
-      color: "#334155",
-      metalness: 0.15,
-      roughness: 0.55,
-    });
-
-    let mesh: THREE.Mesh | null = null;
-
-    function resizeRenderer() {
-      if (!mountEl) return;
-
-      const width = mountEl.clientWidth || 1;
-      const height = mountEl.clientHeight || 1;
-
-      renderer.setSize(width, height, false);
-      camera.aspect = width / height;
-      camera.updateProjectionMatrix();
-    }
-
-    function fitCameraToMesh(targetMesh: THREE.Mesh) {
-      const geometry = targetMesh.geometry;
-      geometry.computeBoundingBox();
-      geometry.computeBoundingSphere();
-
-      const boundingBox = geometry.boundingBox;
-      const boundingSphere = geometry.boundingSphere;
-
-      if (!boundingBox || !boundingSphere) {
-        return;
-      }
-
-      const center = boundingSphere.center.clone();
-      const radius = Math.max(boundingSphere.radius, 1);
-
-      targetMesh.position.sub(center);
-
-      const maxDim = Math.max(
-        boundingBox.max.x - boundingBox.min.x,
-        boundingBox.max.y - boundingBox.min.y,
-        boundingBox.max.z - boundingBox.min.z,
-      );
-
-      const fitDistance =
-        maxDim / (2 * Math.tan((Math.PI * camera.fov) / 360));
-
-      camera.near = Math.max(radius / 100, 0.1);
-      camera.far = Math.max(radius * 20, 5000);
-      camera.position.set(fitDistance * 1.1, fitDistance * 0.85, fitDistance * 1.15);
-      camera.lookAt(0, 0, 0);
-      camera.updateProjectionMatrix();
-
-      controls.target.set(0, 0, 0);
-      controls.update();
-
-      grid.position.y = -(boundingBox.max.y - boundingBox.min.y) / 2 - radius * 0.08;
-    }
-
-    function animate() {
-      animationFrameId = window.requestAnimationFrame(animate);
+    const renderFrame = () => {
+      if (disposed) return;
       controls.update();
       renderer.render(scene, camera);
-    }
+      animationFrameId = window.requestAnimationFrame(renderFrame);
+    };
 
-    resizeRenderer();
+    const fitCameraToGeometry = (geometry: THREE.BufferGeometry) => {
+      geometry.computeBoundingBox();
 
-    const resizeObserver = new ResizeObserver(() => {
-      resizeRenderer();
-    });
+      const boundingBox = geometry.boundingBox;
+      if (!boundingBox) return;
 
-    resizeObserver.observe(mountEl);
+      const center = new THREE.Vector3();
+      boundingBox.getCenter(center);
+
+      const size = new THREE.Vector3();
+      boundingBox.getSize(size);
+
+      const maxDimension = Math.max(size.x, size.y, size.z, 1);
+      const distance = maxDimension * 1.8;
+
+      camera.position.set(
+        center.x + distance,
+        center.y + distance * 0.85,
+        center.z + distance,
+      );
+      camera.near = Math.max(maxDimension / 1000, 0.1);
+      camera.far = Math.max(maxDimension * 20, 5000);
+      camera.updateProjectionMatrix();
+
+      controls.target.copy(center);
+      controls.update();
+    };
+
+    const handleResize = () => {
+      if (!containerRef.current) return;
+
+      const width = Math.max(containerRef.current.clientWidth, 1);
+      const height = Math.max(containerRef.current.clientHeight, 1);
+
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+      renderer.setSize(width, height);
+    };
+
+    window.addEventListener("resize", handleResize);
 
     const loader = new STLLoader();
+
     loader.load(
       url,
       (geometry) => {
@@ -147,48 +135,52 @@ export default function StlPreview({ url, fileName }: Props) {
         geometry.computeVertexNormals();
         geometry.center();
 
+        const material = new THREE.MeshStandardMaterial({
+          color: "#0f172a",
+          metalness: 0.08,
+          roughness: 0.58,
+        });
+
         mesh = new THREE.Mesh(geometry, material);
         scene.add(mesh);
 
-        fitCameraToMesh(mesh);
-
+        fitCameraToGeometry(geometry);
+        setErrorMessage(null);
         setStatus("ready");
+        renderFrame();
       },
       undefined,
-      (error) => {
+      (error: unknown) => {
         if (disposed) return;
 
         console.error("Failed to load STL preview:", error);
+        setErrorMessage(getErrorMessage(error));
         setStatus("error");
-        setErrorMessage("STL preview could not be loaded.");
       },
     );
 
-    animate();
-
     return () => {
       disposed = true;
-      resizeObserver.disconnect();
       window.cancelAnimationFrame(animationFrameId);
+      window.removeEventListener("resize", handleResize);
       controls.dispose();
 
       if (mesh) {
-        scene.remove(mesh);
         mesh.geometry.dispose();
-      }
 
-      material.dispose();
-      grid.geometry.dispose();
-      if (Array.isArray(grid.material)) {
-        grid.material.forEach((item) => item.dispose());
-      } else {
-        grid.material.dispose();
+        if (Array.isArray(mesh.material)) {
+          for (const material of mesh.material) {
+            material.dispose();
+          }
+        } else {
+          mesh.material.dispose();
+        }
       }
 
       renderer.dispose();
 
-      if (renderer.domElement.parentNode === mountEl) {
-        mountEl.removeChild(renderer.domElement);
+      if (renderer.domElement.parentNode === container) {
+        container.removeChild(renderer.domElement);
       }
     };
   }, [url]);
@@ -196,32 +188,23 @@ export default function StlPreview({ url, fileName }: Props) {
   return (
     <div className="relative h-[560px] w-full overflow-hidden rounded-[24px] border border-slate-200 bg-[radial-gradient(circle_at_top,#eff6ff,#f8fafc_55%,#ffffff)]">
       <div className="absolute left-4 top-4 z-10 rounded-full border border-slate-200 bg-white/90 px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm backdrop-blur">
-        STL preview · rotate, zoom and inspect
+        STL preview
       </div>
 
-      <div
-        ref={mountRef}
-        className="h-full w-full"
-        aria-label={`3D STL preview for ${fileName}`}
-      />
+      <div ref={containerRef} className="h-full w-full" />
 
-      {status === "loading" ? (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-white/45 backdrop-blur-[1px]">
-          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 shadow-sm">
-            Loading STL preview...
-          </div>
-        </div>
-      ) : null}
-
-      {status === "error" ? (
-        <div className="absolute inset-0 flex items-center justify-center bg-white/70 p-6 backdrop-blur-[1px]">
-          <div className="max-w-md rounded-[24px] border border-rose-200 bg-white p-6 text-center shadow-sm">
-            <div className="text-sm font-semibold text-rose-700">
-              Preview unavailable
+      {status !== "ready" ? (
+        <div className="absolute inset-0 flex items-center justify-center p-6">
+          <div className="max-w-lg rounded-[24px] border border-slate-200 bg-white/95 p-6 text-center shadow-sm backdrop-blur">
+            <div className="text-sm font-semibold text-slate-900">
+              {status === "error" ? "Preview unavailable" : "Loading STL model"}
             </div>
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              {errorMessage || "This STL file could not be rendered in the browser."}
+              {status === "error"
+                ? errorMessage || "Could not load STL preview."
+                : "Preparing the STL model for in-browser viewing."}
             </p>
+            <p className="mt-4 text-xs text-slate-400">File: {fileName}</p>
           </div>
         </div>
       ) : null}

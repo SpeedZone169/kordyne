@@ -9,6 +9,9 @@ export type ProviderPackageDetailFile = {
   providerUploaded: boolean | null;
   sharedAt: string | null;
   createdAt: string;
+  previewUrl: string | null;
+  downloadUrl: string | null;
+  previewKind: "image" | "pdf" | "cad" | "other";
 };
 
 export type ProviderPackageDetailQuote = {

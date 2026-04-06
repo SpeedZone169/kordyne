@@ -197,7 +197,7 @@ export default async function CustomerRequestInvoicesPage({
     invoices = (invoicesRaw ?? []) as InvoiceRow[];
   }
 
-  let quotesByPackageId = new Map<string, QuoteRow[]>();
+  const quotesByPackageId = new Map<string, QuoteRow[]>();
 
   if (packageIds.length > 0) {
     const { data: quotesRaw, error: quotesError } = await supabase

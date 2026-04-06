@@ -153,7 +153,10 @@ function getManifestProgress(manifest: unknown): string {
   return typeof record.progress === "string" ? record.progress : "";
 }
 
-export default function ApsStepPreview({ fileId, fileName }: Props) {
+export default function ApsProviderPackageFilePreview({
+  fileId,
+  fileName,
+}: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const viewerRef = useRef<AutodeskViewerInstance | null>(null);
   const urnCacheRef = useRef<Record<string, string>>({});
@@ -172,7 +175,7 @@ export default function ApsStepPreview({ fileId, fileName }: Props) {
 
         if (!urn) {
           const prepareResponse = await fetch(
-            `/api/aps/part-files/${fileId}/prepare`,
+            `/api/aps/provider-package-files/${fileId}/prepare`,
             {
               method: "POST",
               cache: "no-store",
@@ -209,7 +212,7 @@ export default function ApsStepPreview({ fileId, fileName }: Props) {
           if (cancelled) return;
 
           const manifestResponse = await fetch(
-            `/api/aps/part-files/${fileId}/manifest?urn=${encodeURIComponent(
+            `/api/aps/provider-package-files/${fileId}/manifest?urn=${encodeURIComponent(
               urn,
             )}`,
             {
@@ -378,7 +381,7 @@ export default function ApsStepPreview({ fileId, fileName }: Props) {
       } catch (error) {
         if (cancelled) return;
 
-        console.error("APS STEP preview error:", error);
+        console.error("APS provider STEP preview error:", error);
         setPhase("error");
         setMessage(
           error instanceof Error ? error.message : "STEP preview failed.",
