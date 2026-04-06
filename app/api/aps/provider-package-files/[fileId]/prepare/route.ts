@@ -20,6 +20,12 @@ type ProviderPackageFileRow = {
   storage_path: string;
   source_type: string;
   provider_uploaded: boolean | null;
+  aps_object_key: string | null;
+  aps_object_id: string | null;
+  aps_urn: string | null;
+  aps_translation_status: string | null;
+  aps_translation_progress: string | null;
+  aps_last_error: string | null;
 };
 
 function sanitizeObjectKey(value: string) {
@@ -49,6 +55,15 @@ function getCandidateBuckets(file: ProviderPackageFileRow) {
     "service-request-files",
     "service-request-uploads",
   ];
+}
+
+function shouldReuseExistingTranslation(file: ProviderPackageFileRow) {
+  return Boolean(
+    file.aps_urn &&
+      ["uploaded", "pending", "inprogress", "success"].includes(
+        (file.aps_translation_status || "").toLowerCase(),
+      ),
+  );
 }
 
 export const runtime = "nodejs";
@@ -111,7 +126,13 @@ export async function POST(
         file_type,
         storage_path,
         source_type,
-        provider_uploaded
+        provider_uploaded,
+        aps_object_key,
+        aps_object_id,
+        aps_urn,
+        aps_translation_status,
+        aps_translation_progress,
+        aps_last_error
       `,
     )
     .eq("id", fileId)
@@ -158,54 +179,112 @@ export async function POST(
     );
   }
 
-  let fileBuffer: ArrayBuffer | null = null;
-  let lastError: string | null = null;
-
-  for (const bucket of getCandidateBuckets(file)) {
-    const download = await admin.storage.from(bucket).download(file.storage_path);
-
-    if (!download.error && download.data) {
-      fileBuffer = await download.data.arrayBuffer();
-      lastError = null;
-      break;
-    }
-
-    lastError = download.error?.message || "Could not read provider package file.";
+  if (shouldReuseExistingTranslation(file)) {
+    return NextResponse.json({
+      success: true,
+      fileId: file.id,
+      urn: file.aps_urn,
+      cached: true,
+      status: file.aps_translation_status || "unknown",
+      progress: file.aps_translation_progress,
+    });
   }
 
-  if (!fileBuffer) {
-    return NextResponse.json(
-      { error: lastError || "Could not read provider package file." },
-      { status: 400 },
-    );
-  }
+  const nowIso = new Date().toISOString();
 
   try {
-    const objectKey = `${file.id}-${sanitizeObjectKey(file.file_name)}`;
+    let objectKey = file.aps_object_key;
+    let objectId = file.aps_object_id;
+    let urn = file.aps_urn;
 
-    const uploaded = await uploadObjectToAps({
-      objectKey,
-      fileBuffer,
-      contentType: file.file_type || "application/octet-stream",
-    });
+    if (!objectId || !urn) {
+      let fileBuffer: ArrayBuffer | null = null;
+      let lastError: string | null = null;
 
-    const urn = toApsUrn(uploaded.objectId);
+      for (const bucket of getCandidateBuckets(file)) {
+        const download = await admin.storage.from(bucket).download(file.storage_path);
+
+        if (!download.error && download.data) {
+          fileBuffer = await download.data.arrayBuffer();
+          lastError = null;
+          break;
+        }
+
+        lastError =
+          download.error?.message || "Could not read provider package file.";
+      }
+
+      if (!fileBuffer) {
+        return NextResponse.json(
+          { error: lastError || "Could not read provider package file." },
+          { status: 400 },
+        );
+      }
+
+      objectKey =
+        objectKey || `${file.id}-${sanitizeObjectKey(file.file_name)}`;
+
+      const uploaded = await uploadObjectToAps({
+        objectKey,
+        fileBuffer,
+        contentType: file.file_type || "application/octet-stream",
+      });
+
+      objectId = uploaded.objectId;
+      urn = toApsUrn(uploaded.objectId);
+
+      await admin
+        .from("provider_package_files")
+        .update({
+          aps_object_key: objectKey,
+          aps_object_id: objectId,
+          aps_urn: urn,
+          aps_translation_status: "uploaded",
+          aps_translation_progress: "Uploaded to APS",
+          aps_last_prepared_at: nowIso,
+          aps_last_error: null,
+        })
+        .eq("id", file.id);
+    }
+
     await startApsTranslation(urn);
+
+    await admin
+      .from("provider_package_files")
+      .update({
+        aps_object_key: objectKey,
+        aps_object_id: objectId,
+        aps_urn: urn,
+        aps_translation_status: "inprogress",
+        aps_translation_progress: "Translation requested",
+        aps_last_prepared_at: nowIso,
+        aps_last_error: null,
+      })
+      .eq("id", file.id);
 
     return NextResponse.json({
       success: true,
       fileId: file.id,
       urn,
+      cached: false,
+      status: "inprogress",
+      progress: "Translation requested",
     });
   } catch (prepareError) {
-    return NextResponse.json(
-      {
-        error:
-          prepareError instanceof Error
-            ? prepareError.message
-            : "Failed to prepare STEP preview.",
-      },
-      { status: 500 },
-    );
+    const message =
+      prepareError instanceof Error
+        ? prepareError.message
+        : "Failed to prepare STEP preview.";
+
+    await admin
+      .from("provider_package_files")
+      .update({
+        aps_translation_status: "failed",
+        aps_translation_progress: null,
+        aps_last_error: message,
+      })
+      .eq("id", file.id);
+
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

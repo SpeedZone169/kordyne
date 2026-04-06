@@ -1,12 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import {
-  isApsStepViewerEnabled,
-  startApsTranslation,
-  toApsUrn,
-  uploadObjectToAps,
-} from "@/lib/aps";
+import { getApsManifest, isApsStepViewerEnabled } from "@/lib/aps";
 
 type MembershipRow = {
   organization_id: string;
@@ -15,46 +10,33 @@ type MembershipRow = {
 type ProviderPackageFileRow = {
   id: string;
   provider_request_package_id: string;
-  file_name: string;
-  file_type: string | null;
-  storage_path: string;
-  source_type: string;
-  provider_uploaded: boolean | null;
+  aps_urn: string | null;
+  aps_translation_status: string | null;
+  aps_translation_progress: string | null;
 };
 
-function sanitizeObjectKey(value: string) {
-  return value.replace(/[^a-zA-Z0-9._-]/g, "_");
+function getManifestStatus(manifest: unknown): string | null {
+  if (!manifest || typeof manifest !== "object") {
+    return null;
+  }
+
+  const value = (manifest as Record<string, unknown>).status;
+  return typeof value === "string" ? value.toLowerCase() : null;
 }
 
-function getCandidateBuckets(file: ProviderPackageFileRow) {
-  if (file.provider_uploaded) {
-    return ["provider-package-files", "provider-files"];
+function getManifestProgress(manifest: unknown): string | null {
+  if (!manifest || typeof manifest !== "object") {
+    return null;
   }
 
-  if (file.source_type === "part_file") {
-    return ["part-files"];
-  }
-
-  if (file.source_type === "service_request_uploaded_file") {
-    return [
-      "service-request-files",
-      "service-request-uploads",
-      "service-request-uploaded-files",
-    ];
-  }
-
-  return [
-    "provider-package-files",
-    "part-files",
-    "service-request-files",
-    "service-request-uploads",
-  ];
+  const value = (manifest as Record<string, unknown>).progress;
+  return typeof value === "string" ? value : null;
 }
 
 export const runtime = "nodejs";
 
-export async function POST(
-  _request: Request,
+export async function GET(
+  request: Request,
   { params }: { params: Promise<{ fileId: string }> },
 ) {
   const { fileId } = await params;
@@ -107,11 +89,9 @@ export async function POST(
       `
         id,
         provider_request_package_id,
-        file_name,
-        file_type,
-        storage_path,
-        source_type,
-        provider_uploaded
+        aps_urn,
+        aps_translation_status,
+        aps_translation_progress
       `,
     )
     .eq("id", fileId)
@@ -125,14 +105,6 @@ export async function POST(
   }
 
   const file = fileRaw as ProviderPackageFileRow;
-  const extension = file.file_name.split(".").pop()?.toLowerCase() ?? "";
-
-  if (!["step", "stp"].includes(extension)) {
-    return NextResponse.json(
-      { error: "Only STEP/STP files are supported." },
-      { status: 400 },
-    );
-  }
 
   const { data: pkg, error: pkgError } = await supabase
     .from("provider_request_packages")
@@ -158,54 +130,78 @@ export async function POST(
     );
   }
 
-  let fileBuffer: ArrayBuffer | null = null;
-  let lastError: string | null = null;
+  const url = new URL(request.url);
+  const urn = file.aps_urn || url.searchParams.get("urn")?.trim() || "";
 
-  for (const bucket of getCandidateBuckets(file)) {
-    const download = await admin.storage.from(bucket).download(file.storage_path);
-
-    if (!download.error && download.data) {
-      fileBuffer = await download.data.arrayBuffer();
-      lastError = null;
-      break;
-    }
-
-    lastError = download.error?.message || "Could not read provider package file.";
-  }
-
-  if (!fileBuffer) {
+  if (!urn) {
     return NextResponse.json(
-      { error: lastError || "Could not read provider package file." },
+      { error: "This STEP file has not been prepared yet." },
       { status: 400 },
     );
   }
 
   try {
-    const objectKey = `${file.id}-${sanitizeObjectKey(file.file_name)}`;
+    const manifest = await getApsManifest(urn);
+    const nowIso = new Date().toISOString();
 
-    const uploaded = await uploadObjectToAps({
-      objectKey,
-      fileBuffer,
-      contentType: file.file_type || "application/octet-stream",
-    });
+    if (!manifest) {
+      await admin
+        .from("provider_package_files")
+        .update({
+          aps_urn: urn,
+          aps_translation_status: "inprogress",
+          aps_translation_progress: "Manifest not ready yet",
+          aps_manifest_json: null,
+          aps_last_error: null,
+        })
+        .eq("id", file.id);
 
-    const urn = toApsUrn(uploaded.objectId);
-    await startApsTranslation(urn);
+      return NextResponse.json({
+        success: true,
+        urn,
+        manifest: null,
+        status: "inprogress",
+        progress: "Manifest not ready yet",
+      });
+    }
+
+    const status = getManifestStatus(manifest) || "unknown";
+    const progress = getManifestProgress(manifest);
+
+    await admin
+      .from("provider_package_files")
+      .update({
+        aps_urn: urn,
+        aps_translation_status: status,
+        aps_translation_progress: progress,
+        aps_manifest_json: manifest,
+        aps_last_translated_at: status === "success" ? nowIso : null,
+        aps_last_error: status === "failed" ? "APS translation failed." : null,
+      })
+      .eq("id", file.id);
 
     return NextResponse.json({
       success: true,
-      fileId: file.id,
       urn,
+      manifest,
+      status,
+      progress,
     });
-  } catch (prepareError) {
-    return NextResponse.json(
-      {
-        error:
-          prepareError instanceof Error
-            ? prepareError.message
-            : "Failed to prepare STEP preview.",
-      },
-      { status: 500 },
-    );
+  } catch (manifestError) {
+    const message =
+      manifestError instanceof Error
+        ? manifestError.message
+        : "Failed to get STEP manifest.";
+
+    await admin
+      .from("provider_package_files")
+      .update({
+        aps_translation_status: "failed",
+        aps_translation_progress: null,
+        aps_last_error: message,
+      })
+      .eq("id", file.id);
+
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
