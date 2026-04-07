@@ -75,6 +75,16 @@ type OrganizationNameRow = {
   name: string;
 };
 
+function compareNullableDatesAsc(a: string | null, b: string | null) {
+  if (a && b) {
+    return new Date(a).getTime() - new Date(b).getTime();
+  }
+
+  if (a) return -1;
+  if (b) return 1;
+  return 0;
+}
+
 export async function loadProviderScheduleData(): Promise<ProviderScheduleData> {
   const supabase = await createClient();
   const dashboardData = await loadProviderDashboardData();
@@ -168,7 +178,8 @@ export async function loadProviderScheduleData(): Promise<ProviderScheduleData> 
   const mappedCapabilityIdsByCenter = new Map<string, string[]>();
 
   for (const row of mappingRows) {
-    const existing = mappedCapabilityIdsByCenter.get(row.provider_work_center_id) ?? [];
+    const existing =
+      mappedCapabilityIdsByCenter.get(row.provider_work_center_id) ?? [];
     existing.push(row.provider_capability_id);
     mappedCapabilityIdsByCenter.set(row.provider_work_center_id, existing);
   }
@@ -207,7 +218,9 @@ export async function loadProviderScheduleData(): Promise<ProviderScheduleData> 
 
   const customerOrgIds = [
     ...new Set(
-      bookingRows.map((row) => row.customer_org_id).filter((value): value is string => Boolean(value)),
+      bookingRows
+        .map((row) => row.customer_org_id)
+        .filter((value): value is string => Boolean(value)),
     ),
   ];
 
@@ -224,7 +237,10 @@ export async function loadProviderScheduleData(): Promise<ProviderScheduleData> 
     }
 
     customerNameMap = new Map(
-      ((customerOrgsRaw ?? []) as OrganizationNameRow[]).map((org) => [org.id, org.name]),
+      ((customerOrgsRaw ?? []) as OrganizationNameRow[]).map((org) => [
+        org.id,
+        org.name,
+      ]),
     );
   }
 
@@ -274,26 +290,45 @@ export async function loadProviderScheduleData(): Promise<ProviderScheduleData> 
 
   const bookedPackageIds = new Set(
     bookings
+      .filter((booking) => booking.bookingStatus !== "cancelled")
       .map((booking) => booking.providerRequestPackageId)
       .filter((value): value is string => Boolean(value)),
   );
 
-  const unscheduledAwards: ProviderScheduleUnscheduledAward[] = dashboardData.rows
-    .filter(
-      (row) => row.packageStatus === "awarded" && !bookedPackageIds.has(row.packageId),
-    )
-    .map((row) => ({
-      packageId: row.packageId,
-      serviceRequestId: row.serviceRequestId,
-      title: row.packageTitle,
-      customerOrgName: row.customerOrgName,
-      targetDueDate: row.targetDueDate,
-      requestedQuantity: row.requestedQuantity,
-      latestQuoteStatus: row.latestQuoteStatus,
-      latestLeadTimeDays: row.latestLeadTimeDays,
-      latestTotalPrice: row.latestTotalPrice,
-      latestCurrencyCode: row.latestCurrencyCode,
-    }));
+  const unscheduledAwards: ProviderScheduleUnscheduledAward[] =
+    dashboardData.rows
+      .filter(
+        (row) =>
+          row.packageStatus === "awarded" &&
+          !bookedPackageIds.has(row.packageId),
+      )
+      .map((row) => ({
+        packageId: row.packageId,
+        serviceRequestId: row.serviceRequestId,
+        title: row.packageTitle,
+        customerOrgName: row.customerOrgName,
+        targetDueDate: row.targetDueDate,
+        requestedQuantity: row.requestedQuantity,
+        latestQuoteStatus: row.latestQuoteStatus,
+        latestLeadTimeDays: row.latestLeadTimeDays,
+        latestTotalPrice: row.latestTotalPrice,
+        latestCurrencyCode: row.latestCurrencyCode,
+      }))
+      .sort((a, b) => {
+        const dateCompare = compareNullableDatesAsc(
+          a.targetDueDate,
+          b.targetDueDate,
+        );
+
+        if (dateCompare !== 0) {
+          return dateCompare;
+        }
+
+        const titleA = (a.title || a.customerOrgName || "").toLowerCase();
+        const titleB = (b.title || b.customerOrgName || "").toLowerCase();
+
+        return titleA.localeCompare(titleB);
+      });
 
   return {
     organization: dashboardData.organization,
@@ -304,7 +339,8 @@ export async function loadProviderScheduleData(): Promise<ProviderScheduleData> 
     unscheduledAwards,
     summary: {
       workCenterCount: workCenters.length,
-      activeWorkCenterCount: workCenters.filter((center) => center.active).length,
+      activeWorkCenterCount: workCenters.filter((center) => center.active)
+        .length,
       blockCount: blocks.length,
       bookingCount: bookings.length,
       unscheduledAwardCount: unscheduledAwards.length,

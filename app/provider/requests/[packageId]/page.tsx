@@ -72,57 +72,6 @@ function getPreviewKind(
   return "other";
 }
 
-function getCandidateBuckets(file: ProviderPackageFileRow) {
-  if (file.provider_uploaded) {
-    return ["provider-package-files", "provider-files"];
-  }
-
-  if (file.source_type === "part_file") {
-    return ["part-files"];
-  }
-
-  if (file.source_type === "service_request_uploaded_file") {
-    return [
-      "service-request-files",
-      "service-request-uploads",
-      "service-request-uploaded-files",
-    ];
-  }
-
-  return [
-    "provider-package-files",
-    "part-files",
-    "service-request-files",
-    "service-request-uploads",
-  ];
-}
-
-async function createSignedUrlFromCandidateBuckets(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  file: ProviderPackageFileRow,
-  downloadFileName?: string,
-) {
-  const buckets = getCandidateBuckets(file);
-
-  for (const bucket of buckets) {
-    const result = await supabase.storage.from(bucket).createSignedUrl(
-      file.storage_path,
-      60 * 10,
-      downloadFileName
-        ? {
-            download: downloadFileName,
-          }
-        : undefined,
-    );
-
-    if (!result.error && result.data?.signedUrl) {
-      return result.data.signedUrl;
-    }
-  }
-
-  return null;
-}
-
 export default async function ProviderRequestDetailPage({
   params,
 }: PageProps) {
@@ -348,34 +297,31 @@ export default async function ProviderRequestDetailPage({
 
   const fileRows = (files ?? []) as ProviderPackageFileRow[];
 
-  const mappedFiles: ProviderPackageDetailFile[] = await Promise.all(
-    fileRows.map(async (file) => {
-      const previewKind = getPreviewKind(file.file_name, file.file_type);
+  const mappedFiles: ProviderPackageDetailFile[] = fileRows.map((file) => {
+    const previewKind = getPreviewKind(file.file_name, file.file_type);
+    const baseContentUrl = `/api/provider-package-files/${file.id}/content`;
 
-      const [previewUrl, downloadUrl] = await Promise.all([
-        previewKind === "pdf" || previewKind === "image"
-          ? createSignedUrlFromCandidateBuckets(supabase, file)
-          : createSignedUrlFromCandidateBuckets(supabase, file, file.file_name),
-        createSignedUrlFromCandidateBuckets(supabase, file, file.file_name),
-      ]);
-
-      return {
-        id: file.id,
-        sourceType: file.source_type as ProviderPackageDetailFile["sourceType"],
-        fileName: file.file_name,
-        fileType: file.file_type,
-        fileSizeBytes: file.file_size_bytes,
-        assetCategory: file.asset_category,
-        storagePath: file.storage_path,
-        providerUploaded: file.provider_uploaded,
-        sharedAt: file.shared_at,
-        createdAt: file.created_at,
-        previewUrl,
-        downloadUrl,
-        previewKind,
-      };
-    }),
-  );
+    return {
+      id: file.id,
+      sourceType: file.source_type as ProviderPackageDetailFile["sourceType"],
+      fileName: file.file_name,
+      fileType: file.file_type,
+      fileSizeBytes: file.file_size_bytes,
+      assetCategory: file.asset_category,
+      storagePath: file.storage_path,
+      providerUploaded: file.provider_uploaded,
+      sharedAt: file.shared_at,
+      createdAt: file.created_at,
+      previewUrl:
+        previewKind === "image" ||
+        previewKind === "pdf" ||
+        previewKind === "cad"
+          ? `${baseContentUrl}?mode=inline`
+          : null,
+      downloadUrl: `${baseContentUrl}?mode=download`,
+      previewKind,
+    };
+  });
 
   const mappedQuotes: ProviderPackageDetailQuote[] = (quotes ?? []).map(
     (quote) => ({

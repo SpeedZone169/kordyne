@@ -8,10 +8,7 @@ import ServiceRequestActions from "./ServiceRequestActions";
 import ServiceRequestHistory from "./ServiceRequestHistory";
 import CreateRevisionButton from "./CreateRevisionButton";
 import PartFilesViewer from "./PartFilesViewer";
-import {
-  getPartCategoryLabel,
-  getProcessTypeLabel,
-} from "@/lib/parts";
+import { getPartCategoryLabel, getProcessTypeLabel } from "@/lib/parts";
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -258,53 +255,25 @@ export default async function PartDetailPage({ params }: PageProps) {
 
   const creatorProfile = part.user_id ? profileMap.get(part.user_id) : null;
 
-  const filesWithUrls: PartFileWithUrls[] = files
-    ? await Promise.all(
-        (files as PartFile[]).map(async (file) => {
-         const previewKind = getPreviewKind(file.file_name, file.file_type);
+  const filesWithUrls: PartFileWithUrls[] = ((files as PartFile[] | null) ?? []).map(
+    (file) => {
+      const previewKind = getPreviewKind(file.file_name, file.file_type);
+      const baseContentUrl = `/api/part-files/${file.id}/content`;
 
-const [previewSigned, downloadSigned] = await Promise.all([
-  previewKind === "pdf" || previewKind === "image"
-    ? supabase.storage
-        .from("part-files")
-        .createSignedUrl(file.storage_path, 60 * 10)
-    : Promise.resolve({ data: null, error: null }),
-  supabase.storage
-    .from("part-files")
-    .createSignedUrl(file.storage_path, 60 * 10, {
-      download: file.file_name,
-    }),
-]);
-
-if (previewSigned?.error) {
-  console.error(
-    "Preview signed URL error for file:",
-    file.file_name,
-    previewSigned.error,
+      return {
+        ...file,
+        previewUrl:
+          previewKind === "image" ||
+          previewKind === "pdf" ||
+          previewKind === "cad"
+            ? `${baseContentUrl}?mode=inline`
+            : null,
+        downloadUrl: `${baseContentUrl}?mode=download`,
+        uploaderName: getDisplayName(profileMap.get(file.user_id)),
+        previewKind,
+      };
+    },
   );
-}
-
-if (downloadSigned.error) {
-  console.error(
-    "Download signed URL error for file:",
-    file.file_name,
-    downloadSigned.error,
-  );
-}
-
-return {
-  ...file,
-  previewUrl:
-    previewKind === "pdf" || previewKind === "image"
-      ? previewSigned?.data?.signedUrl || null
-      : downloadSigned.data?.signedUrl || null,
-  downloadUrl: downloadSigned.data?.signedUrl || null,
-  uploaderName: getDisplayName(profileMap.get(file.user_id)),
-  previewKind,
-};
-        }),
-      )
-    : [];
 
   const groupedFiles = groupFilesByCategory(filesWithUrls);
 
@@ -722,7 +691,7 @@ return {
                             fileId={file.id}
                             fileName={file.file_name}
                             storagePath={file.storage_path}
-                            signedUrl={file.downloadUrl}
+                            downloadUrl={file.downloadUrl}
                             assetCategory={file.asset_category}
                           />
                         ) : file.downloadUrl ? (
