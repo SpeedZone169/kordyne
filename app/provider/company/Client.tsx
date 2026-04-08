@@ -14,9 +14,9 @@ export default function Client({ data }: Props) {
   const supabase = createClient();
 
   const organization = data.organization;
-  const canEdit =
-    organization &&
-    ["admin", "engineer"].includes(organization.memberRole || "");
+const canEdit =
+  organization &&
+  ["admin", "engineer"].includes(organization.memberRole || "");
 
   const [website, setWebsite] = useState(data.profile?.website ?? "");
   const [phone, setPhone] = useState(data.profile?.phone ?? "");
