@@ -1,7 +1,6 @@
 "use client";
 
-import AddResourceForm from "./AddResourceForm";
-import MapCapabilityForm from "./MapCapabilityForm";
+import Link from "next/link";
 import type {
   InternalManufacturingData,
   InternalManufacturingJob,
@@ -241,20 +240,31 @@ export default function Client({ data }: ClientProps) {
               Factory workspace
             </h1>
             <p className="mt-4 max-w-3xl text-[16px] leading-8 text-slate-600">
-              Manage internal resources, capabilities, manual statuses, and
+              Monitor internal resources, capabilities, recent status changes, and
               routing-ready jobs before sending work out to external vendors.
             </p>
           </div>
 
-          <div className="rounded-[24px] border border-zinc-200 bg-[#fcfcfb] px-5 py-4">
-            <div className="text-sm font-semibold text-[#0b1633]">
-              {organization?.name ?? "No organization"}
+          <div className="flex flex-col items-stretch gap-3 lg:items-end">
+            <div className="rounded-[24px] border border-zinc-200 bg-[#fcfcfb] px-5 py-4">
+              <div className="text-sm font-semibold text-[#0b1633]">
+                {organization?.name ?? "No organization"}
+              </div>
+              <div className="mt-2 text-sm text-slate-500">
+                {(organization?.organizationType ?? "unknown").replaceAll("_", " ")} ·
+                role {organization?.membershipRole ?? "—"} · plan{" "}
+                {organization?.plan ?? "—"}
+              </div>
             </div>
-            <div className="mt-2 text-sm text-slate-500">
-              {(organization?.organizationType ?? "unknown").replaceAll("_", " ")} ·
-              role {organization?.membershipRole ?? "—"} · plan{" "}
-              {organization?.plan ?? "—"}
-            </div>
+
+            {canManage ? (
+              <Link
+                href="/dashboard/internal-manufacturing/setup"
+                className="inline-flex items-center justify-center rounded-full bg-[#0b1633] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#13224a]"
+              >
+                Manage Resources & Capabilities
+              </Link>
+            ) : null}
           </div>
         </div>
 
@@ -306,21 +316,27 @@ export default function Client({ data }: ClientProps) {
       </section>
 
       {canManage ? (
-        <section className="grid gap-8 xl:grid-cols-2">
-          <AddResourceForm organizationId={organization.id} />
-          <MapCapabilityForm resources={resources} capabilities={capabilities} />
-        </section>
-      ) : (
-        <section className="rounded-[28px] border border-zinc-200 bg-white p-6 shadow-sm">
-          <div className="text-[18px] font-semibold text-[#0b1633]">
-            Management actions unavailable
+        <section className="rounded-[32px] border border-zinc-200 bg-white p-7 shadow-sm">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h2 className="text-[22px] font-semibold tracking-tight text-[#0b1633]">
+                Factory setup
+              </h2>
+              <p className="mt-3 max-w-3xl text-[15px] leading-8 text-slate-600">
+                Add resources, define capabilities, map them together, and prepare
+                the internal factory model that powers routing and scheduling.
+              </p>
+            </div>
+
+            <Link
+              href="/dashboard/internal-manufacturing/setup"
+              className="inline-flex items-center justify-center rounded-full border border-zinc-200 bg-[#fcfcfb] px-5 py-3 text-sm font-semibold text-[#0b1633] transition hover:bg-zinc-50"
+            >
+              Open setup
+            </Link>
           </div>
-          <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-600">
-            Only customer organization admins can add resources or manage internal
-            capability mappings from this workspace.
-          </p>
         </section>
-      )}
+      ) : null}
 
       <section className="grid gap-8 xl:grid-cols-[1.35fr_0.95fr]">
         <SectionCard
@@ -349,6 +365,16 @@ export default function Client({ data }: ClientProps) {
           <SectionCard
             title="Capabilities"
             description="Capability codes mapped to your internal resource pool."
+            action={
+              canManage ? (
+                <Link
+                  href="/dashboard/internal-manufacturing/setup"
+                  className="inline-flex items-center justify-center rounded-full border border-zinc-200 bg-[#fcfcfb] px-4 py-2 text-sm font-medium text-[#0b1633] transition hover:bg-zinc-50"
+                >
+                  Manage setup
+                </Link>
+              ) : null
+            }
           >
             <div className="space-y-4">
               {capabilities.length > 0 ? (
