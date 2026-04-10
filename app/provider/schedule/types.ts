@@ -79,6 +79,25 @@ export type ProviderScheduleUnscheduledAward = {
   latestLeadTimeDays: number | null;
   latestTotalPrice: number | null;
   latestCurrencyCode: string | null;
+  requestType: string | null;
+  targetProcess: string | null;
+  targetMaterial: string | null;
+};
+
+export type ProviderScheduleRisk = "none" | "low" | "medium" | "high";
+
+export type ProviderScheduleRecommendation = {
+  packageId: string;
+  suggestedWorkCenterId: string | null;
+  suggestedWorkCenterName: string | null;
+  suggestedCapabilityId: string | null;
+  suggestedCapabilityName: string | null;
+  suggestedStartDate: string | null;
+  suggestedEndDate: string | null;
+  confidence: "low" | "medium" | "high";
+  riskLevel: ProviderScheduleRisk;
+  isFeasible: boolean;
+  reasons: string[];
 };
 
 export type ProviderScheduleData = {
@@ -88,11 +107,16 @@ export type ProviderScheduleData = {
   blocks: ProviderScheduleBlock[];
   bookings: ProviderScheduleBooking[];
   unscheduledAwards: ProviderScheduleUnscheduledAward[];
+  recommendationsByPackageId: Record<string, ProviderScheduleRecommendation>;
   summary: {
     workCenterCount: number;
     activeWorkCenterCount: number;
     blockCount: number;
     bookingCount: number;
     unscheduledAwardCount: number;
+    dueSoonBookingCount: number;
+    overdueBookingCount: number;
+    overloadedLaneCount: number;
+    underusedLaneCount: number;
   };
 };
