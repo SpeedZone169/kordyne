@@ -1,5 +1,7 @@
 "use client";
 
+import AddResourceForm from "./AddResourceForm";
+import MapCapabilityForm from "./MapCapabilityForm";
 import type {
   InternalManufacturingData,
   InternalManufacturingJob,
@@ -223,6 +225,10 @@ export default function Client({ data }: ClientProps) {
   const { organization, summary, resources, capabilities, jobs, recentStatusEvents, errors } =
     data;
 
+  const canManage =
+    organization?.organizationType === "customer" &&
+    organization?.membershipRole === "admin";
+
   return (
     <div className="space-y-8">
       <section className="rounded-[32px] border border-zinc-200 bg-white p-8 shadow-sm">
@@ -298,6 +304,23 @@ export default function Client({ data }: ClientProps) {
           hint="Internal jobs that have passed their due date and need attention."
         />
       </section>
+
+      {canManage ? (
+        <section className="grid gap-8 xl:grid-cols-2">
+          <AddResourceForm organizationId={organization.id} />
+          <MapCapabilityForm resources={resources} capabilities={capabilities} />
+        </section>
+      ) : (
+        <section className="rounded-[28px] border border-zinc-200 bg-white p-6 shadow-sm">
+          <div className="text-[18px] font-semibold text-[#0b1633]">
+            Management actions unavailable
+          </div>
+          <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-600">
+            Only customer organization admins can add resources or manage internal
+            capability mappings from this workspace.
+          </p>
+        </section>
+      )}
 
       <section className="grid gap-8 xl:grid-cols-[1.35fr_0.95fr]">
         <SectionCard
