@@ -9,6 +9,7 @@ const navItems = [
   { href: "/dashboard", label: "Overview" },
   { href: "/dashboard/parts", label: "Parts" },
   { href: "/dashboard/requests", label: "Requests" },
+  { href: "/dashboard/internal-manufacturing", label: "Internal Manufacturing" },
   { href: "/dashboard/organization", label: "Organization" },
   { href: "/dashboard/account", label: "Account" },
   { href: "/dashboard/insights", label: "Insights" },
