@@ -1,4 +1,5 @@
 import Link from "next/link";
+import AddCapabilityForm from "../AddCapabilityForm";
 import AddResourceForm from "../AddResourceForm";
 import MapCapabilityForm from "../MapCapabilityForm";
 import { loadInternalManufacturingData } from "../loadInternalManufacturingData";
@@ -96,10 +97,60 @@ export default async function InternalManufacturingSetupPage() {
       </section>
 
       {canManage ? (
-        <section className="grid gap-8 xl:grid-cols-2">
-          <AddResourceForm organizationId={organization.id} />
-          <MapCapabilityForm resources={resources} capabilities={capabilities} />
-        </section>
+        <>
+          <section className="grid gap-8 xl:grid-cols-2">
+            <AddResourceForm organizationId={organization.id} />
+            <AddCapabilityForm organizationId={organization.id} />
+          </section>
+
+          <section className="grid gap-8 xl:grid-cols-2">
+            <MapCapabilityForm resources={resources} capabilities={capabilities} />
+
+            <div className="rounded-[28px] border border-zinc-200 bg-white p-6 shadow-sm">
+              <div>
+                <h3 className="text-[20px] font-semibold tracking-tight text-[#0b1633]">
+                  Next setup steps
+                </h3>
+                <p className="mt-2 text-sm leading-7 text-slate-600">
+                  This setup workspace is the right home for the remaining factory
+                  configuration pieces.
+                </p>
+              </div>
+
+              <div className="mt-6 space-y-4">
+                <div className="rounded-[22px] border border-zinc-200 bg-[#fcfcfb] p-4">
+                  <div className="text-[16px] font-semibold text-[#0b1633]">
+                    Manual status tools
+                  </div>
+                  <p className="mt-2 text-sm leading-7 text-slate-600">
+                    Add contextual resource status updates without cluttering the
+                    overview page.
+                  </p>
+                </div>
+
+                <div className="rounded-[22px] border border-zinc-200 bg-[#fcfcfb] p-4">
+                  <div className="text-[16px] font-semibold text-[#0b1633]">
+                    Constraints & materials
+                  </div>
+                  <p className="mt-2 text-sm leading-7 text-slate-600">
+                    Define supported materials, size limits, tolerances, and other
+                    planning constraints.
+                  </p>
+                </div>
+
+                <div className="rounded-[22px] border border-zinc-200 bg-[#fcfcfb] p-4">
+                  <div className="text-[16px] font-semibold text-[#0b1633]">
+                    Live integrations
+                  </div>
+                  <p className="mt-2 text-sm leading-7 text-slate-600">
+                    Later connect supported printers and factory systems for live
+                    status, queue, and utilization updates.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
+        </>
       ) : (
         <section className="rounded-[28px] border border-zinc-200 bg-white p-6 shadow-sm">
           <div className="text-[18px] font-semibold text-[#0b1633]">
@@ -111,52 +162,6 @@ export default async function InternalManufacturingSetupPage() {
           </p>
         </section>
       )}
-
-      <section className="rounded-[32px] border border-zinc-200 bg-white p-7 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <h2 className="text-[22px] font-semibold tracking-tight text-[#0b1633]">
-              What comes next
-            </h2>
-            <p className="mt-3 max-w-3xl text-[15px] leading-8 text-slate-600">
-              This setup page is the right home for future capability creation,
-              live machine connections, and constraint management.
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-8 grid gap-4 md:grid-cols-3">
-          <div className="rounded-[24px] border border-zinc-200 bg-[#fcfcfb] p-5">
-            <div className="text-[16px] font-semibold text-[#0b1633]">
-              Add capabilities
-            </div>
-            <p className="mt-3 text-sm leading-7 text-slate-600">
-              Create new internal process and material capabilities directly from
-              this setup workspace.
-            </p>
-          </div>
-
-          <div className="rounded-[24px] border border-zinc-200 bg-[#fcfcfb] p-5">
-            <div className="text-[16px] font-semibold text-[#0b1633]">
-              Manual status tools
-            </div>
-            <p className="mt-3 text-sm leading-7 text-slate-600">
-              Add contextual resource status updates without cluttering the main
-              overview page.
-            </p>
-          </div>
-
-          <div className="rounded-[24px] border border-zinc-200 bg-[#fcfcfb] p-5">
-            <div className="text-[16px] font-semibold text-[#0b1633]">
-              Live integrations
-            </div>
-            <p className="mt-3 text-sm leading-7 text-slate-600">
-              Later connect supported printers and factory systems for live
-              status, queue, and utilization updates.
-            </p>
-          </div>
-        </div>
-      </section>
     </div>
   );
 }
