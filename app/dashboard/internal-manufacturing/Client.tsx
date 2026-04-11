@@ -278,6 +278,7 @@ export default function Client({ data }: ClientProps) {
               >
                 Manage Resources & Capabilities
               </Link>
+                            
             ) : null}
           </div>
         </div>
@@ -288,7 +289,12 @@ export default function Client({ data }: ClientProps) {
 >
   Open schedule
 </Link>
-
+<Link
+  href="/dashboard/internal-manufacturing/connectors"
+  className="inline-flex items-center justify-center rounded-full border border-zinc-200 bg-[#fcfcfb] px-5 py-3 text-sm font-semibold text-[#0b1633] transition hover:bg-zinc-50"
+>
+  Manage connectors
+</Link>
         {errors.length > 0 ? (
           <div className="mt-6 rounded-[24px] border border-amber-200 bg-amber-50 p-5">
             <div className="text-sm font-semibold text-amber-800">
