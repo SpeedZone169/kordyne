@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import UpdateResourceStatusForm from "./UpdateResourceStatusForm";
 import type {
   InternalManufacturingData,
   InternalManufacturingJob,
@@ -82,7 +83,13 @@ function SectionCard(props: {
   );
 }
 
-function ResourceRow({ resource }: { resource: InternalManufacturingResource }) {
+function ResourceRow({
+  resource,
+  canManage,
+}: {
+  resource: InternalManufacturingResource;
+  canManage: boolean;
+}) {
   return (
     <div className="rounded-[26px] border border-zinc-200 bg-[#fcfcfb] p-5">
       <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
@@ -154,6 +161,13 @@ function ResourceRow({ resource }: { resource: InternalManufacturingResource }) 
           </div>
         </div>
       </div>
+
+      {canManage ? (
+        <UpdateResourceStatusForm
+          resourceId={resource.id}
+          resourceName={resource.name}
+        />
+      ) : null}
     </div>
   );
 }
@@ -268,6 +282,13 @@ export default function Client({ data }: ClientProps) {
           </div>
         </div>
 
+        <Link
+  href="/dashboard/internal-manufacturing/schedule"
+  className="inline-flex items-center justify-center rounded-full border border-zinc-200 bg-[#fcfcfb] px-5 py-3 text-sm font-semibold text-[#0b1633] transition hover:bg-zinc-50"
+>
+  Open schedule
+</Link>
+
         {errors.length > 0 ? (
           <div className="mt-6 rounded-[24px] border border-amber-200 bg-amber-50 p-5">
             <div className="text-sm font-semibold text-amber-800">
@@ -351,7 +372,11 @@ export default function Client({ data }: ClientProps) {
           <div className="space-y-4">
             {resources.length > 0 ? (
               resources.map((resource) => (
-                <ResourceRow key={resource.id} resource={resource} />
+                <ResourceRow
+                  key={resource.id}
+                  resource={resource}
+                  canManage={canManage}
+                />
               ))
             ) : (
               <div className="rounded-[24px] border border-dashed border-zinc-300 bg-[#fcfcfb] p-6 text-sm text-slate-500">
