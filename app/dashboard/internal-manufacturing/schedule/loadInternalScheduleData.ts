@@ -17,6 +17,7 @@ import { loadInternalManufacturingData } from "../loadInternalManufacturingData"
 import type {
   InternalScheduleAssignment,
   InternalScheduleBacklogItem,
+  InternalScheduleBlock,
   InternalScheduleCapabilitySummary,
   InternalScheduleData,
   InternalScheduleRecommendation,
@@ -88,20 +89,26 @@ type AssignmentRow = {
   created_at: string;
 };
 
+type BlockRow = {
+  id: string;
+  organization_id: string;
+  resource_id: string;
+  block_type: "maintenance" | "downtime" | "holiday" | "internal_hold" | "other";
+  title: string;
+  notes: string | null;
+  starts_at: string;
+  ends_at: string;
+  all_day: boolean;
+  entered_by_user_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 function getEstimatedTotalMinutes(operation: OperationRow) {
   const setup = operation.estimated_setup_minutes ?? 0;
   const run = operation.estimated_run_minutes ?? 0;
   const total = setup + run;
   return total > 0 ? total : null;
-}
-
-function getDurationDays(operation: OperationRow) {
-  const totalMinutes = getEstimatedTotalMinutes(operation);
-  if (!totalMinutes) {
-    return 1;
-  }
-
-  return Math.max(1, Math.ceil(totalMinutes / 480));
 }
 
 function getCapabilityFitScore(
@@ -284,12 +291,14 @@ export async function loadInternalScheduleData(): Promise<InternalScheduleData> 
     return {
       organization: null,
       resources: [],
+      blocks: [],
       assignments: [],
       backlog: [],
       recommendationsByOperationId: {},
       summary: {
         resourceCount: 0,
         activeResourceCount: 0,
+        blockCount: 0,
         assignmentCount: 0,
         backlogCount: 0,
         dueSoonAssignmentCount: 0,
@@ -311,6 +320,7 @@ export async function loadInternalScheduleData(): Promise<InternalScheduleData> 
     jobsResult,
     operationsResult,
     assignmentsResult,
+    blocksResult,
   ] = await Promise.all([
     supabase
       .from("internal_resources")
@@ -350,6 +360,14 @@ export async function loadInternalScheduleData(): Promise<InternalScheduleData> 
       )
       .eq("organization_id", organizationId)
       .order("starts_at", { ascending: true }),
+
+    supabase
+      .from("internal_schedule_blocks")
+      .select(
+        "id, organization_id, resource_id, block_type, title, notes, starts_at, ends_at, all_day, entered_by_user_id, created_at, updated_at",
+      )
+      .eq("organization_id", organizationId)
+      .order("starts_at", { ascending: true }),
   ]);
 
   if (resourcesResult.error) errors.push(resourcesResult.error.message);
@@ -357,12 +375,14 @@ export async function loadInternalScheduleData(): Promise<InternalScheduleData> 
   if (jobsResult.error) errors.push(jobsResult.error.message);
   if (operationsResult.error) errors.push(operationsResult.error.message);
   if (assignmentsResult.error) errors.push(assignmentsResult.error.message);
+  if (blocksResult.error) errors.push(blocksResult.error.message);
 
   const resourceRows = (resourcesResult.data ?? []) as ResourceRow[];
   const capabilityRows = (capabilitiesResult.data ?? []) as CapabilityRow[];
   const jobRows = (jobsResult.data ?? []) as JobRow[];
   const operationRows = (operationsResult.data ?? []) as OperationRow[];
   const assignmentRows = (assignmentsResult.data ?? []) as AssignmentRow[];
+  const blockRows = (blocksResult.data ?? []) as BlockRow[];
 
   const resourceIds = resourceRows.map((row) => row.id);
 
@@ -420,6 +440,21 @@ export async function loadInternalScheduleData(): Promise<InternalScheduleData> 
       mappedCapabilities,
     };
   });
+
+  const blocks: InternalScheduleBlock[] = blockRows.map((row) => ({
+    id: row.id,
+    organizationId: row.organization_id,
+    resourceId: row.resource_id,
+    blockType: row.block_type,
+    title: row.title,
+    notes: row.notes,
+    startsAt: row.starts_at,
+    endsAt: row.ends_at,
+    allDay: row.all_day,
+    enteredByUserId: row.entered_by_user_id,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }));
 
   const assignments: InternalScheduleAssignment[] = assignmentRows
     .map((row) => {
@@ -512,7 +547,7 @@ export async function loadInternalScheduleData(): Promise<InternalScheduleData> 
       return a.jobTitle.localeCompare(b.jobTitle);
     });
 
-  const occupancies = buildOccupancies(
+  const assignmentOccupancies = buildOccupancies(
     assignments.map((assignment) => ({
       laneId: assignment.resourceId,
       startsAt: assignment.startsAt,
@@ -520,6 +555,17 @@ export async function loadInternalScheduleData(): Promise<InternalScheduleData> 
     })),
     "assignment",
   );
+
+  const blockOccupancies = buildOccupancies(
+    blocks.map((block) => ({
+      laneId: block.resourceId,
+      startsAt: block.startsAt,
+      endsAt: block.endsAt,
+    })),
+    "block",
+  );
+
+  const occupancies = [...assignmentOccupancies, ...blockOccupancies];
 
   const today = startOfDay(new Date());
   const recommendationsByOperationId: Record<string, InternalScheduleRecommendation> = {};
@@ -575,12 +621,14 @@ export async function loadInternalScheduleData(): Promise<InternalScheduleData> 
   return {
     organization: base.organization,
     resources,
+    blocks,
     assignments,
     backlog,
     recommendationsByOperationId,
     summary: {
       resourceCount: resources.length,
       activeResourceCount: resources.filter((resource) => resource.active).length,
+      blockCount: blocks.length,
       assignmentCount: assignments.length,
       backlogCount: backlog.length,
       dueSoonAssignmentCount,

@@ -21,6 +21,21 @@ export type InternalScheduleResource = {
   mappedCapabilities: InternalScheduleCapabilitySummary[];
 };
 
+export type InternalScheduleBlock = {
+  id: string;
+  organizationId: string;
+  resourceId: string;
+  blockType: "maintenance" | "downtime" | "holiday" | "internal_hold" | "other";
+  title: string;
+  notes: string | null;
+  startsAt: string;
+  endsAt: string;
+  allDay: boolean;
+  enteredByUserId: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type InternalScheduleAssignment = {
   id: string;
   organizationId: string;
@@ -80,12 +95,14 @@ export type InternalScheduleRecommendation = {
 export type InternalScheduleData = {
   organization: InternalManufacturingOrganization | null;
   resources: InternalScheduleResource[];
+  blocks: InternalScheduleBlock[];
   assignments: InternalScheduleAssignment[];
   backlog: InternalScheduleBacklogItem[];
   recommendationsByOperationId: Record<string, InternalScheduleRecommendation>;
   summary: {
     resourceCount: number;
     activeResourceCount: number;
+    blockCount: number;
     assignmentCount: number;
     backlogCount: number;
     dueSoonAssignmentCount: number;

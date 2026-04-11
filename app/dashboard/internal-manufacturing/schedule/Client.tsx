@@ -4,9 +4,12 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { PlanningRisk } from "@/lib/planning-core";
 import CreateInternalAssignmentForm from "./CreateInternalAssignmentForm";
+import CreateInternalScheduleBlockForm from "./CreateInternalScheduleBlockForm";
+import InternalScheduleBlockManagementCard from "./InternalScheduleBlockManagementCard";
 import type {
   InternalScheduleAssignment,
   InternalScheduleBacklogItem,
+  InternalScheduleBlock,
   InternalScheduleData,
   InternalScheduleResource,
 } from "./types";
@@ -17,18 +20,32 @@ type Props = {
 
 type ViewMode = "week" | "month" | "twoMonths" | "threeMonths";
 
-type TimelineEntry = {
-  id: string;
-  laneId: string;
-  title: string;
-  subtitle: string;
-  startsAt: Date;
-  endsAt: Date;
-  status: string;
-  riskLevel: PlanningRisk | null;
-  isHistorical: boolean;
-  targetLabel: string | null;
-};
+type TimelineEntry =
+  | {
+      kind: "assignment";
+      id: string;
+      laneId: string;
+      title: string;
+      subtitle: string;
+      startsAt: Date;
+      endsAt: Date;
+      status: string;
+      riskLevel: PlanningRisk | null;
+      isHistorical: boolean;
+      targetLabel: string | null;
+    }
+  | {
+      kind: "block";
+      id: string;
+      laneId: string;
+      title: string;
+      subtitle: string;
+      startsAt: Date;
+      endsAt: Date;
+      blockType: string;
+      isHistorical: boolean;
+      targetLabel: null;
+    };
 
 const DAY_WIDTH = 42;
 const LANE_WIDTH = 280;
@@ -157,6 +174,25 @@ function getAssignmentClasses(status: string, isHistorical: boolean) {
   return "border border-zinc-300 bg-zinc-50 text-slate-800";
 }
 
+function getBlockClasses(blockType: string, isHistorical: boolean) {
+  if (isHistorical) {
+    return "border border-zinc-300 bg-zinc-100 text-zinc-600";
+  }
+
+  switch (blockType) {
+    case "maintenance":
+      return "border border-amber-200 bg-amber-50 text-amber-800";
+    case "downtime":
+      return "border border-rose-200 bg-rose-50 text-rose-700";
+    case "holiday":
+      return "border border-sky-200 bg-sky-50 text-sky-700";
+    case "internal_hold":
+      return "border border-slate-200 bg-slate-100 text-slate-700";
+    default:
+      return "border border-zinc-300 bg-zinc-50 text-zinc-700";
+  }
+}
+
 function getConfidenceBadgeClasses(confidence: "low" | "medium" | "high") {
   switch (confidence) {
     case "high":
@@ -181,32 +217,62 @@ function getRiskBadgeClasses(risk: "none" | "low" | "medium" | "high") {
   }
 }
 
-function buildEntries(assignments: InternalScheduleAssignment[]) {
+function buildEntries(
+  assignments: InternalScheduleAssignment[],
+  blocks: InternalScheduleBlock[],
+): TimelineEntry[] {
   const today = startOfDay(new Date());
 
-  return assignments
-    .map((assignment) => {
-      const startsAt = parseDate(assignment.startsAt);
-      const endsAt = parseDate(assignment.endsAt);
+  const assignmentEntries = assignments.flatMap((assignment) => {
+    const startsAt = parseDate(assignment.startsAt);
+    const endsAt = parseDate(assignment.endsAt);
 
-      if (!startsAt || !endsAt) {
-        return null;
-      }
+    if (!startsAt || !endsAt) {
+      return [];
+    }
 
-      return {
-        id: assignment.id,
-        laneId: assignment.resourceId,
-        title: assignment.jobTitle,
-        subtitle: `${formatLabel(assignment.operationType)} · ${assignment.resourceName}`,
-        startsAt,
-        endsAt,
-        status: assignment.status,
-        riskLevel: assignment.riskLevel,
-        isHistorical: endsAt < today,
-        targetLabel: assignment.capabilityName,
-      } satisfies TimelineEntry;
-    })
-    .filter((entry): entry is TimelineEntry => Boolean(entry));
+    const entry: TimelineEntry = {
+      kind: "assignment",
+      id: assignment.id,
+      laneId: assignment.resourceId,
+      title: assignment.jobTitle,
+      subtitle: `${formatLabel(assignment.operationType)} · ${assignment.resourceName}`,
+      startsAt,
+      endsAt,
+      status: assignment.status,
+      riskLevel: assignment.riskLevel,
+      isHistorical: endsAt < today,
+      targetLabel: assignment.capabilityName,
+    };
+
+    return [entry];
+  });
+
+  const blockEntries = blocks.flatMap((block) => {
+    const startsAt = parseDate(block.startsAt);
+    const endsAt = parseDate(block.endsAt);
+
+    if (!startsAt || !endsAt) {
+      return [];
+    }
+
+    const entry: TimelineEntry = {
+      kind: "block",
+      id: block.id,
+      laneId: block.resourceId,
+      title: block.title,
+      subtitle: formatLabel(block.blockType),
+      startsAt,
+      endsAt,
+      blockType: block.blockType,
+      isHistorical: endsAt < today,
+      targetLabel: null,
+    };
+
+    return [entry];
+  });
+
+  return [...assignmentEntries, ...blockEntries];
 }
 
 function getUtilizationPercent(
@@ -233,7 +299,10 @@ function getUtilizationPercent(
 
 function getBacklogUrgencyScore(item: InternalScheduleBacklogItem, today: Date) {
   const dueDate = parseDate(item.dueAt);
-  const estimatedDays = Math.max(1, Math.ceil((item.estimatedTotalMinutes ?? 480) / 480));
+  const estimatedDays = Math.max(
+    1,
+    Math.ceil((item.estimatedTotalMinutes ?? 480) / 480),
+  );
 
   if (!dueDate) {
     return 100000 - estimatedDays;
@@ -256,7 +325,10 @@ export default function Client({ data }: Props) {
   const visibleStart = addDays(currentWeekStart, pageOffset * rangeDays);
   const visibleEnd = addDays(visibleStart, rangeDays - 1);
 
-  const entries = useMemo(() => buildEntries(data.assignments), [data.assignments]);
+  const entries = useMemo(
+    () => buildEntries(data.assignments, data.blocks),
+    [data.assignments, data.blocks],
+  );
 
   const filteredResources = useMemo(() => {
     return data.resources.filter((resource) => {
@@ -266,7 +338,9 @@ export default function Client({ data }: Props) {
 
       if (
         capabilityFilter !== "all" &&
-        !resource.mappedCapabilities.some((capability) => capability.id === capabilityFilter)
+        !resource.mappedCapabilities.some(
+          (capability) => capability.id === capabilityFilter,
+        )
       ) {
         return false;
       }
@@ -315,7 +389,10 @@ export default function Client({ data }: Props) {
   }, [filteredResources, visibleEntries]);
 
   const timelineDays = useMemo(
-    () => Array.from({ length: rangeDays }, (_, index) => addDays(visibleStart, index)),
+    () =>
+      Array.from({ length: rangeDays }, (_, index) =>
+        addDays(visibleStart, index),
+      ),
     [rangeDays, visibleStart],
   );
 
@@ -329,8 +406,10 @@ export default function Client({ data }: Props) {
   );
 
   const currentWeekLeft =
-    diffInDays(visibleStart, clampDate(currentWeekStart, visibleStart, visibleEnd)) *
-    DAY_WIDTH;
+    diffInDays(
+      visibleStart,
+      clampDate(currentWeekStart, visibleStart, visibleEnd),
+    ) * DAY_WIDTH;
 
   const currentWeekRightDate = clampDate(
     addDays(currentWeekStart, 6),
@@ -350,7 +429,10 @@ export default function Client({ data }: Props) {
     return data.assignments.filter((assignment) => {
       const endsAt = parseDate(assignment.endsAt);
       if (!endsAt) return false;
-      if (assignment.status === "completed" || assignment.status === "cancelled") {
+      if (
+        assignment.status === "completed" ||
+        assignment.status === "cancelled"
+      ) {
         return false;
       }
 
@@ -363,7 +445,10 @@ export default function Client({ data }: Props) {
     return data.assignments.filter((assignment) => {
       const endsAt = parseDate(assignment.endsAt);
       if (!endsAt) return false;
-      if (assignment.status === "completed" || assignment.status === "cancelled") {
+      if (
+        assignment.status === "completed" ||
+        assignment.status === "cancelled"
+      ) {
         return false;
       }
 
@@ -371,13 +456,26 @@ export default function Client({ data }: Props) {
     });
   }, [data.assignments, today]);
 
+  const activeBlocksThisRange = useMemo(() => {
+    return data.blocks.filter((block) =>
+      intersectsRange(
+        parseDate(block.startsAt) ?? today,
+        parseDate(block.endsAt) ?? today,
+        visibleStart,
+        visibleEnd,
+      ),
+    );
+  }, [data.blocks, today, visibleEnd, visibleStart]);
+
   const allCapabilities = useMemo(
     () =>
-      [...new Map(
-        data.resources
-          .flatMap((resource) => resource.mappedCapabilities)
-          .map((capability) => [capability.id, capability]),
-      ).values()].sort((a, b) => a.name.localeCompare(b.name)),
+      [
+        ...new Map(
+          data.resources
+            .flatMap((resource) => resource.mappedCapabilities)
+            .map((capability) => [capability.id, capability]),
+        ).values(),
+      ].sort((a, b) => a.name.localeCompare(b.name)),
     [data.resources],
   );
 
@@ -438,12 +536,23 @@ export default function Client({ data }: Props) {
       );
     }
 
+    if (activeBlocksThisRange.length > 0) {
+      actions.push(
+        `${activeBlocksThisRange.length} schedule block${
+          activeBlocksThisRange.length === 1 ? "" : "s"
+        } affect the visible range and reduce practical internal capacity.`,
+      );
+    }
+
     if (actions.length === 0) {
-      actions.push("No major internal planning risks detected in the current visible range.");
+      actions.push(
+        "No major internal planning risks detected in the current visible range.",
+      );
     }
 
     return actions;
   }, [
+    activeBlocksThisRange.length,
     data.recommendationsByOperationId,
     overdueAssignments.length,
     overloadedLanes.length,
@@ -496,8 +605,9 @@ export default function Client({ data }: Props) {
           </div>
         ) : null}
 
-        <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
           <StatPill label="Resources" value={data.summary.resourceCount} />
+          <StatPill label="Blocks" value={data.summary.blockCount} />
           <StatPill label="Assignments" value={data.summary.assignmentCount} />
           <StatPill label="Backlog to plan" value={data.summary.backlogCount} />
           <StatPill
@@ -749,8 +859,8 @@ export default function Client({ data }: Props) {
                 value={data.summary.overdueAssignmentCount}
               />
               <AlertStatCard
-                label="Backlog to plan"
-                value={data.summary.backlogCount}
+                label="Blocks in visible range"
+                value={activeBlocksThisRange.length}
               />
             </div>
           </div>
@@ -775,68 +885,70 @@ export default function Client({ data }: Props) {
 
                   return (
                     <div
-  key={item.operationId}
-  className="rounded-[20px] border border-zinc-200 bg-[#fafaf9] p-4"
->
-  <div className="flex items-start justify-between gap-3">
-    <div>
-      <div className="text-sm font-semibold text-slate-950">
-        {item.jobTitle}
-      </div>
-      <div className="mt-1 text-sm text-slate-600">
-        {formatLabel(item.operationType)} · seq {item.sequenceNo}
-      </div>
-    </div>
+                      key={item.operationId}
+                      className="rounded-[20px] border border-zinc-200 bg-[#fafaf9] p-4"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-sm font-semibold text-slate-950">
+                            {item.jobTitle}
+                          </div>
+                          <div className="mt-1 text-sm text-slate-600">
+                            {formatLabel(item.operationType)} · seq {item.sequenceNo}
+                          </div>
+                        </div>
 
-    {recommendation ? (
-      <span
-        className={`rounded-full px-3 py-1 text-[11px] font-medium ${getConfidenceBadgeClasses(
-          recommendation.confidence,
-        )}`}
-      >
-        {recommendation.confidence} confidence
-      </span>
-    ) : null}
-  </div>
+                        {recommendation ? (
+                          <span
+                            className={`rounded-full px-3 py-1 text-[11px] font-medium ${getConfidenceBadgeClasses(
+                              recommendation.confidence,
+                            )}`}
+                          >
+                            {recommendation.confidence} confidence
+                          </span>
+                        ) : null}
+                      </div>
 
-  <div className="mt-3 grid gap-1 text-xs text-slate-500">
-    <div>Due: {formatDate(item.dueAt)}</div>
-    <div>Quantity: {item.requiredQuantity ?? "—"}</div>
-    <div>
-      Estimated work:{" "}
-      {item.estimatedTotalMinutes
-        ? `${item.estimatedTotalMinutes} mins`
-        : "—"}
-    </div>
-    {recommendation?.suggestedResourceName ? (
-      <div>Suggested resource: {recommendation.suggestedResourceName}</div>
-    ) : null}
-  </div>
+                      <div className="mt-3 grid gap-1 text-xs text-slate-500">
+                        <div>Due: {formatDate(item.dueAt)}</div>
+                        <div>Quantity: {item.requiredQuantity ?? "—"}</div>
+                        <div>
+                          Estimated work:{" "}
+                          {item.estimatedTotalMinutes
+                            ? `${item.estimatedTotalMinutes} mins`
+                            : "—"}
+                        </div>
+                        {recommendation?.suggestedResourceName ? (
+                          <div>
+                            Suggested resource: {recommendation.suggestedResourceName}
+                          </div>
+                        ) : null}
+                      </div>
 
-  {recommendation ? (
-    <div className="mt-3 flex flex-wrap gap-2">
-      <span
-        className={`rounded-full px-3 py-1 text-[11px] font-medium ${getRiskBadgeClasses(
-          recommendation.riskLevel,
-        )}`}
-      >
-        {recommendation.riskLevel} risk
-      </span>
-      {recommendation.suggestedStartDate ? (
-        <span className="rounded-full bg-zinc-200 px-3 py-1 text-[11px] font-medium text-zinc-700">
-          {recommendation.suggestedStartDate} → {recommendation.suggestedEndDate}
-        </span>
-      ) : null}
-    </div>
-  ) : null}
+                      {recommendation ? (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <span
+                            className={`rounded-full px-3 py-1 text-[11px] font-medium ${getRiskBadgeClasses(
+                              recommendation.riskLevel,
+                            )}`}
+                          >
+                            {recommendation.riskLevel} risk
+                          </span>
+                          {recommendation.suggestedStartDate ? (
+                            <span className="rounded-full bg-zinc-200 px-3 py-1 text-[11px] font-medium text-zinc-700">
+                              {recommendation.suggestedStartDate} →{" "}
+                              {recommendation.suggestedEndDate}
+                            </span>
+                          ) : null}
+                        </div>
+                      ) : null}
 
-  <CreateInternalAssignmentForm
-    item={item}
-    resources={data.resources}
-    recommendation={recommendation ?? null}
-  />
-</div>
-                    
+                      <CreateInternalAssignmentForm
+                        item={item}
+                        resources={data.resources}
+                        recommendation={recommendation ?? null}
+                      />
+                    </div>
                   );
                 })}
               </div>
@@ -898,6 +1010,53 @@ export default function Client({ data }: Props) {
           </div>
         </div>
       </section>
+
+      <section className="grid gap-6 xl:grid-cols-[1fr_1fr]">
+        <div className="rounded-[32px] border border-zinc-200 bg-white p-8 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
+            Schedule blocks
+          </p>
+          <h3 className="mt-3 text-2xl font-semibold tracking-tight text-slate-950">
+            Maintenance, downtime, and internal holds
+          </h3>
+          <p className="mt-3 text-sm leading-6 text-slate-600">
+            Add downtime, calibration, holidays, and internal blocks so the
+            schedule reflects real internal capacity.
+          </p>
+
+          <div className="mt-6">
+            <CreateInternalScheduleBlockForm resources={data.resources} />
+          </div>
+        </div>
+
+        <div className="rounded-[32px] border border-zinc-200 bg-white p-8 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
+            Block management
+          </p>
+          <h3 className="mt-3 text-2xl font-semibold tracking-tight text-slate-950">
+            Edit and reschedule internal blocks
+          </h3>
+          <p className="mt-3 text-sm leading-6 text-slate-600">
+            Adjust dates, resources, and block types as your internal factory plan changes.
+          </p>
+
+          <div className="mt-8 space-y-4">
+            {data.blocks.length === 0 ? (
+              <div className="rounded-[24px] border border-dashed border-zinc-300 bg-[#fafaf9] p-6 text-sm text-slate-600">
+                No internal schedule blocks added yet.
+              </div>
+            ) : (
+              data.blocks.map((block) => (
+                <InternalScheduleBlockManagementCard
+                  key={block.id}
+                  block={block}
+                  resources={data.resources}
+                />
+              ))
+            )}
+          </div>
+        </div>
+      </section>
     </div>
   );
 }
@@ -956,21 +1115,27 @@ function PlanningHelperPanel({
           <div className="text-xs uppercase tracking-[0.14em] text-slate-300">
             Overdue
           </div>
-          <div className="mt-1 text-2xl font-semibold">{overdueAssignments.length}</div>
+          <div className="mt-1 text-2xl font-semibold">
+            {overdueAssignments.length}
+          </div>
         </div>
 
         <div className="rounded-[18px] border border-white/10 bg-white/5 p-4">
           <div className="text-xs uppercase tracking-[0.14em] text-slate-300">
             Due soon
           </div>
-          <div className="mt-1 text-2xl font-semibold">{dueSoonAssignments.length}</div>
+          <div className="mt-1 text-2xl font-semibold">
+            {dueSoonAssignments.length}
+          </div>
         </div>
 
         <div className="rounded-[18px] border border-white/10 bg-white/5 p-4">
           <div className="text-xs uppercase tracking-[0.14em] text-slate-300">
             High load lanes
           </div>
-          <div className="mt-1 text-2xl font-semibold">{overloadedLanes.length}</div>
+          <div className="mt-1 text-2xl font-semibold">
+            {overloadedLanes.length}
+          </div>
         </div>
       </div>
 
@@ -988,7 +1153,9 @@ function PlanningHelperPanel({
       {sortedBacklog.length > 0 ? (
         <div className="mt-5 rounded-[18px] border border-white/10 bg-white/5 p-4">
           <div className="text-sm font-semibold">Most urgent backlog item</div>
-          <div className="mt-2 text-sm text-slate-200">{sortedBacklog[0].jobTitle}</div>
+          <div className="mt-2 text-sm text-slate-200">
+            {sortedBacklog[0].jobTitle}
+          </div>
           <div className="mt-1 text-xs text-slate-300">
             Due {formatDate(sortedBacklog[0].dueAt)} ·{" "}
             {formatLabel(sortedBacklog[0].operationType)}
@@ -1066,13 +1233,15 @@ function ScheduleLaneRow({
         ) : null}
 
         <div className="absolute inset-0 z-0 flex">
-          {Array.from({ length: Math.floor(timelineWidth / DAY_WIDTH) }).map((_, index) => (
-            <div
-              key={`${resource.id}-grid-${index}`}
-              className="border-l border-zinc-200"
-              style={{ width: DAY_WIDTH }}
-            />
-          ))}
+          {Array.from({ length: Math.floor(timelineWidth / DAY_WIDTH) }).map(
+            (_, index) => (
+              <div
+                key={`${resource.id}-grid-${index}`}
+                className="border-l border-zinc-200"
+                style={{ width: DAY_WIDTH }}
+              />
+            ),
+          )}
         </div>
 
         <div className="relative z-10 h-full">
@@ -1086,16 +1255,16 @@ function ScheduleLaneRow({
               const renderEnd = clampDate(entry.endsAt, visibleStart, visibleEnd);
 
               const left = diffInDays(visibleStart, renderStart) * DAY_WIDTH;
-              const width =
-                (diffInDays(renderStart, renderEnd) + 1) * DAY_WIDTH;
+              const width = (diffInDays(renderStart, renderEnd) + 1) * DAY_WIDTH;
 
               return (
                 <div
                   key={entry.id}
-                  className={`absolute flex items-center gap-3 rounded-2xl px-3 py-2 shadow-sm ${getAssignmentClasses(
-                    entry.status,
-                    entry.isHistorical,
-                  )}`}
+                  className={`absolute flex items-center gap-3 rounded-2xl px-3 py-2 shadow-sm ${
+                    entry.kind === "assignment"
+                      ? getAssignmentClasses(entry.status, entry.isHistorical)
+                      : getBlockClasses(entry.blockType, entry.isHistorical)
+                  }`}
                   style={{
                     left,
                     width: Math.max(width, 92),
@@ -1103,8 +1272,12 @@ function ScheduleLaneRow({
                   }}
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-semibold">{entry.title}</div>
-                    <div className="truncate text-xs opacity-80">{entry.subtitle}</div>
+                    <div className="truncate text-sm font-semibold">
+                      {entry.title}
+                    </div>
+                    <div className="truncate text-xs opacity-80">
+                      {entry.subtitle}
+                    </div>
                   </div>
 
                   <div className="hidden shrink-0 xl:flex xl:flex-col xl:items-end">
@@ -1112,7 +1285,9 @@ function ScheduleLaneRow({
                       {formatDateShort(renderStart)} - {formatDateShort(renderEnd)}
                     </span>
                     {entry.targetLabel ? (
-                      <span className="mt-1 text-[10px] opacity-70">{entry.targetLabel}</span>
+                      <span className="mt-1 text-[10px] opacity-70">
+                        {entry.targetLabel}
+                      </span>
                     ) : null}
                   </div>
                 </div>
