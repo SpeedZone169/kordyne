@@ -1,14 +1,34 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { syncFormlabsConnection } from "@/lib/internal-connectors/formlabs";
+import type {
+  InternalConnectorCredentialProfileSecretRecord,
+  InternalResourceConnection,
+} from "@/lib/internal-connectors/types";
 
 type RouteContext = {
-  params: Promise<{
-    connectionId: string;
-  }>;
+  params: Promise<{ connectionId: string }>;
 };
 
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
+}
+
+async function markConnection(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  connectionId: string,
+  status: "ok" | "error" | "disabled",
+  message: string | null,
+) {
+  await supabase
+    .from("internal_resource_connections")
+    .update({
+      last_sync_at: new Date().toISOString(),
+      last_sync_status: status,
+      last_error: status === "ok" ? null : message,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", connectionId);
 }
 
 async function getManagedConnection(
@@ -19,39 +39,20 @@ async function getManagedConnection(
   const connectionResult = await supabase
     .from("internal_resource_connections")
     .select(
-      "id, organization_id, resource_id, provider_key, connection_mode, display_name, vault_secret_name, vault_secret_id, base_url, external_resource_id, sync_enabled, metadata",
+      "id, organization_id, resource_id, provider_key, connection_mode, display_name, vault_secret_name, vault_secret_id, credential_profile_id, base_url, external_resource_id, sync_enabled, metadata",
     )
     .eq("id", connectionId)
     .maybeSingle();
 
   if (connectionResult.error) {
-    return {
-      ok: false as const,
-      response: jsonError(connectionResult.error.message, 500),
-    };
+    return { ok: false as const, response: jsonError(connectionResult.error.message, 500) };
   }
 
   if (!connectionResult.data) {
-    return {
-      ok: false as const,
-      response: jsonError("Connector not found.", 404),
-    };
+    return { ok: false as const, response: jsonError("Connector not found.", 404) };
   }
 
-  const connection = connectionResult.data as {
-    id: string;
-    organization_id: string;
-    resource_id: string | null;
-    provider_key: string;
-    connection_mode: string;
-    display_name: string;
-    vault_secret_name: string | null;
-    vault_secret_id: string | null;
-    base_url: string | null;
-    external_resource_id: string | null;
-    sync_enabled: boolean;
-    metadata: Record<string, unknown> | null;
-  };
+  const connection = connectionResult.data as InternalResourceConnection;
 
   const membershipResult = await supabase
     .from("organization_members")
@@ -61,10 +62,7 @@ async function getManagedConnection(
     .maybeSingle();
 
   if (membershipResult.error) {
-    return {
-      ok: false as const,
-      response: jsonError(membershipResult.error.message, 500),
-    };
+    return { ok: false as const, response: jsonError(membershipResult.error.message, 500) };
   }
 
   if (!membershipResult.data) {
@@ -74,25 +72,59 @@ async function getManagedConnection(
     };
   }
 
-  const membership = membershipResult.data as {
-    organization_id: string;
-    role: string | null;
-  };
-
-  if (membership.role !== "admin") {
+  if (membershipResult.data.role !== "admin") {
     return {
       ok: false as const,
-      response: jsonError(
-        "Only customer organization admins can test internal connectors.",
-        403,
-      ),
+      response: jsonError("Only customer organization admins can sync internal connectors.", 403),
     };
   }
 
-  return {
-    ok: true as const,
-    connection,
-  };
+  const organizationResult = await supabase
+    .from("organizations")
+    .select("id, organization_type")
+    .eq("id", connection.organization_id)
+    .maybeSingle();
+
+  if (organizationResult.error) {
+    return { ok: false as const, response: jsonError(organizationResult.error.message, 500) };
+  }
+
+  if (!organizationResult.data || organizationResult.data.organization_type !== "customer") {
+    return {
+      ok: false as const,
+      response: jsonError("Internal connectors are only available for customer organizations.", 403),
+    };
+  }
+
+  return { ok: true as const, connection };
+}
+
+async function getCredentialProfile(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  connection: InternalResourceConnection,
+) {
+  if (!connection.credential_profile_id) {
+    return null;
+  }
+
+  const profileResult = await supabase
+    .from("internal_connector_profiles")
+    .select(
+      "id, organization_id, provider_key, display_name, client_id, client_secret_ciphertext, client_secret_iv, client_secret_tag",
+    )
+    .eq("id", connection.credential_profile_id)
+    .eq("organization_id", connection.organization_id)
+    .maybeSingle();
+
+  if (profileResult.error) {
+    throw new Error(profileResult.error.message);
+  }
+
+  if (!profileResult.data) {
+    throw new Error("Selected credential profile no longer exists.");
+  }
+
+  return profileResult.data as InternalConnectorCredentialProfileSecretRecord;
 }
 
 export async function POST(_request: Request, context: RouteContext) {
@@ -103,65 +135,90 @@ export async function POST(_request: Request, context: RouteContext) {
     error: userError,
   } = await supabase.auth.getUser();
 
-  if (userError || !user) {
-    return jsonError("Unauthorized.", 401);
-  }
+  if (userError || !user) return jsonError("Unauthorized.", 401);
 
   const { connectionId } = await context.params;
-
   const managed = await getManagedConnection(supabase, connectionId, user.id);
 
-  if (!managed.ok) {
-    return managed.response;
-  }
+  if (!managed.ok) return managed.response;
 
   const connection = managed.connection;
 
-  const hasSecretReference =
-    Boolean(connection.vault_secret_name) || Boolean(connection.vault_secret_id);
-
-  const hasAddress =
-    connection.connection_mode === "manual"
-      ? true
-      : Boolean(connection.base_url) || connection.connection_mode === "oauth" || connection.connection_mode === "api_key";
-
-  const hasExternalMapping = Boolean(connection.external_resource_id);
-
-  let ok = true;
-  let message = "Connector configuration looks valid.";
-
   if (!connection.sync_enabled) {
-    ok = false;
-    message = "Connector is disabled. Enable sync before testing.";
-  } else if (!hasSecretReference && connection.connection_mode !== "manual") {
-    ok = false;
-    message =
-      "Missing vault secret reference. Add vault_secret_name or vault_secret_id.";
-  } else if (!hasAddress) {
-    ok = false;
-    message =
-      "Missing connection endpoint details. Add base_url or use a supported mode.";
-  } else if (!hasExternalMapping && connection.provider_key !== "manual") {
-    ok = false;
-    message =
-      "Missing external_resource_id. Map this connector to a remote machine/printer.";
+    const message = "Connector is disabled. Enable sync before syncing.";
+    await markConnection(supabase, connection.id, "disabled", message);
+    return NextResponse.json({ ok: false, message }, { status: 400 });
   }
 
-  const updateResult = await supabase
-    .from("internal_resource_connections")
-    .update({
-      last_sync_status: ok ? "ok" : "error",
-      last_error: ok ? null : message,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", connection.id);
-
-  if (updateResult.error) {
-    return jsonError(updateResult.error.message, 500);
+  if (!connection.resource_id) {
+    const message = "Connector is not attached to an internal resource.";
+    await markConnection(supabase, connection.id, "error", message);
+    return NextResponse.json({ ok: false, message }, { status: 400 });
   }
 
-  return NextResponse.json({
-    ok,
-    message,
-  });
+  try {
+    if (connection.provider_key !== "formlabs") {
+      const message = `Real sync adapter is not implemented for provider "${connection.provider_key}" yet.`;
+      await markConnection(supabase, connection.id, "error", message);
+      return NextResponse.json({ ok: false, message }, { status: 400 });
+    }
+
+    const profile = await getCredentialProfile(supabase, connection);
+    const syncResult = await syncFormlabsConnection(connection, profile);
+
+    const resourceResult = await supabase
+      .from("internal_resources")
+      .update({
+        current_status: syncResult.status,
+        status_source: "vendor_api",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", connection.resource_id)
+      .eq("organization_id", connection.organization_id)
+      .select("id, organization_id, name, current_status, status_source, updated_at")
+      .single();
+
+    if (resourceResult.error) throw new Error(resourceResult.error.message);
+
+    const eventResult = await supabase
+      .from("internal_resource_status_events")
+      .insert({
+        organization_id: connection.organization_id,
+        resource_id: connection.resource_id,
+        source: "integration_sync",
+        status: syncResult.status,
+        reason_code: syncResult.reasonCode,
+        reason_detail: syncResult.reasonDetail,
+        effective_at: syncResult.effectiveAt,
+        entered_by_user_id: user.id,
+        payload: syncResult.payload,
+      })
+      .select(
+        "id, organization_id, resource_id, source, status, reason_code, reason_detail, effective_at, entered_by_user_id, payload, created_at",
+      )
+      .single();
+
+    if (eventResult.error) throw new Error(eventResult.error.message);
+
+    await markConnection(supabase, connection.id, "ok", null);
+
+    return NextResponse.json({
+      ok: true,
+      message: `Synced Formlabs printer as ${syncResult.status}.`,
+      status: syncResult.status,
+      rawStatus: syncResult.rawStatus,
+      resource: resourceResult.data,
+      statusEvent: eventResult.data,
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Formlabs connector sync failed.";
+
+    await markConnection(supabase, connection.id, "error", message);
+
+    return NextResponse.json({
+      ok: false,
+      message,
+    });
+  }
 }
