@@ -24,6 +24,14 @@ function maskClientId(clientId: string) {
   return `${clientId.slice(0, 4)}••••••${clientId.slice(-4)}`;
 }
 
+function maskApiToken(token: string) {
+  if (token.length <= 8) {
+    return `${token.slice(0, 2)}••••${token.slice(-2)}`;
+  }
+
+  return `${token.slice(0, 4)}••••••${token.slice(-4)}`;
+}
+
 async function getManagedProfile(
   supabase: Awaited<ReturnType<typeof createClient>>,
   profileId: string,
@@ -32,7 +40,7 @@ async function getManagedProfile(
   const profileResult = await supabase
     .from("internal_connector_profiles")
     .select(
-      "id, organization_id, provider_key, display_name, client_id, client_secret_ciphertext, client_secret_iv, client_secret_tag, last_tested_at, last_test_status, last_test_error, created_at, updated_at",
+      "id, organization_id, provider_key, display_name, auth_mode, client_id, client_secret_ciphertext, client_secret_iv, client_secret_tag, access_token_ciphertext, access_token_iv, access_token_tag, refresh_token_ciphertext, refresh_token_iv, refresh_token_tag, token_expires_at, last_tested_at, last_test_status, last_test_error, created_at, updated_at",
     )
     .eq("id", profileId)
     .maybeSingle();
@@ -104,6 +112,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     displayName?: string;
     clientId?: string | null;
     clientSecret?: string | null;
+    apiToken?: string | null;
   };
 
   try {
@@ -114,62 +123,126 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   const displayName =
     normalizeOptionalText(body.displayName) ?? managed.profile.display_name;
-  const clientId =
-    normalizeOptionalText(body.clientId) ?? managed.profile.client_id;
-  const clientSecret = normalizeOptionalText(body.clientSecret);
 
   if (!displayName) {
     return jsonError("displayName is required.", 400);
   }
 
-  if (!clientId) {
-    return jsonError("clientId is required.", 400);
+  if (managed.profile.provider_key === "formlabs") {
+    const clientId =
+      normalizeOptionalText(body.clientId) ?? managed.profile.client_id;
+    const clientSecret = normalizeOptionalText(body.clientSecret);
+
+    if (!clientId) {
+      return jsonError("clientId is required.", 400);
+    }
+
+    const secretUpdate = clientSecret
+      ? encryptConnectorSecret(clientSecret)
+      : {
+          ciphertext: managed.profile.client_secret_ciphertext,
+          iv: managed.profile.client_secret_iv,
+          tag: managed.profile.client_secret_tag,
+        };
+
+    const updateResult = await supabase
+      .from("internal_connector_profiles")
+      .update({
+        display_name: displayName,
+        auth_mode: "client_credentials",
+        client_id: clientId,
+        client_secret_ciphertext: secretUpdate.ciphertext,
+        client_secret_iv: secretUpdate.iv,
+        client_secret_tag: secretUpdate.tag,
+        updated_by_user_id: user.id,
+        updated_at: new Date().toISOString(),
+        last_test_status: "pending",
+        last_test_error: null,
+      })
+      .eq("id", profileId)
+      .select(
+        "id, organization_id, provider_key, display_name, auth_mode, client_id, last_tested_at, last_test_status, last_test_error, created_at, updated_at",
+      )
+      .single();
+
+    if (updateResult.error) {
+      return jsonError(updateResult.error.message, 500);
+    }
+
+    return NextResponse.json({
+      profile: {
+        id: updateResult.data.id,
+        organizationId: updateResult.data.organization_id,
+        providerKey: updateResult.data.provider_key,
+        authMode: updateResult.data.auth_mode,
+        displayName: updateResult.data.display_name,
+        clientIdPreview: maskClientId(updateResult.data.client_id),
+        hasSecret: true,
+        lastTestedAt: updateResult.data.last_tested_at,
+        lastTestStatus: updateResult.data.last_test_status,
+        lastTestError: updateResult.data.last_test_error,
+        createdAt: updateResult.data.created_at,
+        updatedAt: updateResult.data.updated_at,
+      },
+    });
   }
 
-  const secretUpdate = clientSecret
-    ? encryptConnectorSecret(clientSecret)
-    : {
-        ciphertext: managed.profile.client_secret_ciphertext,
-        iv: managed.profile.client_secret_iv,
-        tag: managed.profile.client_secret_tag,
-      };
+  if (managed.profile.provider_key === "ultimaker") {
+    const apiToken = normalizeOptionalText(body.apiToken);
 
-  const updateResult = await supabase
-    .from("internal_connector_profiles")
-    .update({
-      display_name: displayName,
-      client_id: clientId,
-      client_secret_ciphertext: secretUpdate.ciphertext,
-      client_secret_iv: secretUpdate.iv,
-      client_secret_tag: secretUpdate.tag,
-      updated_by_user_id: user.id,
-      updated_at: new Date().toISOString(),
-      last_test_status: "pending",
-      last_test_error: null,
-    })
-    .eq("id", profileId)
-    .select(
-      "id, organization_id, provider_key, display_name, client_id, last_tested_at, last_test_status, last_test_error, created_at, updated_at",
-    )
-    .single();
+    const encryptedToken = apiToken
+      ? encryptConnectorSecret(apiToken)
+      : {
+          ciphertext: managed.profile.access_token_ciphertext,
+          iv: managed.profile.access_token_iv,
+          tag: managed.profile.access_token_tag,
+        };
 
-  if (updateResult.error) {
-    return jsonError(updateResult.error.message, 500);
+    const updateResult = await supabase
+      .from("internal_connector_profiles")
+      .update({
+        display_name: displayName,
+        auth_mode: "api_token",
+        access_token_ciphertext: encryptedToken.ciphertext,
+        access_token_iv: encryptedToken.iv,
+        access_token_tag: encryptedToken.tag,
+        updated_by_user_id: user.id,
+        updated_at: new Date().toISOString(),
+        last_test_status: "pending",
+        last_test_error: null,
+      })
+      .eq("id", profileId)
+      .select(
+        "id, organization_id, provider_key, display_name, auth_mode, last_tested_at, last_test_status, last_test_error, created_at, updated_at",
+      )
+      .single();
+
+    if (updateResult.error) {
+      return jsonError(updateResult.error.message, 500);
+    }
+
+    return NextResponse.json({
+      profile: {
+        id: updateResult.data.id,
+        organizationId: updateResult.data.organization_id,
+        providerKey: updateResult.data.provider_key,
+        authMode: updateResult.data.auth_mode,
+        displayName: updateResult.data.display_name,
+        clientIdPreview: apiToken
+          ? maskApiToken(apiToken)
+          : "Saved API token",
+        hasSecret: true,
+        lastTestedAt: updateResult.data.last_tested_at,
+        lastTestStatus: updateResult.data.last_test_status,
+        lastTestError: updateResult.data.last_test_error,
+        createdAt: updateResult.data.created_at,
+        updatedAt: updateResult.data.updated_at,
+      },
+    });
   }
 
-  return NextResponse.json({
-    profile: {
-      id: updateResult.data.id,
-      organizationId: updateResult.data.organization_id,
-      providerKey: updateResult.data.provider_key,
-      displayName: updateResult.data.display_name,
-      clientIdPreview: maskClientId(updateResult.data.client_id),
-      hasSecret: true,
-      lastTestedAt: updateResult.data.last_tested_at,
-      lastTestStatus: updateResult.data.last_test_status,
-      lastTestError: updateResult.data.last_test_error,
-      createdAt: updateResult.data.created_at,
-      updatedAt: updateResult.data.updated_at,
-    },
-  });
+  return jsonError(
+    `Credential profile update is not implemented for provider "${managed.profile.provider_key}" yet.`,
+    400,
+  );
 }

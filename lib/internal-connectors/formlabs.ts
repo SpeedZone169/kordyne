@@ -10,6 +10,37 @@ import type {
 const DEFAULT_BASE_URL = "https://api.formlabs.com";
 const DEFAULT_CLIENT_ID_ENV = "FORMLABS_CLIENT_ID";
 
+function requireFormlabsCredentials(
+  profile: InternalConnectorCredentialProfileSecretRecord,
+) {
+  if (profile.provider_key !== "formlabs") {
+    throw new Error(
+      `Expected a Formlabs credential profile, received "${profile.provider_key}".`,
+    );
+  }
+
+  if (!profile.client_id) {
+    throw new Error("Formlabs credential profile is missing client_id.");
+  }
+
+  if (
+    !profile.client_secret_ciphertext ||
+    !profile.client_secret_iv ||
+    !profile.client_secret_tag
+  ) {
+    throw new Error("Formlabs credential profile is missing client secret.");
+  }
+
+  return {
+    clientId: profile.client_id,
+    clientSecret: decryptConnectorSecret({
+      ciphertext: profile.client_secret_ciphertext,
+      iv: profile.client_secret_iv,
+      tag: profile.client_secret_tag,
+    }),
+  };
+}
+
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -113,14 +144,7 @@ function resolveCredentialMaterial(
   profile?: InternalConnectorCredentialProfileSecretRecord | null,
 ) {
   if (profile) {
-    return {
-      clientId: profile.client_id,
-      clientSecret: decryptConnectorSecret({
-        ciphertext: profile.client_secret_ciphertext,
-        iv: profile.client_secret_iv,
-        tag: profile.client_secret_tag,
-      }),
-    };
+    return requireFormlabsCredentials(profile);
   }
 
   return {
@@ -374,14 +398,12 @@ export async function discoverFormlabsPrinters(
   profile: InternalConnectorCredentialProfileSecretRecord,
   baseUrl = DEFAULT_BASE_URL,
 ): Promise<FormlabsDiscoveredPrinter[]> {
+  const credentials = requireFormlabsCredentials(profile);
+
   const token = await getAccessToken(
     baseUrl,
-    profile.client_id,
-    decryptConnectorSecret({
-      ciphertext: profile.client_secret_ciphertext,
-      iv: profile.client_secret_iv,
-      tag: profile.client_secret_tag,
-    }),
+    credentials.clientId,
+    credentials.clientSecret,
   );
 
   const json = await fetchJson(

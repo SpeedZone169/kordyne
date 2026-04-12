@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { discoverFormlabsPrinters } from "@/lib/internal-connectors/formlabs";
+import { discoverUltimakerPrinters } from "@/lib/internal-connectors/ultimaker";
 import type { InternalConnectorCredentialProfileSecretRecord } from "@/lib/internal-connectors/types";
 
 type RouteContext = {
@@ -19,7 +20,7 @@ async function getManagedProfile(
   const profileResult = await supabase
     .from("internal_connector_profiles")
     .select(
-      "id, organization_id, provider_key, display_name, client_id, client_secret_ciphertext, client_secret_iv, client_secret_tag",
+      "id, organization_id, provider_key, display_name, auth_mode, client_id, client_secret_ciphertext, client_secret_iv, client_secret_tag, access_token_ciphertext, access_token_iv, access_token_tag, refresh_token_ciphertext, refresh_token_iv, refresh_token_tag, token_expires_at",
     )
     .eq("id", profileId)
     .maybeSingle();
@@ -88,13 +89,17 @@ export async function POST(_request: Request, context: RouteContext) {
   }
 
   try {
-    if (managed.profile.provider_key !== "formlabs") {
+    let printers: unknown[];
+
+    if (managed.profile.provider_key === "formlabs") {
+      printers = await discoverFormlabsPrinters(managed.profile);
+    } else if (managed.profile.provider_key === "ultimaker") {
+      printers = await discoverUltimakerPrinters(managed.profile);
+    } else {
       throw new Error(
         `Printer discovery is not implemented for provider "${managed.profile.provider_key}" yet.`,
       );
     }
-
-    const printers = await discoverFormlabsPrinters(managed.profile);
 
     await supabase
       .from("internal_connector_profiles")

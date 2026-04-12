@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { encryptConnectorSecret } from "@/lib/internal-connectors/crypto";
 
-const ALLOWED_PROVIDER_KEYS = new Set(["formlabs"]);
+const ALLOWED_PROVIDER_KEYS = new Set(["formlabs", "ultimaker"]);
 
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
@@ -20,6 +20,14 @@ function maskClientId(clientId: string) {
   }
 
   return `${clientId.slice(0, 4)}••••••${clientId.slice(-4)}`;
+}
+
+function maskApiToken(token: string) {
+  if (token.length <= 8) {
+    return `${token.slice(0, 2)}••••${token.slice(-2)}`;
+  }
+
+  return `${token.slice(0, 4)}••••••${token.slice(-4)}`;
 }
 
 async function requireCustomerAdmin(
@@ -109,6 +117,7 @@ export async function POST(request: Request) {
     displayName?: string;
     clientId?: string;
     clientSecret?: string;
+    apiToken?: string;
   };
 
   try {
@@ -122,6 +131,7 @@ export async function POST(request: Request) {
   const displayName = normalizeOptionalText(body.displayName);
   const clientId = normalizeOptionalText(body.clientId);
   const clientSecret = normalizeOptionalText(body.clientSecret);
+  const apiToken = normalizeOptionalText(body.apiToken);
 
   if (!organizationId) {
     return jsonError("organizationId is required.", 400);
@@ -135,63 +145,126 @@ export async function POST(request: Request) {
     return jsonError("displayName is required.", 400);
   }
 
-  if (!clientId) {
-    return jsonError("clientId is required.", 400);
-  }
-
-  if (!clientSecret) {
-    return jsonError("clientSecret is required.", 400);
-  }
-
   const access = await requireCustomerAdmin(supabase, organizationId, user.id);
 
   if (!access.ok) {
     return access.response;
   }
 
-  const encrypted = encryptConnectorSecret(clientSecret);
+  if (providerKey === "formlabs") {
+    if (!clientId) {
+      return jsonError("clientId is required.", 400);
+    }
 
-  const insertResult = await supabase
-    .from("internal_connector_profiles")
-    .insert({
-      organization_id: organizationId,
-      provider_key: providerKey,
-      display_name: displayName,
-      client_id: clientId,
-      client_secret_ciphertext: encrypted.ciphertext,
-      client_secret_iv: encrypted.iv,
-      client_secret_tag: encrypted.tag,
-      last_test_status: "pending",
-      last_test_error: null,
-      created_by_user_id: user.id,
-      updated_by_user_id: user.id,
-    })
-    .select(
-      "id, organization_id, provider_key, display_name, client_id, last_tested_at, last_test_status, last_test_error, created_at, updated_at",
-    )
-    .single();
+    if (!clientSecret) {
+      return jsonError("clientSecret is required.", 400);
+    }
 
-  if (insertResult.error) {
-    return jsonError(insertResult.error.message, 500);
+    const encrypted = encryptConnectorSecret(clientSecret);
+
+    const insertResult = await supabase
+      .from("internal_connector_profiles")
+      .insert({
+        organization_id: organizationId,
+        provider_key: providerKey,
+        display_name: displayName,
+        auth_mode: "client_credentials",
+        client_id: clientId,
+        client_secret_ciphertext: encrypted.ciphertext,
+        client_secret_iv: encrypted.iv,
+        client_secret_tag: encrypted.tag,
+        last_test_status: "pending",
+        last_test_error: null,
+        created_by_user_id: user.id,
+        updated_by_user_id: user.id,
+      })
+      .select(
+        "id, organization_id, provider_key, display_name, auth_mode, client_id, last_tested_at, last_test_status, last_test_error, created_at, updated_at",
+      )
+      .single();
+
+    if (insertResult.error) {
+      return jsonError(insertResult.error.message, 500);
+    }
+
+    return NextResponse.json(
+      {
+        profile: {
+          id: insertResult.data.id,
+          organizationId: insertResult.data.organization_id,
+          providerKey: insertResult.data.provider_key,
+          authMode: insertResult.data.auth_mode,
+          displayName: insertResult.data.display_name,
+          clientIdPreview: maskClientId(insertResult.data.client_id),
+          hasSecret: true,
+          lastTestedAt: insertResult.data.last_tested_at,
+          lastTestStatus: insertResult.data.last_test_status,
+          lastTestError: insertResult.data.last_test_error,
+          createdAt: insertResult.data.created_at,
+          updatedAt: insertResult.data.updated_at,
+          connectionCount: 0,
+        },
+      },
+      { status: 201 },
+    );
   }
 
-  return NextResponse.json(
-    {
-      profile: {
-        id: insertResult.data.id,
-        organizationId: insertResult.data.organization_id,
-        providerKey: insertResult.data.provider_key,
-        displayName: insertResult.data.display_name,
-        clientIdPreview: maskClientId(insertResult.data.client_id),
-        hasSecret: true,
-        lastTestedAt: insertResult.data.last_tested_at,
-        lastTestStatus: insertResult.data.last_test_status,
-        lastTestError: insertResult.data.last_test_error,
-        createdAt: insertResult.data.created_at,
-        updatedAt: insertResult.data.updated_at,
-        connectionCount: 0,
+  if (providerKey === "ultimaker") {
+    if (!apiToken) {
+      return jsonError("apiToken is required.", 400);
+    }
+
+    const encryptedToken = encryptConnectorSecret(apiToken);
+
+    const insertResult = await supabase
+      .from("internal_connector_profiles")
+      .insert({
+        organization_id: organizationId,
+        provider_key: providerKey,
+        display_name: displayName,
+        auth_mode: "api_token",
+        client_id: null,
+        client_secret_ciphertext: null,
+        client_secret_iv: null,
+        client_secret_tag: null,
+        access_token_ciphertext: encryptedToken.ciphertext,
+        access_token_iv: encryptedToken.iv,
+        access_token_tag: encryptedToken.tag,
+        last_test_status: "pending",
+        last_test_error: null,
+        created_by_user_id: user.id,
+        updated_by_user_id: user.id,
+      })
+      .select(
+        "id, organization_id, provider_key, display_name, auth_mode, last_tested_at, last_test_status, last_test_error, created_at, updated_at",
+      )
+      .single();
+
+    if (insertResult.error) {
+      return jsonError(insertResult.error.message, 500);
+    }
+
+    return NextResponse.json(
+      {
+        profile: {
+          id: insertResult.data.id,
+          organizationId: insertResult.data.organization_id,
+          providerKey: insertResult.data.provider_key,
+          authMode: insertResult.data.auth_mode,
+          displayName: insertResult.data.display_name,
+          clientIdPreview: maskApiToken(apiToken),
+          hasSecret: true,
+          lastTestedAt: insertResult.data.last_tested_at,
+          lastTestStatus: insertResult.data.last_test_status,
+          lastTestError: insertResult.data.last_test_error,
+          createdAt: insertResult.data.created_at,
+          updatedAt: insertResult.data.updated_at,
+          connectionCount: 0,
+        },
       },
-    },
-    { status: 201 },
-  );
+      { status: 201 },
+    );
+  }
+
+  return jsonError("providerKey is invalid.", 400);
 }
