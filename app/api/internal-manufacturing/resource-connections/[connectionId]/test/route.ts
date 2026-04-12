@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { testFormlabsConnection } from "@/lib/internal-connectors/formlabs";
+import { testUltimakerConnection } from "@/lib/internal-connectors/ultimaker";
 import type {
   InternalConnectorCredentialProfileSecretRecord,
   InternalResourceConnection,
@@ -44,11 +45,17 @@ async function getManagedConnection(
     .maybeSingle();
 
   if (connectionResult.error) {
-    return { ok: false as const, response: jsonError(connectionResult.error.message, 500) };
+    return {
+      ok: false as const,
+      response: jsonError(connectionResult.error.message, 500),
+    };
   }
 
   if (!connectionResult.data) {
-    return { ok: false as const, response: jsonError("Connector not found.", 404) };
+    return {
+      ok: false as const,
+      response: jsonError("Connector not found.", 404),
+    };
   }
 
   const connection = connectionResult.data as InternalResourceConnection;
@@ -61,7 +68,10 @@ async function getManagedConnection(
     .maybeSingle();
 
   if (membershipResult.error) {
-    return { ok: false as const, response: jsonError(membershipResult.error.message, 500) };
+    return {
+      ok: false as const,
+      response: jsonError(membershipResult.error.message, 500),
+    };
   }
 
   if (!membershipResult.data) {
@@ -74,7 +84,10 @@ async function getManagedConnection(
   if (membershipResult.data.role !== "admin") {
     return {
       ok: false as const,
-      response: jsonError("Only customer organization admins can test internal connectors.", 403),
+      response: jsonError(
+        "Only customer organization admins can test internal connectors.",
+        403,
+      ),
     };
   }
 
@@ -85,13 +98,19 @@ async function getManagedConnection(
     .maybeSingle();
 
   if (organizationResult.error) {
-    return { ok: false as const, response: jsonError(organizationResult.error.message, 500) };
+    return {
+      ok: false as const,
+      response: jsonError(organizationResult.error.message, 500),
+    };
   }
 
   if (!organizationResult.data || organizationResult.data.organization_type !== "customer") {
     return {
       ok: false as const,
-      response: jsonError("Internal connectors are only available for customer organizations.", 403),
+      response: jsonError(
+        "Internal connectors are only available for customer organizations.",
+        403,
+      ),
     };
   }
 
@@ -109,7 +128,7 @@ async function getCredentialProfile(
   const profileResult = await supabase
     .from("internal_connector_profiles")
     .select(
-      "id, organization_id, provider_key, display_name, client_id, client_secret_ciphertext, client_secret_iv, client_secret_tag",
+      "id, organization_id, provider_key, display_name, auth_mode, client_id, client_secret_ciphertext, client_secret_iv, client_secret_tag, access_token_ciphertext, access_token_iv, access_token_tag, refresh_token_ciphertext, refresh_token_iv, refresh_token_tag, token_expires_at",
     )
     .eq("id", connection.credential_profile_id)
     .eq("organization_id", connection.organization_id)
@@ -144,14 +163,23 @@ export async function POST(_request: Request, context: RouteContext) {
   const connection = managed.connection;
 
   try {
-    if (connection.provider_key !== "formlabs") {
+    let result: {
+      message: string;
+      rawStatus: string | null;
+      mappedStatus: string;
+    };
+
+    const profile = await getCredentialProfile(supabase, connection);
+
+    if (connection.provider_key === "formlabs") {
+      result = await testFormlabsConnection(connection, profile);
+    } else if (connection.provider_key === "ultimaker") {
+      result = await testUltimakerConnection(connection, profile);
+    } else {
       const message = `Real test adapter is not implemented for provider "${connection.provider_key}" yet.`;
       await markConnection(supabase, connection.id, false, message);
       return NextResponse.json({ ok: false, message });
     }
-
-    const profile = await getCredentialProfile(supabase, connection);
-    const result = await testFormlabsConnection(connection, profile);
 
     await markConnection(supabase, connection.id, true, null);
 
@@ -163,7 +191,7 @@ export async function POST(_request: Request, context: RouteContext) {
     });
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : "Formlabs connector test failed.";
+      error instanceof Error ? error.message : "Connector test failed.";
 
     await markConnection(supabase, connection.id, false, message);
 
