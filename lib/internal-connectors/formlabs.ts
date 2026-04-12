@@ -1,5 +1,8 @@
+import { decryptConnectorSecret } from "@/lib/internal-connectors/crypto";
 import type {
   ConnectorSyncResult,
+  FormlabsDiscoveredPrinter,
+  InternalConnectorCredentialProfileSecretRecord,
   InternalResourceConnection,
   InternalResourceStatus,
 } from "./types";
@@ -13,6 +16,10 @@ function asRecord(value: unknown): Record<string, unknown> {
     : {};
 }
 
+function asArray(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
 function readString(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
@@ -24,61 +31,7 @@ function requireSafeEnvName(name: string): string {
     throw new Error("Secret environment variable name is invalid.");
   }
 
-  if (!name.startsWith("FORMLABS_") && !name.startsWith("KORDYNE_CONNECTOR_")) {
-    throw new Error(
-      "Secret environment variable must start with FORMLABS_ or KORDYNE_CONNECTOR_.",
-    );
-  }
-
   return name;
-}
-
-function resolveClientSecret(connection: InternalResourceConnection): string {
-  const secretName = readString(connection.vault_secret_name);
-
-  if (!secretName) {
-    if (connection.vault_secret_id) {
-      throw new Error(
-        "vault_secret_id is set, but no Supabase Vault resolver exists yet. Use vault_secret_name pointing to a server environment variable for now.",
-      );
-    }
-
-    throw new Error("vault_secret_name is required for Formlabs connectors.");
-  }
-
-  const envName = requireSafeEnvName(secretName);
-  const secret = process.env[envName];
-
-  if (!secret) {
-    throw new Error(`Missing server environment variable: ${envName}.`);
-  }
-
-  return secret;
-}
-
-function resolveClientId(connection: InternalResourceConnection): string {
-  const metadata = asRecord(connection.metadata);
-
-  const directClientId =
-    readString(metadata.formlabsClientId) ?? readString(metadata.clientId);
-
-  if (directClientId) return directClientId;
-
-  const envName = requireSafeEnvName(
-    readString(metadata.formlabsClientIdEnv) ??
-      readString(metadata.clientIdEnv) ??
-      DEFAULT_CLIENT_ID_ENV,
-  );
-
-  const clientId = process.env[envName];
-
-  if (!clientId) {
-    throw new Error(
-      `Missing Formlabs client id. Add ${envName} to server env or set metadata.clientId.`,
-    );
-  }
-
-  return clientId;
 }
 
 function resolveBaseUrl(connection: InternalResourceConnection): string {
@@ -104,6 +57,78 @@ function requirePrinterSerial(connection: InternalResourceConnection): string {
   return serial;
 }
 
+function resolveFallbackClientId(connection: InternalResourceConnection): string {
+  const metadata = asRecord(connection.metadata);
+  const directClientId =
+    readString(metadata.formlabsClientId) ?? readString(metadata.clientId);
+
+  if (directClientId) {
+    return directClientId;
+  }
+
+  const envName = requireSafeEnvName(
+    readString(metadata.formlabsClientIdEnv) ??
+      readString(metadata.clientIdEnv) ??
+      DEFAULT_CLIENT_ID_ENV,
+  );
+
+  const clientId = process.env[envName];
+
+  if (!clientId) {
+    throw new Error(
+      `Missing Formlabs client id. Add ${envName} to server env or use a credential profile.`,
+    );
+  }
+
+  return clientId;
+}
+
+function resolveFallbackClientSecret(connection: InternalResourceConnection): string {
+  const secretName = readString(connection.vault_secret_name);
+
+  if (!secretName) {
+    if (connection.vault_secret_id) {
+      throw new Error(
+        "vault_secret_id is set, but no vault resolver exists for Formlabs fallback mode. Use a credential profile or vault_secret_name.",
+      );
+    }
+
+    throw new Error(
+      "Formlabs credentials are missing. Select a saved credential profile or provide a fallback secret reference.",
+    );
+  }
+
+  const envName = requireSafeEnvName(secretName);
+  const secret = process.env[envName];
+
+  if (!secret) {
+    throw new Error(`Missing server environment variable: ${envName}.`);
+  }
+
+  return secret;
+}
+
+function resolveCredentialMaterial(
+  connection: InternalResourceConnection,
+  profile?: InternalConnectorCredentialProfileSecretRecord | null,
+) {
+  if (profile) {
+    return {
+      clientId: profile.client_id,
+      clientSecret: decryptConnectorSecret({
+        ciphertext: profile.client_secret_ciphertext,
+        iv: profile.client_secret_iv,
+        tag: profile.client_secret_tag,
+      }),
+    };
+  }
+
+  return {
+    clientId: resolveFallbackClientId(connection),
+    clientSecret: resolveFallbackClientSecret(connection),
+  };
+}
+
 async function fetchJson(
   url: string,
   init: RequestInit,
@@ -123,13 +148,14 @@ async function fetchJson(
     const json = text ? (JSON.parse(text) as unknown) : null;
 
     if (!response.ok) {
+      const data = asRecord(json);
       const detail =
-        asRecord(json).detail ??
-        asRecord(json).error ??
-        asRecord(json).message ??
+        readString(data.detail) ??
+        readString(data.error) ??
+        readString(data.message) ??
         response.statusText;
 
-      throw new Error(`${context} failed (${response.status}): ${String(detail)}`);
+      throw new Error(`${context} failed (${response.status}): ${detail}`);
     }
 
     return json;
@@ -144,11 +170,11 @@ async function fetchJson(
   }
 }
 
-async function getAccessToken(connection: InternalResourceConnection) {
-  const baseUrl = resolveBaseUrl(connection);
-  const clientId = resolveClientId(connection);
-  const clientSecret = resolveClientSecret(connection);
-
+async function getAccessToken(
+  baseUrl: string,
+  clientId: string,
+  clientSecret: string,
+) {
   const body = new URLSearchParams({
     grant_type: "client_credentials",
     client_id: clientId,
@@ -171,7 +197,7 @@ async function getAccessToken(connection: InternalResourceConnection) {
     throw new Error("Formlabs token response did not include access_token.");
   }
 
-  return { baseUrl, token };
+  return token;
 }
 
 function extractRawStatus(printer: Record<string, unknown>): string | null {
@@ -183,15 +209,6 @@ function extractRawStatus(printer: Record<string, unknown>): string | null {
     readString(printer.status) ??
     readString(printer.state)
   );
-}
-
-function normalizeReasonCode(rawStatus: string | null): string {
-  const normalized = (rawStatus ?? "unknown")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "");
-
-  return `formlabs_${normalized || "unknown"}`;
 }
 
 export function mapFormlabsStatus(rawStatus: string | null): InternalResourceStatus {
@@ -256,8 +273,156 @@ export function mapFormlabsStatus(rawStatus: string | null): InternalResourceSta
   return "blocked";
 }
 
+function normalizeReasonCode(rawStatus: string | null): string {
+  const normalized = (rawStatus ?? "unknown")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+
+  return `formlabs_${normalized || "unknown"}`;
+}
+
+function sanitizeCurrentPrintRun(value: unknown) {
+  const run = asRecord(value);
+
+  if (Object.keys(run).length === 0) {
+    return null;
+  }
+
+  return {
+    guid: readString(run.guid),
+    name: readString(run.name),
+    status: readString(run.status),
+    material: readString(run.material),
+    createdAt: readString(run.created_at),
+    printStartedAt: readString(run.print_started_at),
+    printFinishedAt: readString(run.print_finished_at),
+    estimatedTimeRemainingMs:
+      typeof run.estimated_time_remaining_ms === "number"
+        ? run.estimated_time_remaining_ms
+        : null,
+  };
+}
+
+function sanitizePreviousPrintRun(value: unknown) {
+  const run = asRecord(value);
+
+  if (Object.keys(run).length === 0) {
+    return null;
+  }
+
+  return {
+    guid: readString(run.guid),
+    name: readString(run.name),
+    status: readString(run.status),
+    material: readString(run.material),
+    createdAt: readString(run.created_at),
+    printStartedAt: readString(run.print_started_at),
+    printFinishedAt: readString(run.print_finished_at),
+  };
+}
+
+function sanitizePrinterPayload(printer: Record<string, unknown>) {
+  const printerStatus = asRecord(printer.printer_status);
+
+  return {
+    serial: readString(printer.serial),
+    alias: readString(printer.alias),
+    machineTypeId: readString(printer.machine_type_id),
+    group: (() => {
+      const group = asRecord(printer.group);
+      return {
+        id: readString(group.id),
+        name: readString(group.name),
+      };
+    })(),
+    printerStatus: {
+      status: readString(printerStatus.status),
+      readyToPrint: readString(printerStatus.ready_to_print),
+      lastModified: readString(printerStatus.last_modified),
+      lastPingedAt: readString(printerStatus.last_pinged_at),
+      currentPrintRun: sanitizeCurrentPrintRun(printerStatus.current_print_run),
+    },
+    previousPrintRun: sanitizePreviousPrintRun(printer.previous_print_run),
+  };
+}
+
+export function mapFormlabsPrinterSummary(
+  printer: Record<string, unknown>,
+): FormlabsDiscoveredPrinter {
+  const printerStatus = asRecord(printer.printer_status);
+  const currentPrintRun = asRecord(printerStatus.current_print_run);
+  const rawStatus = extractRawStatus(printer);
+
+  return {
+    serial: readString(printer.serial) ?? "",
+    alias: readString(printer.alias),
+    machineTypeId: readString(printer.machine_type_id),
+    groupName: readString(asRecord(printer.group).name),
+    rawStatus,
+    mappedStatus: mapFormlabsStatus(rawStatus),
+    readyToPrint: readString(printerStatus.ready_to_print),
+    lastModified: readString(printerStatus.last_modified),
+    lastPingedAt: readString(printerStatus.last_pinged_at),
+    currentPrintName: readString(currentPrintRun.name),
+    currentPrintStatus: readString(currentPrintRun.status),
+    currentPrintMaterial: readString(currentPrintRun.material),
+  };
+}
+
+export async function discoverFormlabsPrinters(
+  profile: InternalConnectorCredentialProfileSecretRecord,
+  baseUrl = DEFAULT_BASE_URL,
+): Promise<FormlabsDiscoveredPrinter[]> {
+  const token = await getAccessToken(
+    baseUrl,
+    profile.client_id,
+    decryptConnectorSecret({
+      ciphertext: profile.client_secret_ciphertext,
+      iv: profile.client_secret_iv,
+      tag: profile.client_secret_tag,
+    }),
+  );
+
+  const json = await fetchJson(
+    `${baseUrl}/developer/v1/printers/`,
+    {
+      method: "GET",
+      headers: {
+        authorization: `Bearer ${token}`,
+        accept: "application/json",
+      },
+    },
+    "Formlabs printers request",
+  );
+
+  const printers = asArray(json)
+    .map((item) => asRecord(item))
+    .filter((item) => readString(item.serial));
+
+  return printers
+    .map(mapFormlabsPrinterSummary)
+    .sort((a, b) => (a.alias ?? a.serial).localeCompare(b.alias ?? b.serial));
+}
+
+export async function testFormlabsProfile(
+  profile: InternalConnectorCredentialProfileSecretRecord,
+) {
+  const printers = await discoverFormlabsPrinters(profile);
+
+  return {
+    ok: true,
+    printerCount: printers.length,
+    message:
+      printers.length > 0
+        ? `Credentials are valid. ${printers.length} printer(s) discovered.`
+        : "Credentials are valid. No printers were returned for this account.",
+  };
+}
+
 export async function fetchFormlabsPrinter(
   connection: InternalResourceConnection,
+  profile?: InternalConnectorCredentialProfileSecretRecord | null,
 ): Promise<Record<string, unknown>> {
   if (connection.provider_key !== "formlabs") {
     throw new Error("This adapter only supports Formlabs connectors.");
@@ -268,7 +433,13 @@ export async function fetchFormlabsPrinter(
   }
 
   const printerSerial = requirePrinterSerial(connection);
-  const { baseUrl, token } = await getAccessToken(connection);
+  const baseUrl = resolveBaseUrl(connection);
+  const credentials = resolveCredentialMaterial(connection, profile);
+  const token = await getAccessToken(
+    baseUrl,
+    credentials.clientId,
+    credentials.clientSecret,
+  );
 
   const json = await fetchJson(
     `${baseUrl}/developer/v1/printers/${encodeURIComponent(printerSerial)}/`,
@@ -287,8 +458,9 @@ export async function fetchFormlabsPrinter(
 
 export async function testFormlabsConnection(
   connection: InternalResourceConnection,
+  profile?: InternalConnectorCredentialProfileSecretRecord | null,
 ) {
-  const printer = await fetchFormlabsPrinter(connection);
+  const printer = await fetchFormlabsPrinter(connection, profile);
   const rawStatus = extractRawStatus(printer);
   const mappedStatus = mapFormlabsStatus(rawStatus);
 
@@ -297,14 +469,15 @@ export async function testFormlabsConnection(
     message: `Connected to Formlabs printer ${connection.external_resource_id}. Current mapped status: ${mappedStatus}.`,
     rawStatus,
     mappedStatus,
-    printer,
+    printer: sanitizePrinterPayload(printer),
   };
 }
 
 export async function syncFormlabsConnection(
   connection: InternalResourceConnection,
+  profile?: InternalConnectorCredentialProfileSecretRecord | null,
 ): Promise<ConnectorSyncResult> {
-  const printer = await fetchFormlabsPrinter(connection);
+  const printer = await fetchFormlabsPrinter(connection, profile);
   const rawStatus = extractRawStatus(printer);
   const status = mapFormlabsStatus(rawStatus);
   const effectiveAt = new Date().toISOString();
@@ -322,7 +495,7 @@ export async function syncFormlabsConnection(
       external_resource_id: connection.external_resource_id,
       raw_status: rawStatus,
       mapped_status: status,
-      printer,
+      printer: sanitizePrinterPayload(printer),
     },
   };
 }
