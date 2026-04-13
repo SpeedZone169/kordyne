@@ -1,18 +1,3 @@
-export type InternalResourceStatusEventSnapshot = {
-  source: "manual" | "integration_sync" | "system";
-  status:
-    | "idle"
-    | "queued"
-    | "running"
-    | "paused"
-    | "blocked"
-    | "maintenance"
-    | "offline"
-    | "complete";
-  effectiveAt: string;
-  payload: Record<string, unknown>;
-};
-
 export type InternalConnectorResource = {
   id: string;
   organizationId: string;
@@ -31,7 +16,11 @@ export type InternalConnectorResource = {
   active: boolean;
   locationLabel: string | null;
   metadata: Record<string, unknown>;
-  latestStatusEvent: InternalResourceStatusEventSnapshot | null;
+  latestStatusEvent: {
+    payload: Record<string, unknown>;
+    effectiveAt: string | null;
+    createdAt: string | null;
+  } | null;
 };
 
 export type InternalResourceConnection = {
@@ -53,7 +42,6 @@ export type InternalResourceConnection = {
   vaultSecretName: string | null;
   vaultSecretId: string | null;
   credentialProfileId: string | null;
-  credentialProfileDisplayName: string | null;
   baseUrl: string | null;
   externalResourceId: string | null;
   syncEnabled: boolean;
@@ -68,7 +56,8 @@ export type InternalResourceConnection = {
 export type InternalConnectorCredentialProfile = {
   id: string;
   organizationId: string;
-  providerKey: "formlabs";
+  providerKey: "formlabs" | "ultimaker";
+  authMode: "client_credentials" | "oauth_authorization_code" | "api_token" | null;
   displayName: string;
   clientIdPreview: string;
   hasSecret: boolean;
@@ -103,11 +92,31 @@ export type FormlabsDiscoveredPrinter = {
   currentPrintMaterial: string | null;
 };
 
+export type UltimakerDiscoveredPrinter = {
+  clusterId: string;
+  clusterName: string | null;
+  printerCount: number;
+  rawStatus: string | null;
+  mappedStatus:
+    | "idle"
+    | "queued"
+    | "running"
+    | "paused"
+    | "blocked"
+    | "maintenance"
+    | "offline"
+    | "complete";
+  currentJobName: string | null;
+  currentMaterial: string | null;
+  timeElapsedSec: number | null;
+  timeTotalSec: number | null;
+};
+
 export type InternalResourceConnectionsData = {
   resources: InternalConnectorResource[];
   connections: InternalResourceConnection[];
-  formlabsProfiles: InternalConnectorCredentialProfile[];
-  viewerRole: "admin" | "engineer" | "viewer" | null;
+  credentialProfiles: InternalConnectorCredentialProfile[];
   canManageConnectors: boolean;
+  viewerRole: "admin" | "engineer" | "viewer" | null;
   errors: string[];
 };
