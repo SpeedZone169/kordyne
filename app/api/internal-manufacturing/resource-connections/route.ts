@@ -20,8 +20,6 @@ const ALLOWED_CONNECTION_MODES = new Set([
   "manual",
 ]);
 
-const FORMLABS_BASE_URL = "https://api.formlabs.com";
-
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
@@ -66,7 +64,12 @@ async function requireCustomerAdmin(
     };
   }
 
-  if (membershipResult.data.role !== "admin") {
+  const membership = membershipResult.data as {
+    organization_id: string;
+    role: string | null;
+  };
+
+  if (membership.role !== "admin") {
     return {
       ok: false as const,
       response: jsonError(
@@ -96,7 +99,12 @@ async function requireCustomerAdmin(
     };
   }
 
-  if (organizationResult.data.organization_type !== "customer") {
+  const organization = organizationResult.data as {
+    id: string;
+    organization_type: string | null;
+  };
+
+  if (organization.organization_type !== "customer") {
     return {
       ok: false as const,
       response: jsonError(
@@ -109,6 +117,60 @@ async function requireCustomerAdmin(
   return {
     ok: true as const,
   };
+}
+
+async function validateCredentialProfile(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  organizationId: string,
+  providerKey: string,
+  credentialProfileId: string | null,
+) {
+  if (!credentialProfileId) {
+    if (providerKey === "ultimaker") {
+      return {
+        ok: false as const,
+        response: jsonError(
+          "Ultimaker requires a saved credential profile with an API token.",
+          400,
+        ),
+      };
+    }
+
+    return { ok: true as const, profileId: null };
+  }
+
+  const profileResult = await supabase
+    .from("internal_connector_profiles")
+    .select("id, organization_id, provider_key")
+    .eq("id", credentialProfileId)
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+
+  if (profileResult.error) {
+    return {
+      ok: false as const,
+      response: jsonError(profileResult.error.message, 500),
+    };
+  }
+
+  if (!profileResult.data) {
+    return {
+      ok: false as const,
+      response: jsonError("Selected credential profile does not exist.", 400),
+    };
+  }
+
+  if (profileResult.data.provider_key !== providerKey) {
+    return {
+      ok: false as const,
+      response: jsonError(
+        "Credential profile provider does not match the selected connector provider.",
+        400,
+      ),
+    };
+  }
+
+  return { ok: true as const, profileId: profileResult.data.id };
 }
 
 export async function GET() {
@@ -189,16 +251,16 @@ export async function POST(request: Request) {
 
   const resourceId = normalizeOptionalText(body.resourceId);
   const providerKey = normalizeOptionalText(body.providerKey);
-  const requestedConnectionMode = normalizeOptionalText(body.connectionMode);
+  const connectionMode = normalizeOptionalText(body.connectionMode);
   const displayName = normalizeOptionalText(body.displayName);
   const vaultSecretName = normalizeOptionalText(body.vaultSecretName);
   const vaultSecretId = normalizeOptionalText(body.vaultSecretId);
   const credentialProfileId = normalizeOptionalText(body.credentialProfileId);
-  const requestedBaseUrl = normalizeOptionalText(body.baseUrl);
+  const baseUrl = normalizeOptionalText(body.baseUrl);
   const externalResourceId = normalizeOptionalText(body.externalResourceId);
   const syncEnabled =
     typeof body.syncEnabled === "boolean" ? body.syncEnabled : true;
-  const rawMetadata = normalizeMetadata(body.metadata);
+  const metadata = normalizeMetadata(body.metadata);
 
   if (!resourceId) {
     return jsonError("resourceId is required.", 400);
@@ -206,6 +268,10 @@ export async function POST(request: Request) {
 
   if (!providerKey || !ALLOWED_PROVIDER_KEYS.has(providerKey)) {
     return jsonError("providerKey is invalid.", 400);
+  }
+
+  if (!connectionMode || !ALLOWED_CONNECTION_MODES.has(connectionMode)) {
+    return jsonError("connectionMode is invalid.", 400);
   }
 
   if (!displayName) {
@@ -260,55 +326,27 @@ export async function POST(request: Request) {
     );
   }
 
-  let connectionMode = requestedConnectionMode;
-  let baseUrl = requestedBaseUrl;
-  let metadata = rawMetadata;
+  const validatedProfile = await validateCredentialProfile(
+    supabase,
+    resource.organization_id,
+    providerKey,
+    credentialProfileId,
+  );
 
-  if (providerKey === "formlabs") {
-    connectionMode = "oauth";
-    baseUrl = FORMLABS_BASE_URL;
-    metadata = {};
-
-    if (!credentialProfileId && !vaultSecretName) {
-      return jsonError(
-        "For Formlabs, select a saved credential profile or supply a fallback vault secret reference.",
-        400,
-      );
-    }
+  if (!validatedProfile.ok) {
+    return validatedProfile.response;
   }
 
-  if (!connectionMode || !ALLOWED_CONNECTION_MODES.has(connectionMode)) {
-    return jsonError("connectionMode is invalid.", 400);
-  }
-
-  if (credentialProfileId) {
-    const profileResult = await supabase
-      .from("internal_connector_profiles")
-      .select("id, organization_id, provider_key")
-      .eq("id", credentialProfileId)
-      .maybeSingle();
-
-    if (profileResult.error) {
-      return jsonError(profileResult.error.message, 500);
-    }
-
-    if (!profileResult.data) {
-      return jsonError("Selected credential profile was not found.", 404);
-    }
-
-    if (profileResult.data.organization_id !== resource.organization_id) {
-      return jsonError(
-        "Selected credential profile belongs to a different organization.",
-        400,
-      );
-    }
-
-    if (profileResult.data.provider_key !== providerKey) {
-      return jsonError(
-        "Selected credential profile does not match the connector provider.",
-        400,
-      );
-    }
+  if (
+    providerKey === "formlabs" &&
+    !validatedProfile.profileId &&
+    !vaultSecretName &&
+    !vaultSecretId
+  ) {
+    return jsonError(
+      "Formlabs requires either a saved credential profile or a legacy fallback secret reference.",
+      400,
+    );
   }
 
   const insertResult = await supabase
@@ -319,9 +357,9 @@ export async function POST(request: Request) {
       provider_key: providerKey,
       connection_mode: connectionMode,
       display_name: displayName,
-      vault_secret_name: providerKey === "formlabs" && credentialProfileId ? null : vaultSecretName,
-      vault_secret_id: providerKey === "formlabs" && credentialProfileId ? null : vaultSecretId,
-      credential_profile_id: credentialProfileId,
+      vault_secret_name: vaultSecretName,
+      vault_secret_id: vaultSecretId,
+      credential_profile_id: validatedProfile.profileId,
       base_url: baseUrl,
       external_resource_id: externalResourceId,
       sync_enabled: syncEnabled,
