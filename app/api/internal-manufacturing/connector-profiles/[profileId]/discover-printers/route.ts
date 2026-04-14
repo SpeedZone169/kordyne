@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { discoverFormlabsPrinters } from "@/lib/internal-connectors/formlabs";
+import { discoverMarkforgedDevices } from "@/lib/internal-connectors/markforged";
 import { discoverUltimakerPrinters } from "@/lib/internal-connectors/ultimaker";
 import type { InternalConnectorCredentialProfileSecretRecord } from "@/lib/internal-connectors/types";
 
@@ -20,7 +21,24 @@ async function getManagedProfile(
   const profileResult = await supabase
     .from("internal_connector_profiles")
     .select(
-      "id, organization_id, provider_key, display_name, auth_mode, client_id, client_secret_ciphertext, client_secret_iv, client_secret_tag, access_token_ciphertext, access_token_iv, access_token_tag, refresh_token_ciphertext, refresh_token_iv, refresh_token_tag, token_expires_at",
+      [
+        "id",
+        "organization_id",
+        "provider_key",
+        "display_name",
+        "auth_mode",
+        "client_id",
+        "client_secret_ciphertext",
+        "client_secret_iv",
+        "client_secret_tag",
+        "access_token_ciphertext",
+        "access_token_iv",
+        "access_token_tag",
+        "refresh_token_ciphertext",
+        "refresh_token_iv",
+        "refresh_token_tag",
+        "token_expires_at",
+      ].join(", "),
     )
     .eq("id", profileId)
     .maybeSingle();
@@ -39,10 +57,13 @@ async function getManagedProfile(
     };
   }
 
+  const profile =
+    profileResult.data as unknown as InternalConnectorCredentialProfileSecretRecord;
+
   const membershipResult = await supabase
     .from("organization_members")
     .select("role")
-    .eq("organization_id", profileResult.data.organization_id)
+    .eq("organization_id", profile.organization_id)
     .eq("user_id", userId)
     .maybeSingle();
 
@@ -57,7 +78,7 @@ async function getManagedProfile(
     return {
       ok: false as const,
       response: jsonError(
-        "Only customer organization admins can discover printers.",
+        "Only customer organization admins can discover machines.",
         403,
       ),
     };
@@ -65,7 +86,7 @@ async function getManagedProfile(
 
   return {
     ok: true as const,
-    profile: profileResult.data as InternalConnectorCredentialProfileSecretRecord,
+    profile,
   };
 }
 
@@ -89,12 +110,14 @@ export async function POST(_request: Request, context: RouteContext) {
   }
 
   try {
-    let printers: unknown[];
+    let printers: unknown[] = [];
 
     if (managed.profile.provider_key === "formlabs") {
       printers = await discoverFormlabsPrinters(managed.profile);
     } else if (managed.profile.provider_key === "ultimaker") {
       printers = await discoverUltimakerPrinters(managed.profile);
+    } else if (managed.profile.provider_key === "markforged") {
+      printers = await discoverMarkforgedDevices(managed.profile);
     } else {
       throw new Error(
         `Printer discovery is not implemented for provider "${managed.profile.provider_key}" yet.`,
@@ -117,7 +140,7 @@ export async function POST(_request: Request, context: RouteContext) {
     });
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : "Failed to discover printers.";
+      error instanceof Error ? error.message : "Failed to discover machines.";
 
     await supabase
       .from("internal_connector_profiles")

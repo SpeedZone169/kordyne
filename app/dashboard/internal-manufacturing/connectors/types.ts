@@ -1,43 +1,78 @@
+export type InternalConnectorProviderKey =
+  | "formlabs"
+  | "markforged"
+  | "ultimaker"
+  | "stratasys"
+  | "hp"
+  | "mtconnect"
+  | "opc_ua"
+  | "manual"
+  | "other";
+
+export type InternalConnectorConnectionMode =
+  | "api_key"
+  | "oauth"
+  | "agent_url"
+  | "manual";
+
+export type InternalResourceStatus =
+  | "idle"
+  | "queued"
+  | "running"
+  | "paused"
+  | "blocked"
+  | "maintenance"
+  | "offline"
+  | "complete";
+
+export type InternalConnectorSyncStatus =
+  | "ok"
+  | "error"
+  | "disabled"
+  | "pending"
+  | null;
+
+export type InternalConnectorProfileTestStatus =
+  | "ok"
+  | "error"
+  | "pending"
+  | null;
+
+export type InternalOrganizationRole = "admin" | "engineer" | "viewer" | null;
+
+export type InternalConnectorLatestStatusEvent = {
+  id: string;
+  source: string;
+  status: InternalResourceStatus;
+  reasonCode: string | null;
+  reasonDetail: string | null;
+  effectiveAt: string;
+  payload: Record<string, unknown>;
+  createdAt: string;
+};
+
 export type InternalConnectorResource = {
   id: string;
   organizationId: string;
   name: string;
   resourceType: string;
   serviceDomain: string;
-  currentStatus:
-    | "idle"
-    | "queued"
-    | "running"
-    | "paused"
-    | "blocked"
-    | "maintenance"
-    | "offline"
-    | "complete";
+  currentStatus: InternalResourceStatus;
+  statusSource: string;
   active: boolean;
   locationLabel: string | null;
+  timezone: string | null;
+  notes: string | null;
   metadata: Record<string, unknown>;
-  latestStatusEvent: {
-    payload: Record<string, unknown>;
-    effectiveAt: string | null;
-    createdAt: string | null;
-  } | null;
+  latestStatusEvent: InternalConnectorLatestStatusEvent | null;
 };
 
 export type InternalResourceConnection = {
   id: string;
   organizationId: string;
   resourceId: string | null;
-  providerKey:
-    | "formlabs"
-    | "markforged"
-    | "ultimaker"
-    | "stratasys"
-    | "hp"
-    | "mtconnect"
-    | "opc_ua"
-    | "manual"
-    | "other";
-  connectionMode: "api_key" | "oauth" | "agent_url" | "manual";
+  providerKey: InternalConnectorProviderKey;
+  connectionMode: InternalConnectorConnectionMode;
   displayName: string;
   vaultSecretName: string | null;
   vaultSecretId: string | null;
@@ -46,7 +81,7 @@ export type InternalResourceConnection = {
   externalResourceId: string | null;
   syncEnabled: boolean;
   lastSyncAt: string | null;
-  lastSyncStatus: "ok" | "error" | "disabled" | "pending" | null;
+  lastSyncStatus: InternalConnectorSyncStatus;
   lastError: string | null;
   metadata: Record<string, unknown>;
   createdAt: string;
@@ -56,13 +91,15 @@ export type InternalResourceConnection = {
 export type InternalConnectorCredentialProfile = {
   id: string;
   organizationId: string;
-  providerKey: "formlabs" | "ultimaker";
-  authMode: "client_credentials" | "oauth_authorization_code" | "api_token" | null;
+  providerKey: InternalConnectorProviderKey;
   displayName: string;
-  clientIdPreview: string;
+  authMode: string | null;
+  clientIdPreview: string | null;
   hasSecret: boolean;
+  hasRefreshToken: boolean;
+  tokenExpiresAt: string | null;
   lastTestedAt: string | null;
-  lastTestStatus: "ok" | "error" | "pending" | null;
+  lastTestStatus: InternalConnectorProfileTestStatus;
   lastTestError: string | null;
   createdAt: string;
   updatedAt: string;
@@ -75,15 +112,7 @@ export type FormlabsDiscoveredPrinter = {
   machineTypeId: string | null;
   groupName: string | null;
   rawStatus: string | null;
-  mappedStatus:
-    | "idle"
-    | "queued"
-    | "running"
-    | "paused"
-    | "blocked"
-    | "maintenance"
-    | "offline"
-    | "complete";
+  mappedStatus: InternalResourceStatus;
   readyToPrint: string | null;
   lastModified: string | null;
   lastPingedAt: string | null;
@@ -93,30 +122,37 @@ export type FormlabsDiscoveredPrinter = {
 };
 
 export type UltimakerDiscoveredPrinter = {
+  id: string;
+  name: string;
   clusterId: string;
   clusterName: string | null;
-  printerCount: number;
+  printerType: string | null;
+  technology: string | null;
+  material: string | null;
   rawStatus: string | null;
-  mappedStatus:
-    | "idle"
-    | "queued"
-    | "running"
-    | "paused"
-    | "blocked"
-    | "maintenance"
-    | "offline"
-    | "complete";
+  mappedStatus: InternalResourceStatus;
+  firmwareVersion: string | null;
+  localIp: string | null;
+};
+
+export type MarkforgedDiscoveredPrinter = {
+  id: string;
+  serial: string | null;
+  name: string;
+  model: string | null;
+  technology: string | null;
+  locationName: string | null;
+  rawStatus: string | null;
+  mappedStatus: InternalResourceStatus;
   currentJobName: string | null;
-  currentMaterial: string | null;
-  timeElapsedSec: number | null;
-  timeTotalSec: number | null;
+  material: string | null;
 };
 
 export type InternalResourceConnectionsData = {
   resources: InternalConnectorResource[];
   connections: InternalResourceConnection[];
   credentialProfiles: InternalConnectorCredentialProfile[];
-  canManageConnectors: boolean;
-  viewerRole: "admin" | "engineer" | "viewer" | null;
   errors: string[];
+  canManageConnectors: boolean;
+  viewerRole: InternalOrganizationRole;
 };
