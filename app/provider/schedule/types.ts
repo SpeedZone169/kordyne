@@ -68,22 +68,6 @@ export type ProviderScheduleBooking = {
   updatedAt: string;
 };
 
-export type ProviderScheduleUnscheduledAward = {
-  packageId: string;
-  serviceRequestId: string;
-  title: string | null;
-  customerOrgName: string;
-  targetDueDate: string | null;
-  requestedQuantity: number | null;
-  latestQuoteStatus: string | null;
-  latestLeadTimeDays: number | null;
-  latestTotalPrice: number | null;
-  latestCurrencyCode: string | null;
-  requestType: string | null;
-  targetProcess: string | null;
-  targetMaterial: string | null;
-};
-
 export type ProviderScheduleRisk = "none" | "low" | "medium" | "high";
 
 export type ProviderScheduleRecommendation = {
@@ -98,6 +82,22 @@ export type ProviderScheduleRecommendation = {
   riskLevel: ProviderScheduleRisk;
   isFeasible: boolean;
   reasons: string[];
+};
+
+export type ProviderScheduleUnscheduledAward = {
+  packageId: string;
+  serviceRequestId: string;
+  title: string | null;
+  customerOrgName: string;
+  targetDueDate: string | null;
+  requestedQuantity: number | null;
+  latestQuoteStatus: string | null;
+  latestLeadTimeDays: number | null;
+  latestTotalPrice: number | null;
+  latestCurrencyCode: string | null;
+  requestType: string | null;
+  targetProcess: string | null;
+  targetMaterial: string | null;
 };
 
 export type ProviderScheduleData = {

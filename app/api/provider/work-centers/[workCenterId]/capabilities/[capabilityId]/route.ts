@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import {
+  getManagedWorkCenter,
+  requireRouteUser,
+} from "@/lib/provider-schedule";
 
 type RouteContext = {
   params: Promise<{
@@ -12,54 +16,20 @@ export async function DELETE(_request: Request, context: RouteContext) {
   const { workCenterId, capabilityId } = await context.params;
   const supabase = await createClient();
 
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
-
-  if (userError || !user) {
-    return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+  const auth = await requireRouteUser(supabase);
+  if (!auth.ok) {
+    return auth.response;
   }
 
-  const { data: workCenter, error: workCenterError } = await supabase
-    .from("provider_work_centers")
-    .select("id, provider_org_id")
-    .eq("id", workCenterId)
-    .maybeSingle();
+  const workCenterResult = await getManagedWorkCenter(
+    supabase,
+    workCenterId,
+    auth.user.id,
+    "manage capability mappings",
+  );
 
-  if (workCenterError) {
-    return NextResponse.json(
-      { error: workCenterError.message },
-      { status: 500 },
-    );
-  }
-
-  if (!workCenter) {
-    return NextResponse.json(
-      { error: "Work center not found." },
-      { status: 404 },
-    );
-  }
-
-  const { data: membership, error: membershipError } = await supabase
-    .from("organization_members")
-    .select("organization_id, role")
-    .eq("organization_id", workCenter.provider_org_id)
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  if (membershipError) {
-    return NextResponse.json(
-      { error: membershipError.message },
-      { status: 500 },
-    );
-  }
-
-  if (!membership || !["admin", "engineer"].includes(membership.role ?? "")) {
-    return NextResponse.json(
-      { error: "You do not have permission to manage capability mappings." },
-      { status: 403 },
-    );
+  if (!workCenterResult.ok) {
+    return workCenterResult.response;
   }
 
   const { error: deleteError } = await supabase

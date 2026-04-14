@@ -126,11 +126,11 @@ async function validateCredentialProfile(
   credentialProfileId: string | null,
 ) {
   if (!credentialProfileId) {
-    if (providerKey === "ultimaker") {
+    if (providerKey === "ultimaker" || providerKey === "markforged") {
       return {
         ok: false as const,
         response: jsonError(
-          "Ultimaker requires a saved credential profile with an API token.",
+          `${providerKey === "ultimaker" ? "Ultimaker" : "Markforged"} requires a saved credential profile.`,
           400,
         ),
       };

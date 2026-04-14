@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { testFormlabsConnection } from "@/lib/internal-connectors/formlabs";
+import { testMarkforgedConnection } from "@/lib/internal-connectors/markforged";
 import { testUltimakerConnection } from "@/lib/internal-connectors/ultimaker";
 import type {
   InternalConnectorCredentialProfileSecretRecord,
@@ -39,7 +40,21 @@ async function getManagedConnection(
   const connectionResult = await supabase
     .from("internal_resource_connections")
     .select(
-      "id, organization_id, resource_id, provider_key, connection_mode, display_name, vault_secret_name, vault_secret_id, credential_profile_id, base_url, external_resource_id, sync_enabled, metadata",
+      [
+        "id",
+        "organization_id",
+        "resource_id",
+        "provider_key",
+        "connection_mode",
+        "display_name",
+        "vault_secret_name",
+        "vault_secret_id",
+        "credential_profile_id",
+        "base_url",
+        "external_resource_id",
+        "sync_enabled",
+        "metadata",
+      ].join(", "),
     )
     .eq("id", connectionId)
     .maybeSingle();
@@ -58,7 +73,8 @@ async function getManagedConnection(
     };
   }
 
-  const connection = connectionResult.data as InternalResourceConnection;
+  const connection =
+    connectionResult.data as unknown as InternalResourceConnection;
 
   const membershipResult = await supabase
     .from("organization_members")
@@ -104,7 +120,10 @@ async function getManagedConnection(
     };
   }
 
-  if (!organizationResult.data || organizationResult.data.organization_type !== "customer") {
+  if (
+    !organizationResult.data ||
+    organizationResult.data.organization_type !== "customer"
+  ) {
     return {
       ok: false as const,
       response: jsonError(
@@ -114,7 +133,10 @@ async function getManagedConnection(
     };
   }
 
-  return { ok: true as const, connection };
+  return {
+    ok: true as const,
+    connection,
+  };
 }
 
 async function getCredentialProfile(
@@ -128,7 +150,24 @@ async function getCredentialProfile(
   const profileResult = await supabase
     .from("internal_connector_profiles")
     .select(
-      "id, organization_id, provider_key, display_name, auth_mode, client_id, client_secret_ciphertext, client_secret_iv, client_secret_tag, access_token_ciphertext, access_token_iv, access_token_tag, refresh_token_ciphertext, refresh_token_iv, refresh_token_tag, token_expires_at",
+      [
+        "id",
+        "organization_id",
+        "provider_key",
+        "display_name",
+        "auth_mode",
+        "client_id",
+        "client_secret_ciphertext",
+        "client_secret_iv",
+        "client_secret_tag",
+        "access_token_ciphertext",
+        "access_token_iv",
+        "access_token_tag",
+        "refresh_token_ciphertext",
+        "refresh_token_iv",
+        "refresh_token_tag",
+        "token_expires_at",
+      ].join(", "),
     )
     .eq("id", connection.credential_profile_id)
     .eq("organization_id", connection.organization_id)
@@ -142,7 +181,7 @@ async function getCredentialProfile(
     throw new Error("Selected credential profile no longer exists.");
   }
 
-  return profileResult.data as InternalConnectorCredentialProfileSecretRecord;
+  return profileResult.data as unknown as InternalConnectorCredentialProfileSecretRecord;
 }
 
 export async function POST(_request: Request, context: RouteContext) {
@@ -153,32 +192,56 @@ export async function POST(_request: Request, context: RouteContext) {
     error: userError,
   } = await supabase.auth.getUser();
 
-  if (userError || !user) return jsonError("Unauthorized.", 401);
+  if (userError || !user) {
+    return jsonError("Unauthorized.", 401);
+  }
 
   const { connectionId } = await context.params;
   const managed = await getManagedConnection(supabase, connectionId, user.id);
 
-  if (!managed.ok) return managed.response;
+  if (!managed.ok) {
+    return managed.response;
+  }
 
   const connection = managed.connection;
 
   try {
-    let result: {
-      message: string;
-      rawStatus: string | null;
-      mappedStatus: string;
-    };
-
     const profile = await getCredentialProfile(supabase, connection);
 
+    let result:
+      | {
+          message: string;
+          rawStatus?: string | null;
+          mappedStatus?: string | null;
+        }
+      | null = null;
+
     if (connection.provider_key === "formlabs") {
+      if (!profile) {
+        throw new Error("Formlabs connector requires a saved credential profile.");
+      }
+
       result = await testFormlabsConnection(connection, profile);
     } else if (connection.provider_key === "ultimaker") {
+      if (!profile) {
+        throw new Error("Ultimaker connector requires a saved credential profile.");
+      }
+
       result = await testUltimakerConnection(connection, profile);
+    } else if (connection.provider_key === "markforged") {
+      if (!profile) {
+        throw new Error("Markforged connector requires a saved credential profile.");
+      }
+
+      result = await testMarkforgedConnection(connection, profile);
     } else {
       const message = `Real test adapter is not implemented for provider "${connection.provider_key}" yet.`;
       await markConnection(supabase, connection.id, false, message);
-      return NextResponse.json({ ok: false, message });
+
+      return NextResponse.json({
+        ok: false,
+        message,
+      });
     }
 
     await markConnection(supabase, connection.id, true, null);
@@ -186,8 +249,8 @@ export async function POST(_request: Request, context: RouteContext) {
     return NextResponse.json({
       ok: true,
       message: result.message,
-      rawStatus: result.rawStatus,
-      mappedStatus: result.mappedStatus,
+      rawStatus: result.rawStatus ?? null,
+      mappedStatus: result.mappedStatus ?? null,
     });
   } catch (error) {
     const message =

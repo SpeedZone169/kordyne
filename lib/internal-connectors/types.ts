@@ -25,10 +25,10 @@ export type InternalConnectorConnectionMode =
   | "agent_url"
   | "manual";
 
-export type InternalConnectorCredentialAuthMode =
-  | "client_credentials"
-  | "oauth_authorization_code"
-  | "api_token";
+export type InternalConnectorProfileAuthMode =
+  | "oauth"
+  | "api_key"
+  | "manual";
 
 export type InternalResourceConnection = {
   id: string;
@@ -51,17 +51,21 @@ export type InternalConnectorCredentialProfileSecretRecord = {
   organization_id: string;
   provider_key: InternalConnectorProviderKey;
   display_name: string;
-  auth_mode: InternalConnectorCredentialAuthMode | null;
+  auth_mode: InternalConnectorProfileAuthMode | null;
+
   client_id: string | null;
   client_secret_ciphertext: string | null;
   client_secret_iv: string | null;
   client_secret_tag: string | null;
+
   access_token_ciphertext: string | null;
   access_token_iv: string | null;
   access_token_tag: string | null;
+
   refresh_token_ciphertext: string | null;
   refresh_token_iv: string | null;
   refresh_token_tag: string | null;
+
   token_expires_at: string | null;
 };
 
@@ -81,15 +85,30 @@ export type FormlabsDiscoveredPrinter = {
 };
 
 export type UltimakerDiscoveredPrinter = {
+  id: string;
+  name: string;
   clusterId: string;
   clusterName: string | null;
-  printerCount: number;
+  printerType: string | null;
+  technology: string | null;
+  material: string | null;
+  rawStatus: string | null;
+  mappedStatus: InternalResourceStatus;
+  firmwareVersion: string | null;
+  localIp: string | null;
+};
+
+export type MarkforgedDiscoveredPrinter = {
+  id: string;
+  serial: string | null;
+  name: string;
+  model: string | null;
+  technology: string | null;
+  locationName: string | null;
   rawStatus: string | null;
   mappedStatus: InternalResourceStatus;
   currentJobName: string | null;
-  currentMaterial: string | null;
-  timeElapsedSec: number | null;
-  timeTotalSec: number | null;
+  material: string | null;
 };
 
 export type ConnectorSyncResult = {
