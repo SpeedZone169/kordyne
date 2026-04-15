@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { testFormlabsConnection } from "@/lib/internal-connectors/formlabs";
 import { testMarkforgedConnection } from "@/lib/internal-connectors/markforged";
+import { testStratasysConnection } from "@/lib/internal-connectors/stratasys";
 import { testUltimakerConnection } from "@/lib/internal-connectors/ultimaker";
 import type {
   InternalConnectorCredentialProfileSecretRecord,
@@ -11,6 +12,9 @@ import type {
 type RouteContext = {
   params: Promise<{ connectionId: string }>;
 };
+
+type ManagedConnectionRow = InternalResourceConnection;
+type ManagedProfileRow = InternalConnectorCredentialProfileSecretRecord;
 
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
@@ -73,8 +77,7 @@ async function getManagedConnection(
     };
   }
 
-  const connection =
-    connectionResult.data as unknown as InternalResourceConnection;
+  const connection = connectionResult.data as unknown as ManagedConnectionRow;
 
   const membershipResult = await supabase
     .from("organization_members")
@@ -181,7 +184,7 @@ async function getCredentialProfile(
     throw new Error("Selected credential profile no longer exists.");
   }
 
-  return profileResult.data as unknown as InternalConnectorCredentialProfileSecretRecord;
+  return profileResult.data as unknown as ManagedProfileRow;
 }
 
 export async function POST(_request: Request, context: RouteContext) {
@@ -234,6 +237,20 @@ export async function POST(_request: Request, context: RouteContext) {
       }
 
       result = await testMarkforgedConnection(connection, profile);
+    } else if (connection.provider_key === "stratasys") {
+      if (!profile) {
+        throw new Error("Stratasys connector requires a saved credential profile.");
+      }
+
+      result = await testStratasysConnection(connection, profile);
+    } else if (connection.provider_key === "hp") {
+      const message = 'Real test adapter is not implemented for provider "hp" yet.';
+      await markConnection(supabase, connection.id, false, message);
+
+      return NextResponse.json({
+        ok: false,
+        message,
+      });
     } else {
       const message = `Real test adapter is not implemented for provider "${connection.provider_key}" yet.`;
       await markConnection(supabase, connection.id, false, message);

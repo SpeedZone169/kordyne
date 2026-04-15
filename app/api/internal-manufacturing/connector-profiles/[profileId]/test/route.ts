@@ -2,12 +2,15 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { testFormlabsProfile } from "@/lib/internal-connectors/formlabs";
 import { testMarkforgedProfile } from "@/lib/internal-connectors/markforged";
+import { testStratasysProfile } from "@/lib/internal-connectors/stratasys";
 import { testUltimakerProfile } from "@/lib/internal-connectors/ultimaker";
 import type { InternalConnectorCredentialProfileSecretRecord } from "@/lib/internal-connectors/types";
 
 type RouteContext = {
   params: Promise<{ profileId: string }>;
 };
+
+type ManagedProfileRow = InternalConnectorCredentialProfileSecretRecord;
 
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
@@ -57,8 +60,7 @@ async function getManagedProfile(
     };
   }
 
-  const profile =
-    profileResult.data as unknown as InternalConnectorCredentialProfileSecretRecord;
+  const profile = profileResult.data as unknown as ManagedProfileRow;
 
   const membershipResult = await supabase
     .from("organization_members")
@@ -90,6 +92,18 @@ async function getManagedProfile(
   };
 }
 
+function resolveProfileBaseUrl(
+  profile: InternalConnectorCredentialProfileSecretRecord,
+): string {
+  if (profile.provider_key === "stratasys") {
+    throw new Error(
+      "Stratasys profile test requires a base URL on the connector metadata first. Save a Stratasys connector with baseUrl before testing this profile directly.",
+    );
+  }
+
+  return "";
+}
+
 export async function POST(_request: Request, context: RouteContext) {
   const supabase = await createClient();
 
@@ -118,6 +132,13 @@ export async function POST(_request: Request, context: RouteContext) {
       result = await testUltimakerProfile(managed.profile);
     } else if (managed.profile.provider_key === "markforged") {
       result = await testMarkforgedProfile(managed.profile);
+    } else if (managed.profile.provider_key === "stratasys") {
+      const baseUrl = resolveProfileBaseUrl(managed.profile);
+      result = await testStratasysProfile(managed.profile, baseUrl);
+    } else if (managed.profile.provider_key === "hp") {
+      throw new Error(
+        'Credential profile test is not implemented for provider "hp" yet.',
+      );
     } else {
       throw new Error(
         `Credential profile test is not implemented for provider "${managed.profile.provider_key}" yet.`,

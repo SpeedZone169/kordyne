@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { syncFormlabsConnection } from "@/lib/internal-connectors/formlabs";
 import { syncMarkforgedConnection } from "@/lib/internal-connectors/markforged";
+import { syncStratasysConnection } from "@/lib/internal-connectors/stratasys";
 import { syncUltimakerConnection } from "@/lib/internal-connectors/ultimaker";
 import type {
   InternalConnectorCredentialProfileSecretRecord,
@@ -11,6 +12,9 @@ import type {
 type RouteContext = {
   params: Promise<{ connectionId: string }>;
 };
+
+type ManagedConnectionRow = InternalResourceConnection;
+type ManagedProfileRow = InternalConnectorCredentialProfileSecretRecord;
 
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
@@ -74,8 +78,7 @@ async function getManagedConnection(
     };
   }
 
-  const connection =
-    connectionResult.data as unknown as InternalResourceConnection;
+  const connection = connectionResult.data as unknown as ManagedConnectionRow;
 
   const membershipResult = await supabase
     .from("organization_members")
@@ -182,13 +185,15 @@ async function getCredentialProfile(
     throw new Error("Selected credential profile no longer exists.");
   }
 
-  return profileResult.data as unknown as InternalConnectorCredentialProfileSecretRecord;
+  return profileResult.data as unknown as ManagedProfileRow;
 }
 
 function getProviderLabel(providerKey: string) {
   if (providerKey === "formlabs") return "Formlabs";
   if (providerKey === "ultimaker") return "Ultimaker";
   if (providerKey === "markforged") return "Markforged";
+  if (providerKey === "stratasys") return "Stratasys";
+  if (providerKey === "hp") return "HP";
   return providerKey;
 }
 
@@ -271,6 +276,23 @@ export async function POST(_request: Request, context: RouteContext) {
       }
 
       syncResult = await syncMarkforgedConnection(connection, profile);
+    } else if (connection.provider_key === "stratasys") {
+      if (!profile) {
+        throw new Error("Stratasys connector requires a saved credential profile.");
+      }
+
+      syncResult = await syncStratasysConnection(connection, profile);
+    } else if (connection.provider_key === "hp") {
+      const message = 'Real sync adapter is not implemented for provider "hp" yet.';
+      await markConnection(supabase, connection.id, "error", message);
+
+      return NextResponse.json(
+        {
+          ok: false,
+          message,
+        },
+        { status: 400 },
+      );
     } else {
       const message = `Real sync adapter is not implemented for provider "${connection.provider_key}" yet.`;
       await markConnection(supabase, connection.id, "error", message);
