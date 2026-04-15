@@ -1,10 +1,19 @@
 import Client from "./Client";
 import { loadInternalResourceConnectionsData } from "./loadInternalResourceConnectionsData";
+import { loadInternalManufacturingData } from "../loadInternalManufacturingData";
 
 export const dynamic = "force-dynamic";
 
 export default async function InternalManufacturingConnectorsPage() {
-  const data = await loadInternalResourceConnectionsData();
+  const [connectorData, manufacturingData] = await Promise.all([
+    loadInternalResourceConnectionsData(),
+    loadInternalManufacturingData(),
+  ]);
 
-  return <Client data={data} />;
+  return (
+    <Client
+      data={connectorData}
+      capabilities={manufacturingData.capabilities}
+    />
+  );
 }
