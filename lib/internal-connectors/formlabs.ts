@@ -9,6 +9,7 @@ import type {
 
 const DEFAULT_BASE_URL = "https://api.formlabs.com";
 const DEFAULT_CLIENT_ID_ENV = "FORMLABS_CLIENT_ID";
+const FORMLABS_STALE_PING_MINUTES = 15;
 
 function requireFormlabsCredentials(
   profile: InternalConnectorCredentialProfileSecretRecord,
@@ -235,6 +236,41 @@ function extractRawStatus(printer: Record<string, unknown>): string | null {
   );
 }
 
+function parseDate(value: string | null): Date | null {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function isPingStale(lastPingedAt: string | null): boolean {
+  const lastPing = parseDate(lastPingedAt);
+  if (!lastPing) return false;
+
+  const ageMs = Date.now() - lastPing.getTime();
+  return ageMs > FORMLABS_STALE_PING_MINUTES * 60 * 1000;
+}
+
+function getPrinterStatusContext(printer: Record<string, unknown>) {
+  const printerStatus = asRecord(printer.printer_status);
+  const currentPrintRun = asRecord(printerStatus.current_print_run);
+
+  const rawStatus = extractRawStatus(printer);
+  const readyToPrint = readString(printerStatus.ready_to_print);
+  const lastPingedAt = readString(printerStatus.last_pinged_at);
+  const currentPrintStatus = readString(currentPrintRun.status);
+  const hasCurrentPrintRun = Object.keys(currentPrintRun).length > 0;
+  const pingStale = isPingStale(lastPingedAt);
+
+  return {
+    rawStatus,
+    readyToPrint,
+    lastPingedAt,
+    currentPrintStatus,
+    hasCurrentPrintRun,
+    pingStale,
+  };
+}
+
 export function mapFormlabsStatus(rawStatus: string | null): InternalResourceStatus {
   const value = (rawStatus ?? "").trim().toLowerCase();
 
@@ -297,8 +333,56 @@ export function mapFormlabsStatus(rawStatus: string | null): InternalResourceSta
   return "blocked";
 }
 
-function normalizeReasonCode(rawStatus: string | null): string {
-  const normalized = (rawStatus ?? "unknown")
+function deriveFormlabsStatus(
+  printer: Record<string, unknown>,
+): {
+  mappedStatus: InternalResourceStatus;
+  rawStatus: string | null;
+  reasonSuffix: string;
+  pingStale: boolean;
+  lastPingedAt: string | null;
+} {
+  const context = getPrinterStatusContext(printer);
+
+  if (context.pingStale) {
+    return {
+      mappedStatus: "offline",
+      rawStatus: context.rawStatus,
+      reasonSuffix: "stale_ping",
+      pingStale: true,
+      lastPingedAt: context.lastPingedAt,
+    };
+  }
+
+  const fromRaw = mapFormlabsStatus(context.rawStatus);
+
+  if (fromRaw === "idle" && context.readyToPrint?.toLowerCase() === "false") {
+    return {
+      mappedStatus: context.hasCurrentPrintRun ? "running" : "blocked",
+      rawStatus: context.rawStatus,
+      reasonSuffix: context.hasCurrentPrintRun ? "active_run" : "not_ready",
+      pingStale: false,
+      lastPingedAt: context.lastPingedAt,
+    };
+  }
+
+  return {
+    mappedStatus: fromRaw,
+    rawStatus: context.rawStatus,
+    reasonSuffix: "raw_status",
+    pingStale: false,
+    lastPingedAt: context.lastPingedAt,
+  };
+}
+
+function normalizeReasonCode(printer: Record<string, unknown>): string {
+  const derived = deriveFormlabsStatus(printer);
+
+  if (derived.pingStale) {
+    return "formlabs_stale_ping";
+  }
+
+  const normalized = (derived.rawStatus ?? "unknown")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "");
@@ -348,6 +432,7 @@ function sanitizePreviousPrintRun(value: unknown) {
 
 function sanitizePrinterPayload(printer: Record<string, unknown>) {
   const printerStatus = asRecord(printer.printer_status);
+  const derived = deriveFormlabsStatus(printer);
 
   return {
     serial: readString(printer.serial),
@@ -368,6 +453,12 @@ function sanitizePrinterPayload(printer: Record<string, unknown>) {
       currentPrintRun: sanitizeCurrentPrintRun(printerStatus.current_print_run),
     },
     previousPrintRun: sanitizePreviousPrintRun(printer.previous_print_run),
+    derivedConnectivity: {
+      mappedStatus: derived.mappedStatus,
+      pingStale: derived.pingStale,
+      lastPingedAt: derived.lastPingedAt,
+      staleThresholdMinutes: FORMLABS_STALE_PING_MINUTES,
+    },
   };
 }
 
@@ -376,15 +467,15 @@ export function mapFormlabsPrinterSummary(
 ): FormlabsDiscoveredPrinter {
   const printerStatus = asRecord(printer.printer_status);
   const currentPrintRun = asRecord(printerStatus.current_print_run);
-  const rawStatus = extractRawStatus(printer);
+  const derived = deriveFormlabsStatus(printer);
 
   return {
     serial: readString(printer.serial) ?? "",
     alias: readString(printer.alias),
     machineTypeId: readString(printer.machine_type_id),
     groupName: readString(asRecord(printer.group).name),
-    rawStatus,
-    mappedStatus: mapFormlabsStatus(rawStatus),
+    rawStatus: derived.rawStatus,
+    mappedStatus: derived.mappedStatus,
     readyToPrint: readString(printerStatus.ready_to_print),
     lastModified: readString(printerStatus.last_modified),
     lastPingedAt: readString(printerStatus.last_pinged_at),
@@ -483,14 +574,13 @@ export async function testFormlabsConnection(
   profile?: InternalConnectorCredentialProfileSecretRecord | null,
 ) {
   const printer = await fetchFormlabsPrinter(connection, profile);
-  const rawStatus = extractRawStatus(printer);
-  const mappedStatus = mapFormlabsStatus(rawStatus);
+  const derived = deriveFormlabsStatus(printer);
 
   return {
     ok: true,
-    message: `Connected to Formlabs printer ${connection.external_resource_id}. Current mapped status: ${mappedStatus}.`,
-    rawStatus,
-    mappedStatus,
+    message: `Connected to Formlabs printer ${connection.external_resource_id}. Current mapped status: ${derived.mappedStatus}.`,
+    rawStatus: derived.rawStatus,
+    mappedStatus: derived.mappedStatus,
     printer: sanitizePrinterPayload(printer),
   };
 }
@@ -500,23 +590,26 @@ export async function syncFormlabsConnection(
   profile?: InternalConnectorCredentialProfileSecretRecord | null,
 ): Promise<ConnectorSyncResult> {
   const printer = await fetchFormlabsPrinter(connection, profile);
-  const rawStatus = extractRawStatus(printer);
-  const status = mapFormlabsStatus(rawStatus);
+  const derived = deriveFormlabsStatus(printer);
   const effectiveAt = new Date().toISOString();
 
   return {
-    status,
-    rawStatus,
-    reasonCode: normalizeReasonCode(rawStatus),
-    reasonDetail: rawStatus
-      ? `Formlabs reported printer status "${rawStatus}".`
-      : "Formlabs did not return a recognizable printer status.",
+    status: derived.mappedStatus,
+    rawStatus: derived.rawStatus,
+    reasonCode: normalizeReasonCode(printer),
+    reasonDetail: derived.pingStale
+      ? `Formlabs printer has not pinged within ${FORMLABS_STALE_PING_MINUTES} minutes and is treated as offline.`
+      : derived.rawStatus
+        ? `Formlabs reported printer status "${derived.rawStatus}".`
+        : "Formlabs did not return a recognizable printer status.",
     effectiveAt,
     payload: {
       provider: "formlabs",
       external_resource_id: connection.external_resource_id,
-      raw_status: rawStatus,
-      mapped_status: status,
+      raw_status: derived.rawStatus,
+      mapped_status: derived.mappedStatus,
+      connectivity_reason:
+        derived.pingStale ? "stale_ping" : derived.reasonSuffix,
       printer: sanitizePrinterPayload(printer),
     },
   };

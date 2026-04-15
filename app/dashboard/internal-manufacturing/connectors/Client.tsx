@@ -1,38 +1,25 @@
 "use client";
 
 import Link from "next/link";
-import {
-  useEffect,
-  useMemo,
-  useState,
-  type FormEvent,
-  type ReactNode,
-} from "react";
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import type {
+  FormlabsDiscoveredPrinter,
   InternalConnectorCredentialProfile,
   InternalConnectorProviderKey,
   InternalConnectorResource,
   InternalResourceConnection,
   InternalResourceConnectionsData,
   InternalResourceStatus,
+  MarkforgedDiscoveredPrinter,
+  StratasysDiscoveredPrinter,
+  UltimakerDiscoveredPrinter,
 } from "./types";
-import {
-  type NormalizedDiscoveredMachine,
-  buildConnectorDisplayName,
-  getProviderDefaultConnectionMode,
-  getProviderDefinition,
-  getProviderLabel,
-  isRealVendorProvider,
-  normalizeDiscoveredMachines,
-  profileSecondaryText,
-  providerRequiresCredentialProfile,
-  providerSupportsDiscovery,
-  shouldAutoReplaceDisplayName,
-} from "./providerDefinitions";
+import type { InternalManufacturingCapability } from "../types";
 
 type Props = {
   data: InternalResourceConnectionsData;
+  capabilities?: InternalManufacturingCapability[];
 };
 
 type FleetCategory =
@@ -55,12 +42,31 @@ type MachineRow = {
   location: string;
   currentStatus: InternalResourceStatus;
   currentJobName: string | null;
-  currentJobStatus: string | null;
   currentMaterial: string | null;
-  remainingTimeMs: number | null;
   rawVendorStatus: string | null;
   machineTypeLabel: string | null;
   externalMachineLabel: string | null;
+  lastPingedAt: string | null;
+};
+
+type DiscoveredMachine =
+  | { providerKey: "formlabs"; item: FormlabsDiscoveredPrinter }
+  | { providerKey: "ultimaker"; item: UltimakerDiscoveredPrinter }
+  | { providerKey: "markforged"; item: MarkforgedDiscoveredPrinter }
+  | { providerKey: "stratasys"; item: StratasysDiscoveredPrinter };
+
+type ProviderUiPreset = {
+  providerKey: InternalConnectorProviderKey;
+  label: string;
+  connectionMode: InternalResourceConnection["connectionMode"];
+  defaultBaseUrl: string;
+  externalIdLabel: string;
+  externalIdPlaceholder: string;
+  credentialsLabel: string;
+  discoveryButtonLabel: string;
+  supportsDiscovery: boolean;
+  requiresCredentialProfile: boolean;
+  allowLegacyFallback: boolean;
 };
 
 const providerOptions: InternalConnectorProviderKey[] = [
@@ -75,12 +81,131 @@ const providerOptions: InternalConnectorProviderKey[] = [
   "other",
 ];
 
-const connectionModeOptions = [
-  "api_key",
-  "oauth",
-  "agent_url",
-  "manual",
-] as const;
+const connectionModeOptions = ["api_key", "oauth", "agent_url", "manual"] as const;
+
+const PROVIDER_PRESETS: Record<string, ProviderUiPreset> = {
+  formlabs: {
+    providerKey: "formlabs",
+    label: "Formlabs",
+    connectionMode: "oauth",
+    defaultBaseUrl: "https://api.formlabs.com",
+    externalIdLabel: "Printer serial",
+    externalIdPlaceholder: "Formlabs printer serial",
+    credentialsLabel: "Formlabs credentials",
+    discoveryButtonLabel: "Discover Formlabs machines",
+    supportsDiscovery: true,
+    requiresCredentialProfile: true,
+    allowLegacyFallback: true,
+  },
+  ultimaker: {
+    providerKey: "ultimaker",
+    label: "Ultimaker",
+    connectionMode: "oauth",
+    defaultBaseUrl: "",
+    externalIdLabel: "Cluster or printer ID",
+    externalIdPlaceholder: "Ultimaker cluster/printer ID",
+    credentialsLabel: "Ultimaker credentials",
+    discoveryButtonLabel: "Discover Ultimaker machines",
+    supportsDiscovery: true,
+    requiresCredentialProfile: true,
+    allowLegacyFallback: false,
+  },
+  markforged: {
+    providerKey: "markforged",
+    label: "Markforged",
+    connectionMode: "api_key",
+    defaultBaseUrl: "",
+    externalIdLabel: "Device ID",
+    externalIdPlaceholder: "Markforged device ID",
+    credentialsLabel: "Markforged credentials",
+    discoveryButtonLabel: "Discover Markforged devices",
+    supportsDiscovery: true,
+    requiresCredentialProfile: true,
+    allowLegacyFallback: false,
+  },
+  stratasys: {
+    providerKey: "stratasys",
+    label: "Stratasys",
+    connectionMode: "api_key",
+    defaultBaseUrl: "",
+    externalIdLabel: "Machine ID",
+    externalIdPlaceholder: "Stratasys machine ID",
+    credentialsLabel: "Stratasys credentials",
+    discoveryButtonLabel: "Discover Stratasys machines",
+    supportsDiscovery: true,
+    requiresCredentialProfile: true,
+    allowLegacyFallback: false,
+  },
+  hp: {
+    providerKey: "hp",
+    label: "HP",
+    connectionMode: "api_key",
+    defaultBaseUrl: "",
+    externalIdLabel: "Machine ID",
+    externalIdPlaceholder: "HP machine ID",
+    credentialsLabel: "HP credentials",
+    discoveryButtonLabel: "Discover HP machines",
+    supportsDiscovery: false,
+    requiresCredentialProfile: true,
+    allowLegacyFallback: false,
+  },
+  mtconnect: {
+    providerKey: "mtconnect",
+    label: "MTConnect",
+    connectionMode: "agent_url",
+    defaultBaseUrl: "",
+    externalIdLabel: "External resource ID",
+    externalIdPlaceholder: "Remote machine / asset ID",
+    credentialsLabel: "MTConnect connection",
+    discoveryButtonLabel: "Discover machines",
+    supportsDiscovery: false,
+    requiresCredentialProfile: false,
+    allowLegacyFallback: false,
+  },
+  opc_ua: {
+    providerKey: "opc_ua",
+    label: "OPC UA",
+    connectionMode: "agent_url",
+    defaultBaseUrl: "",
+    externalIdLabel: "External resource ID",
+    externalIdPlaceholder: "Remote machine / node ID",
+    credentialsLabel: "OPC UA connection",
+    discoveryButtonLabel: "Discover machines",
+    supportsDiscovery: false,
+    requiresCredentialProfile: false,
+    allowLegacyFallback: false,
+  },
+  manual: {
+    providerKey: "manual",
+    label: "Manual",
+    connectionMode: "manual",
+    defaultBaseUrl: "",
+    externalIdLabel: "External resource ID",
+    externalIdPlaceholder: "Optional remote identifier",
+    credentialsLabel: "Manual connection",
+    discoveryButtonLabel: "Discover machines",
+    supportsDiscovery: false,
+    requiresCredentialProfile: false,
+    allowLegacyFallback: false,
+  },
+  other: {
+    providerKey: "other",
+    label: "Other",
+    connectionMode: "api_key",
+    defaultBaseUrl: "",
+    externalIdLabel: "External resource ID",
+    externalIdPlaceholder: "Remote machine / asset ID",
+    credentialsLabel: "Provider credentials",
+    discoveryButtonLabel: "Discover machines",
+    supportsDiscovery: false,
+    requiresCredentialProfile: false,
+    allowLegacyFallback: false,
+  },
+};
+
+function getProviderPreset(providerKey: InternalConnectorProviderKey): ProviderUiPreset {
+  return PROVIDER_PRESETS[providerKey] ?? PROVIDER_PRESETS.other;
+}
 
 function formatLabel(value: string) {
   return value
@@ -89,9 +214,14 @@ function formatLabel(value: string) {
     .join(" ");
 }
 
+function formatProviderLabel(value: string) {
+  if (value === "mtconnect") return "MTConnect";
+  if (value === "opc_ua") return "OPC UA";
+  return formatLabel(value);
+}
+
 function formatDateTime(value?: string | null) {
   if (!value) return "—";
-
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
 
@@ -101,28 +231,10 @@ function formatDateTime(value?: string | null) {
   }).format(date);
 }
 
-function formatDurationMs(value?: number | null) {
-  if (!value || value <= 0) return "—";
-
-  const totalMinutes = Math.floor(value / 1000 / 60);
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-
-  if (hours <= 0) {
-    return `${minutes}m`;
-  }
-
-  return `${hours}h ${minutes}m`;
-}
-
 function readString(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
-}
-
-function readNumber(value: unknown): number | null {
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -143,6 +255,28 @@ function readPath(root: unknown, path: string[]) {
   }
 
   return current;
+}
+
+function getStatusBadgeClasses(status: InternalResourceStatus) {
+  switch (status) {
+    case "running":
+      return "bg-sky-50 text-sky-700 ring-1 ring-sky-200";
+    case "queued":
+      return "bg-violet-50 text-violet-700 ring-1 ring-violet-200";
+    case "paused":
+      return "bg-amber-50 text-amber-700 ring-1 ring-amber-200";
+    case "blocked":
+      return "bg-rose-50 text-rose-700 ring-1 ring-rose-200";
+    case "maintenance":
+      return "bg-orange-50 text-orange-700 ring-1 ring-orange-200";
+    case "offline":
+      return "bg-zinc-100 text-zinc-700 ring-1 ring-zinc-200";
+    case "complete":
+      return "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200";
+    case "idle":
+    default:
+      return "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200";
+  }
 }
 
 function getSyncBadgeClasses(
@@ -177,40 +311,12 @@ function getProfileBadgeClasses(
   }
 }
 
-function getStatusBadgeClasses(status: InternalResourceStatus) {
-  switch (status) {
-    case "running":
-      return "bg-sky-50 text-sky-700 ring-1 ring-sky-200";
-    case "queued":
-      return "bg-violet-50 text-violet-700 ring-1 ring-violet-200";
-    case "paused":
-      return "bg-amber-50 text-amber-700 ring-1 ring-amber-200";
-    case "blocked":
-      return "bg-rose-50 text-rose-700 ring-1 ring-rose-200";
-    case "maintenance":
-      return "bg-orange-50 text-orange-700 ring-1 ring-orange-200";
-    case "offline":
-      return "bg-zinc-100 text-zinc-700 ring-1 ring-zinc-200";
-    case "complete":
-      return "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200";
-    case "idle":
-    default:
-      return "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200";
-  }
-}
-
 function deriveCategory(resource: InternalConnectorResource): FleetCategory {
-  if (
-    resource.serviceDomain === "additive" ||
-    resource.resourceType === "printer"
-  ) {
+  if (resource.serviceDomain === "additive" || resource.resourceType === "printer") {
     return "3D printers";
   }
 
-  if (
-    resource.serviceDomain === "cnc" ||
-    resource.resourceType === "cnc_machine"
-  ) {
+  if (resource.serviceDomain === "cnc" || resource.resourceType === "cnc_machine") {
     return "CNC";
   }
 
@@ -241,74 +347,40 @@ function deriveTechnology(
 ) {
   const metadataCandidates = [
     readString(resource.metadata?.technology),
-    readString(resource.metadata?.technologyLabel),
-    readString(resource.metadata?.processTechnology),
-    readString(resource.metadata?.manufacturingTechnology),
     readString(connection?.metadata?.technology),
     readString(connection?.metadata?.technologyLabel),
-    readString(connection?.metadata?.processTechnology),
+    readString(connection?.metadata?.machineTypeId),
+    readString(connection?.metadata?.model),
   ].filter(Boolean) as string[];
 
   if (metadataCandidates.length > 0) {
-    return metadataCandidates[0];
+    const first = metadataCandidates[0];
+    const lower = first.toLowerCase();
+
+    if (
+      lower.includes("form 4") ||
+      lower.includes("form-4") ||
+      lower.includes("form 3") ||
+      lower.includes("form-3") ||
+      lower.includes("form 2") ||
+      lower.includes("form-2")
+    ) {
+      return "SLA";
+    }
+
+    if (lower.includes("fuse")) return "SLS";
+    if (lower.includes("fx10")) return "Composite / FFF";
+    if (lower.includes("markforged")) return "Composite / FFF";
+    if (lower.includes("ultimaker")) return "FDM";
+
+    return first;
   }
 
-  const latestPayload = resource.latestStatusEvent?.payload;
-
-  const machineTypeId =
-    readString(readPath(latestPayload, ["printer", "machineTypeId"])) ??
-    readString(connection?.metadata?.machineTypeId) ??
-    readString(connection?.metadata?.printerType) ??
-    readString(connection?.metadata?.model) ??
-    readString(connection?.metadata?.machineModel);
-
-  const normalizedMachineType = machineTypeId?.toLowerCase() ?? "";
-
-  if (
-    normalizedMachineType.includes("form-2") ||
-    normalizedMachineType.includes("form-3") ||
-    normalizedMachineType.includes("form-4")
-  ) {
-    return "SLA";
-  }
-
-  if (normalizedMachineType.includes("fuse")) {
-    return "SLS";
-  }
-
-  if (normalizedMachineType.includes("ultimaker")) {
-    return "FDM";
-  }
-
-  if (
-    normalizedMachineType.includes("markforged") ||
-    normalizedMachineType.includes("fx10") ||
-    normalizedMachineType.includes("x7") ||
-    normalizedMachineType.includes("x3") ||
-    normalizedMachineType.includes("mark two")
-  ) {
-    return "Composite / FFF";
-  }
-
-  if (resource.serviceDomain === "additive") {
-    return "Additive";
-  }
-
-  if (resource.serviceDomain === "cnc") {
-    return "CNC";
-  }
-
-  if (resource.serviceDomain === "qa") {
-    return "Inspection";
-  }
-
-  if (resource.serviceDomain === "scanning") {
-    return "Scanning";
-  }
-
-  if (resource.serviceDomain === "finishing") {
-    return "Finishing";
-  }
+  if (resource.serviceDomain === "additive") return "Additive";
+  if (resource.serviceDomain === "cnc") return "CNC";
+  if (resource.serviceDomain === "qa") return "Inspection";
+  if (resource.serviceDomain === "scanning") return "Scanning";
+  if (resource.serviceDomain === "finishing") return "Finishing";
 
   return formatLabel(resource.resourceType);
 }
@@ -318,6 +390,7 @@ function buildMachineRow(
   connection: InternalResourceConnection | null,
 ): MachineRow {
   const payload = asRecord(resource.latestStatusEvent?.payload ?? {});
+  const printer = asRecord(readPath(payload, ["printer"]));
   const providerKey = connection?.providerKey ?? "manual";
 
   return {
@@ -326,62 +399,171 @@ function buildMachineRow(
     category: deriveCategory(resource),
     technology: deriveTechnology(resource, connection),
     providerKey,
-    providerLabel: getProviderLabel(
-      providerKey as InternalConnectorProviderKey,
-    ),
+    providerLabel: formatProviderLabel(providerKey),
     location: resource.locationLabel || "Unassigned",
     currentStatus: resource.currentStatus,
     currentJobName:
-      readString(
-        readPath(payload, ["printer", "printerStatus", "currentPrintRun", "name"]),
-      ) ??
-      readString(readPath(payload, ["printer", "currentJobName"])) ??
-      readString(readPath(payload, ["printer", "jobName"])),
-    currentJobStatus:
-      readString(
-        readPath(payload, ["printer", "printerStatus", "currentPrintRun", "status"]),
-      ) ??
-      readString(readPath(payload, ["printer", "currentJobStatus"])) ??
-      readString(readPath(payload, ["printer", "jobStatus"])),
+      readString(readPath(printer, ["printerStatus", "currentPrintRun", "name"])) ??
+      readString(printer.currentJobName) ??
+      null,
     currentMaterial:
-      readString(
-        readPath(payload, ["printer", "printerStatus", "currentPrintRun", "material"]),
-      ) ??
-      readString(readPath(payload, ["printer", "previousPrintRun", "material"])) ??
-      readString(readPath(payload, ["printer", "material"])),
-    remainingTimeMs:
-      readNumber(
-        readPath(payload, [
-          "printer",
-          "printerStatus",
-          "currentPrintRun",
-          "estimatedTimeRemainingMs",
-        ]),
-      ) ?? readNumber(readPath(payload, ["printer", "remainingTimeMs"])),
+      readString(readPath(printer, ["printerStatus", "currentPrintRun", "material"])) ??
+      readString(printer.material) ??
+      null,
     rawVendorStatus:
-      readString(payload.raw_status) ??
-      readString(readPath(payload, ["printer", "rawStatus"])),
+      readString(payload.raw_status) ?? readString(printer.rawStatus) ?? null,
     machineTypeLabel:
-      readString(readPath(payload, ["printer", "machineTypeId"])) ??
-      readString(readPath(payload, ["printer", "printerType"])) ??
-      readString(readPath(payload, ["printer", "model"])),
+      readString(printer.machineTypeId) ??
+      readString(printer.printerType) ??
+      readString(printer.model) ??
+      null,
     externalMachineLabel:
       connection?.externalResourceId ??
-      readString(readPath(payload, ["printer", "serial"])) ??
-      readString(readPath(payload, ["printer", "id"])),
+      readString(printer.serial) ??
+      readString(printer.id) ??
+      null,
+    lastPingedAt: readString(readPath(printer, ["printerStatus", "lastPingedAt"])),
   };
 }
 
 function getInitials(label: string) {
   const parts = label.split(/\s+/).filter(Boolean);
-  const initials = parts
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? "");
-  return initials.join("") || "MC";
+  return (
+    parts
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase() ?? "")
+      .join("") || "MC"
+  );
 }
 
-function sortByLabel(values: string[]) {
-  return [...values].sort((a, b) => a.localeCompare(b));
+function getProfileDisplaySecondary(profile: InternalConnectorCredentialProfile) {
+  if (profile.providerKey === "ultimaker") {
+    if (profile.tokenExpiresAt) {
+      return `Token expires ${formatDateTime(profile.tokenExpiresAt)}`;
+    }
+
+    return profile.authMode ? `Auth: ${formatLabel(profile.authMode)}` : "Token auth";
+  }
+
+  return profile.clientIdPreview || "Stored credentials";
+}
+
+function getDiscoveredMachineId(machine: DiscoveredMachine) {
+  if (machine.providerKey === "formlabs") return machine.item.serial;
+  return machine.item.id;
+}
+
+function getDiscoveredMachineName(machine: DiscoveredMachine) {
+  if (machine.providerKey === "formlabs") {
+    return machine.item.alias || machine.item.serial;
+  }
+
+  return machine.item.name;
+}
+
+function getDiscoveredMachineModel(machine: DiscoveredMachine) {
+  if (machine.providerKey === "formlabs") return machine.item.machineTypeId;
+  if (machine.providerKey === "ultimaker") return machine.item.printerType;
+  return machine.item.model;
+}
+
+function getDiscoveredMachineTechnology(machine: DiscoveredMachine) {
+  if (machine.providerKey === "formlabs") {
+    const value = (machine.item.machineTypeId || "").toLowerCase();
+    if (value.includes("form")) return "SLA";
+    if (value.includes("fuse")) return "SLS";
+    return "Additive";
+  }
+
+  if (machine.providerKey === "ultimaker") return machine.item.technology || "FDM";
+  if (machine.providerKey === "markforged") return machine.item.technology || "Composite / FFF";
+  return machine.item.technology || "Additive";
+}
+
+function getDiscoveredMachineStatus(machine: DiscoveredMachine) {
+  return machine.item.mappedStatus;
+}
+
+function getDiscoveredMachineSubtitle(machine: DiscoveredMachine) {
+  if (machine.providerKey === "formlabs") {
+    return `${machine.item.serial} · ${machine.item.machineTypeId || "Unknown model"}`;
+  }
+
+  if (machine.providerKey === "ultimaker") {
+    return `${machine.item.id} · ${machine.item.printerType || "Ultimaker cluster"}`;
+  }
+
+  if (machine.providerKey === "markforged") {
+    return `${machine.item.serial || machine.item.id} · ${machine.item.model || "Markforged device"}`;
+  }
+
+  return `${machine.item.serial || machine.item.id} · ${machine.item.model || "Stratasys machine"}`;
+}
+
+function getDiscoveredMachineMetaLines(machine: DiscoveredMachine) {
+  if (machine.providerKey === "formlabs") {
+    return [
+      `Status: ${machine.item.rawStatus || "—"}`,
+      `Group: ${machine.item.groupName || "—"}`,
+      `Material: ${machine.item.currentPrintMaterial || "—"}`,
+      `Last ping: ${formatDateTime(machine.item.lastPingedAt)}`,
+    ];
+  }
+
+  if (machine.providerKey === "ultimaker") {
+    return [
+      `Cluster: ${machine.item.clusterName || machine.item.clusterId}`,
+      `Technology: ${machine.item.technology || "—"}`,
+      `Material: ${machine.item.material || "—"}`,
+      `Status: ${machine.item.rawStatus || "—"}`,
+    ];
+  }
+
+  if (machine.providerKey === "markforged") {
+    return [
+      `Serial: ${machine.item.serial || "—"}`,
+      `Technology: ${machine.item.technology || "—"}`,
+      `Location: ${machine.item.locationName || "—"}`,
+      `Job: ${machine.item.currentJobName || "—"}`,
+    ];
+  }
+
+  return [
+    `Serial: ${machine.item.serial || "—"}`,
+    `Technology: ${machine.item.technology || "—"}`,
+    `Location: ${machine.item.locationName || "—"}`,
+    `Job: ${machine.item.currentJobName || "—"}`,
+  ];
+}
+
+function createAutoMetadata(machine: DiscoveredMachine): Record<string, unknown> {
+  return {
+    technology: getDiscoveredMachineTechnology(machine),
+    model: getDiscoveredMachineModel(machine),
+    providerDiscoveredName: getDiscoveredMachineName(machine),
+    providerDiscoveredId: getDiscoveredMachineId(machine),
+    discoveredFrom: machine.providerKey,
+  };
+}
+
+function createDefaultDisplayName(
+  resource: InternalConnectorResource | null,
+  machine: DiscoveredMachine | null,
+  providerKey: InternalConnectorProviderKey,
+) {
+  if (machine && resource?.name) {
+    return `${resource.name} · ${getDiscoveredMachineName(machine)}`;
+  }
+
+  if (machine) {
+    return getDiscoveredMachineName(machine);
+  }
+
+  if (resource) {
+    return `${resource.name} Connector`;
+  }
+
+  return `${formatProviderLabel(providerKey)} Connector`;
 }
 
 function getDefaultOrganizationId(
@@ -399,7 +581,7 @@ function getDefaultOrganizationId(
   );
 }
 
-export default function Client({ data }: Props) {
+export default function Client({ data, capabilities = [] }: Props) {
   const router = useRouter();
 
   const connectionsByResourceId = useMemo(() => {
@@ -428,13 +610,8 @@ export default function Client({ data }: Props) {
       null,
   );
 
-  const [activeCategory, setActiveCategory] =
-    useState<FleetCategory>("All equipment");
-  const [activeTechnology, setActiveTechnology] = useState<string>(
-    "All technologies",
-  );
+  const [activeCategory, setActiveCategory] = useState<FleetCategory>("All equipment");
   const [activeProvider, setActiveProvider] = useState<string>("All providers");
-  const [activeLocation, setActiveLocation] = useState<string>("All locations");
   const [activeStatus, setActiveStatus] = useState<string>("All statuses");
   const [search, setSearch] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
@@ -454,81 +631,23 @@ export default function Client({ data }: Props) {
     );
   }, [machines, selectedResourceId]);
 
-  const categoryCounts = useMemo(() => {
-    const counts = new Map<FleetCategory, number>();
-
-    for (const machine of machines) {
-      counts.set(machine.category, (counts.get(machine.category) ?? 0) + 1);
-    }
-
-    return counts;
-  }, [machines]);
-
-  const technologiesForCategory = useMemo(() => {
-    const scoped =
-      activeCategory === "All equipment"
-        ? machines
-        : machines.filter((machine) => machine.category === activeCategory);
-
-    return sortByLabel([...new Set(scoped.map((machine) => machine.technology))]);
-  }, [machines, activeCategory]);
-
-  const providersForCategory = useMemo(() => {
-    const scoped =
-      activeCategory === "All equipment"
-        ? machines
-        : machines.filter((machine) => machine.category === activeCategory);
-
-    return sortByLabel([...new Set(scoped.map((machine) => machine.providerLabel))]);
-  }, [machines, activeCategory]);
-
-  const locations = useMemo(
-    () => sortByLabel([...new Set(machines.map((machine) => machine.location))]),
-    [machines],
-  );
-
   const filteredMachines = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
 
     return machines.filter((machine) => {
-      if (
-        activeCategory !== "All equipment" &&
-        machine.category !== activeCategory
-      ) {
+      if (activeCategory !== "All equipment" && machine.category !== activeCategory) {
         return false;
       }
 
-      if (
-        activeTechnology !== "All technologies" &&
-        machine.technology !== activeTechnology
-      ) {
+      if (activeProvider !== "All providers" && machine.providerLabel !== activeProvider) {
         return false;
       }
 
-      if (
-        activeProvider !== "All providers" &&
-        machine.providerLabel !== activeProvider
-      ) {
+      if (activeStatus !== "All statuses" && machine.currentStatus !== activeStatus) {
         return false;
       }
 
-      if (
-        activeLocation !== "All locations" &&
-        machine.location !== activeLocation
-      ) {
-        return false;
-      }
-
-      if (
-        activeStatus !== "All statuses" &&
-        machine.currentStatus !== activeStatus
-      ) {
-        return false;
-      }
-
-      if (!normalizedSearch) {
-        return true;
-      }
+      if (!normalizedSearch) return true;
 
       const searchable = [
         machine.resource.name,
@@ -545,28 +664,21 @@ export default function Client({ data }: Props) {
 
       return searchable.includes(normalizedSearch);
     });
-  }, [
-    activeCategory,
-    activeLocation,
-    activeProvider,
-    activeStatus,
-    activeTechnology,
-    machines,
-    search,
-  ]);
+  }, [activeCategory, activeProvider, activeStatus, machines, search]);
 
   const selectedMachine =
     filteredMachines.find((machine) => machine.resource.id === selectedResourceId) ??
     machines.find((machine) => machine.resource.id === selectedResourceId) ??
     null;
 
+  const providers = useMemo(
+    () => [...new Set(machines.map((machine) => machine.providerLabel))].sort(),
+    [machines],
+  );
+
   const connectedCount = machines.filter((machine) => machine.connection).length;
-  const runningCount = machines.filter(
-    (machine) => machine.currentStatus === "running",
-  ).length;
-  const idleCount = machines.filter(
-    (machine) => machine.currentStatus === "idle",
-  ).length;
+  const runningCount = machines.filter((machine) => machine.currentStatus === "running").length;
+  const idleCount = machines.filter((machine) => machine.currentStatus === "idle").length;
   const attentionCount = machines.filter(
     (machine) =>
       machine.currentStatus === "blocked" ||
@@ -576,47 +688,46 @@ export default function Client({ data }: Props) {
   ).length;
 
   return (
-    <div className="space-y-7">
-      <section className="rounded-[28px] border border-zinc-200 bg-white px-7 py-7 shadow-sm">
-        <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
-          <div className="max-w-3xl">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-500">
+    <div className="space-y-6">
+      <section className="rounded-[32px] border border-slate-200 bg-white px-7 py-7 shadow-sm">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
               Internal connectors
-            </p>
-            <h2 className="mt-3 text-4xl font-semibold tracking-tight text-slate-950">
-              Machine integrations
-            </h2>
-            <p className="mt-3 text-sm leading-7 text-slate-600">
-              Manage connected printers and equipment, reuse provider accounts
-              across many resources, and keep your fleet workspace organized in
-              one calmer operational view.
+            </div>
+            <h1 className="mt-3 text-4xl font-semibold tracking-tight text-slate-950">
+              Fleet command
+            </h1>
+            <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-600">
+              Connect provider accounts, discover one or many machines, and manage
+              machine health from a cleaner operational workspace.
             </p>
           </div>
 
           <div className="flex flex-wrap gap-3">
             <Link
               href="/dashboard/internal-manufacturing"
-              className="rounded-full border border-zinc-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-900 transition hover:bg-zinc-50"
+              className="rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-medium text-slate-900 transition hover:bg-slate-50"
             >
               Back to overview
             </Link>
             <Link
               href="/dashboard/internal-manufacturing/setup"
-              className="rounded-full border border-zinc-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-900 transition hover:bg-zinc-50"
+              className="rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-medium text-slate-900 transition hover:bg-slate-50"
             >
-              Open setup
+              Setup
             </Link>
             <Link
               href="/dashboard/internal-manufacturing/schedule"
-              className="rounded-full bg-slate-950 px-5 py-2.5 text-sm font-medium text-white transition hover:opacity-90"
+              className="rounded-full bg-[#0b1633] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#13224a]"
             >
-              Open schedule
+              Schedule
             </Link>
           </div>
         </div>
 
         {data.errors.length > 0 ? (
-          <div className="mt-5 rounded-[20px] border border-amber-200 bg-amber-50 p-4">
+          <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
             <div className="text-sm font-semibold text-amber-800">
               Some connector data could not be loaded completely.
             </div>
@@ -629,138 +740,93 @@ export default function Client({ data }: Props) {
         ) : null}
       </section>
 
-      <div className="grid gap-6 xl:grid-cols-[230px_minmax(0,1.75fr)_360px]">
+      <div className="grid gap-6 xl:grid-cols-[220px_minmax(0,1.6fr)_360px]">
         <aside className="space-y-4 xl:sticky xl:top-6 xl:self-start">
-          <div className="rounded-[24px] border border-zinc-200 bg-white p-5 shadow-sm">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-              Categories
-            </div>
-
-            <div className="mt-4 space-y-2">
-              {(
-                [
-                  "All equipment",
-                  "3D printers",
-                  "CNC",
-                  "Inspection & QA",
-                  "Finishing",
-                  "General",
-                ] as FleetCategory[]
-              ).map((category) => {
-                const count =
-                  category === "All equipment"
+          <SideMenuSection title="Categories">
+            {(
+              [
+                "All equipment",
+                "3D printers",
+                "CNC",
+                "Inspection & QA",
+                "Finishing",
+                "General",
+              ] as FleetCategory[]
+            ).map((category) => (
+              <button
+                key={category}
+                type="button"
+                onClick={() => setActiveCategory(category)}
+                className={`flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left text-sm transition ${
+                  activeCategory === category
+                    ? "bg-[#0b1633] text-white"
+                    : "bg-slate-50 text-slate-700 hover:bg-slate-100"
+                }`}
+              >
+                <span>{category}</span>
+                <span
+                  className={`rounded-full px-2.5 py-1 text-[11px] ${
+                    activeCategory === category
+                      ? "bg-white/15 text-white"
+                      : "bg-white text-slate-500"
+                  }`}
+                >
+                  {category === "All equipment"
                     ? machines.length
-                    : categoryCounts.get(category) ?? 0;
+                    : machines.filter((machine) => machine.category === category).length}
+                </span>
+              </button>
+            ))}
+          </SideMenuSection>
 
-                return (
-                  <button
-                    key={category}
-                    type="button"
-                    onClick={() => {
-                      setActiveCategory(category);
-                      setActiveTechnology("All technologies");
-                      setActiveProvider("All providers");
-                    }}
-                    className={`flex w-full items-center justify-between rounded-[16px] px-4 py-3 text-left text-sm transition ${
-                      activeCategory === category
-                        ? "bg-slate-950 text-white"
-                        : "bg-zinc-50 text-slate-900 hover:bg-zinc-100"
-                    }`}
-                  >
-                    <span>{category}</span>
-                    <span
-                      className={`rounded-full px-2.5 py-1 text-[11px] ${
-                        activeCategory === category
-                          ? "bg-white/15 text-white"
-                          : "bg-white text-slate-600 ring-1 ring-zinc-200"
-                      }`}
-                    >
-                      {count}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+          <SideMenuSection title="Providers">
+            <FilterChip
+              active={activeProvider === "All providers"}
+              onClick={() => setActiveProvider("All providers")}
+            >
+              All providers
+            </FilterChip>
 
-          <div className="rounded-[24px] border border-zinc-200 bg-white p-5 shadow-sm">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-              Technology
-            </div>
-            <div className="mt-4 flex flex-wrap gap-2">
+            {providers.map((provider) => (
               <FilterChip
-                active={activeTechnology === "All technologies"}
-                onClick={() => setActiveTechnology("All technologies")}
+                key={provider}
+                active={activeProvider === provider}
+                onClick={() => setActiveProvider(provider)}
               >
-                All
+                {provider}
               </FilterChip>
-
-              {technologiesForCategory.map((technology) => (
-                <FilterChip
-                  key={technology}
-                  active={activeTechnology === technology}
-                  onClick={() => setActiveTechnology(technology)}
-                >
-                  {technology}
-                </FilterChip>
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-[24px] border border-zinc-200 bg-white p-5 shadow-sm">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-              Providers
-            </div>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <FilterChip
-                active={activeProvider === "All providers"}
-                onClick={() => setActiveProvider("All providers")}
-              >
-                All
-              </FilterChip>
-
-              {providersForCategory.map((provider) => (
-                <FilterChip
-                  key={provider}
-                  active={activeProvider === provider}
-                  onClick={() => setActiveProvider(provider)}
-                >
-                  {provider}
-                </FilterChip>
-              ))}
-            </div>
-          </div>
+            ))}
+          </SideMenuSection>
         </aside>
 
         <section className="space-y-5">
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <StatCard label="Connected" value={connectedCount} />
             <StatCard label="Running" value={runningCount} />
             <StatCard label="Idle" value={idleCount} />
             <StatCard label="Attention" value={attentionCount} />
           </div>
 
-          <div className="rounded-[28px] border border-zinc-200 bg-white p-6 shadow-sm">
-            <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+          <div className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div>
-                <h3 className="text-2xl font-semibold text-slate-950">
-                  Fleet workspace
-                </h3>
-                <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600">
-                  Browse connected machines, narrow the list by process and site,
-                  then manage discovery and connector health from the panel on the
-                  right.
+                <h2 className="text-2xl font-semibold tracking-tight text-slate-950">
+                  Active machines
+                </h2>
+                <p className="mt-2 text-sm leading-7 text-slate-600">
+                  Browse machine state, provider health, and connection status in one
+                  place.
                 </p>
               </div>
 
-              <div className="flex rounded-full border border-zinc-300 bg-white p-1">
+              <div className="flex rounded-full border border-slate-200 bg-slate-50 p-1">
                 <button
                   type="button"
                   onClick={() => setViewMode("grid")}
                   className={`rounded-full px-4 py-2 text-sm font-medium transition ${
                     viewMode === "grid"
-                      ? "bg-slate-950 text-white"
-                      : "text-slate-700 hover:bg-zinc-50"
+                      ? "bg-white text-slate-950 shadow-sm"
+                      : "text-slate-600"
                   }`}
                 >
                   Grid
@@ -770,8 +836,8 @@ export default function Client({ data }: Props) {
                   onClick={() => setViewMode("table")}
                   className={`rounded-full px-4 py-2 text-sm font-medium transition ${
                     viewMode === "table"
-                      ? "bg-slate-950 text-white"
-                      : "text-slate-700 hover:bg-zinc-50"
+                      ? "bg-white text-slate-950 shadow-sm"
+                      : "text-slate-600"
                   }`}
                 >
                   Table
@@ -779,36 +845,21 @@ export default function Client({ data }: Props) {
               </div>
             </div>
 
-            <div className="mt-6 grid gap-3 xl:grid-cols-[minmax(0,1.8fr)_repeat(3,minmax(0,1fr))]">
+            <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(180px,220px)_minmax(180px,220px)]">
               <Field label="Search">
                 <input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search machine, serial, job, material..."
-                  className="w-full rounded-2xl border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none transition focus:border-slate-400"
+                  placeholder="Search machine, provider, material, job..."
+                  className={inputClasses()}
                 />
-              </Field>
-
-              <Field label="Location">
-                <select
-                  value={activeLocation}
-                  onChange={(event) => setActiveLocation(event.target.value)}
-                  className="w-full rounded-2xl border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none transition focus:border-slate-400"
-                >
-                  <option value="All locations">All locations</option>
-                  {locations.map((location) => (
-                    <option key={location} value={location}>
-                      {location}
-                    </option>
-                  ))}
-                </select>
               </Field>
 
               <Field label="Status">
                 <select
                   value={activeStatus}
                   onChange={(event) => setActiveStatus(event.target.value)}
-                  className="w-full rounded-2xl border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none transition focus:border-slate-400"
+                  className={inputClasses()}
                 >
                   <option value="All statuses">All statuses</option>
                   {[
@@ -828,44 +879,34 @@ export default function Client({ data }: Props) {
                 </select>
               </Field>
 
-              <Field label="Segment">
-                <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-slate-700">
-                  {activeCategory}
-                </div>
+              <Field label="Reset">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearch("");
+                    setActiveCategory("All equipment");
+                    setActiveProvider("All providers");
+                    setActiveStatus("All statuses");
+                  }}
+                  className="inline-flex w-full items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 transition hover:bg-slate-50"
+                >
+                  Reset filters
+                </button>
               </Field>
             </div>
 
-            <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-              <div className="text-sm text-slate-500">
-                Showing{" "}
-                <span className="font-semibold text-slate-900">
-                  {filteredMachines.length}
-                </span>{" "}
-                machine{filteredMachines.length === 1 ? "" : "s"}
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setSearch("");
-                  setActiveCategory("All equipment");
-                  setActiveTechnology("All technologies");
-                  setActiveProvider("All providers");
-                  setActiveLocation("All locations");
-                  setActiveStatus("All statuses");
-                }}
-                className="rounded-full border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 transition hover:bg-zinc-50"
-              >
-                Reset filters
-              </button>
+            <div className="mt-5 text-sm text-slate-500">
+              Showing{" "}
+              <span className="font-semibold text-slate-900">{filteredMachines.length}</span>{" "}
+              machine{filteredMachines.length === 1 ? "" : "s"}
             </div>
 
             {filteredMachines.length === 0 ? (
-              <div className="mt-6 rounded-[22px] border border-dashed border-zinc-300 bg-zinc-50 p-10 text-center text-sm text-slate-600">
+              <div className="mt-5 rounded-3xl border border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center text-sm text-slate-600">
                 No machines match the current filters.
               </div>
             ) : viewMode === "grid" ? (
-              <div className="mt-6 grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+              <div className="mt-5 grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
                 {filteredMachines.map((machine) => {
                   const selected = selectedResourceId === machine.resource.id;
 
@@ -874,24 +915,20 @@ export default function Client({ data }: Props) {
                       key={machine.resource.id}
                       type="button"
                       onClick={() => setSelectedResourceId(machine.resource.id)}
-                      className={`rounded-[22px] border p-5 text-left transition ${
+                      className={`rounded-[28px] border p-5 text-left transition ${
                         selected
-                          ? "border-slate-950 bg-slate-950 text-white shadow-md"
-                          : "border-zinc-200 bg-white text-slate-950 hover:border-zinc-300 hover:shadow-sm"
+                          ? "border-[#0b1633] bg-[#0f172a] text-white shadow-lg"
+                          : "border-slate-200 bg-white text-slate-900 shadow-sm hover:-translate-y-0.5 hover:shadow-md"
                       }`}
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-center gap-3">
                           <div
                             className={`flex h-12 w-12 items-center justify-center rounded-2xl text-sm font-semibold ${
-                              selected
-                                ? "bg-white/10 text-white"
-                                : "bg-zinc-100 text-slate-900"
+                              selected ? "bg-white/10 text-white" : "bg-slate-50 text-slate-900"
                             }`}
                           >
-                            {getInitials(
-                              machine.connection?.displayName ?? machine.resource.name,
-                            )}
+                            {getInitials(machine.connection?.displayName ?? machine.resource.name)}
                           </div>
 
                           <div>
@@ -911,7 +948,7 @@ export default function Client({ data }: Props) {
                         <span
                           className={`rounded-full px-3 py-1 text-[11px] font-medium ${
                             selected
-                              ? "bg-white/15 text-white"
+                              ? "bg-white/10 text-white"
                               : getStatusBadgeClasses(machine.currentStatus)
                           }`}
                         >
@@ -920,54 +957,30 @@ export default function Client({ data }: Props) {
                       </div>
 
                       <div
-                        className={`mt-4 grid gap-3 text-xs ${
+                        className={`mt-5 grid grid-cols-2 gap-3 text-xs ${
                           selected ? "text-slate-200" : "text-slate-600"
                         }`}
                       >
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <div className="text-[11px] uppercase tracking-wide opacity-70">
-                              Internal resource
-                            </div>
-                            <div className="mt-1">{machine.resource.name}</div>
-                          </div>
-                          <div>
-                            <div className="text-[11px] uppercase tracking-wide opacity-70">
-                              Location
-                            </div>
-                            <div className="mt-1">{machine.location}</div>
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <div className="text-[11px] uppercase tracking-wide opacity-70">
-                              External ID
-                            </div>
-                            <div className="mt-1">{machine.externalMachineLabel ?? "—"}</div>
-                          </div>
-                          <div>
-                            <div className="text-[11px] uppercase tracking-wide opacity-70">
-                              Material
-                            </div>
-                            <div className="mt-1">{machine.currentMaterial ?? "—"}</div>
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <div className="text-[11px] uppercase tracking-wide opacity-70">
-                              Job
-                            </div>
-                            <div className="mt-1">{machine.currentJobName ?? "—"}</div>
-                          </div>
-                          <div>
-                            <div className="text-[11px] uppercase tracking-wide opacity-70">
-                              Remaining
-                            </div>
-                            <div className="mt-1">{formatDurationMs(machine.remainingTimeMs)}</div>
-                          </div>
-                        </div>
+                        <InfoTile
+                          selected={selected}
+                          label="External ID"
+                          value={machine.externalMachineLabel ?? "—"}
+                        />
+                        <InfoTile
+                          selected={selected}
+                          label="Provider"
+                          value={machine.providerLabel}
+                        />
+                        <InfoTile
+                          selected={selected}
+                          label="Material"
+                          value={machine.currentMaterial ?? "—"}
+                        />
+                        <InfoTile
+                          selected={selected}
+                          label="Job"
+                          value={machine.currentJobName ?? "—"}
+                        />
                       </div>
 
                       <div className="mt-4 flex flex-wrap gap-2">
@@ -975,9 +988,7 @@ export default function Client({ data }: Props) {
                           className={`rounded-full px-3 py-1 text-[11px] font-medium ${
                             selected
                               ? "bg-white/10 text-white"
-                              : getSyncBadgeClasses(
-                                  machine.connection?.lastSyncStatus ?? null,
-                                )
+                              : getSyncBadgeClasses(machine.connection?.lastSyncStatus ?? null)
                           }`}
                         >
                           Sync {machine.connection?.lastSyncStatus ?? "manual"}
@@ -991,27 +1002,36 @@ export default function Client({ data }: Props) {
                                 : "bg-slate-100 text-slate-700 ring-1 ring-slate-200"
                             }`}
                           >
-                            Vendor: {machine.rawVendorStatus}
+                            Vendor {machine.rawVendorStatus}
                           </span>
                         ) : null}
                       </div>
+
+                      {machine.lastPingedAt ? (
+                        <div
+                          className={`mt-4 text-xs ${
+                            selected ? "text-slate-300" : "text-slate-500"
+                          }`}
+                        >
+                          Last ping {formatDateTime(machine.lastPingedAt)}
+                        </div>
+                      ) : null}
                     </button>
                   );
                 })}
               </div>
             ) : (
-              <div className="mt-6 overflow-x-auto">
+              <div className="mt-5 overflow-x-auto">
                 <table className="min-w-full border-separate border-spacing-y-2">
                   <thead>
-                    <tr className="text-left text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                    <tr className="text-left text-[11px] uppercase tracking-[0.18em] text-slate-400">
                       <th className="px-4 py-2">Machine</th>
                       <th className="px-4 py-2">Provider</th>
                       <th className="px-4 py-2">Technology</th>
-                      <th className="px-4 py-2">Location</th>
                       <th className="px-4 py-2">Status</th>
-                      <th className="px-4 py-2">Current job</th>
+                      <th className="px-4 py-2">Vendor</th>
+                      <th className="px-4 py-2">Job</th>
                       <th className="px-4 py-2">Material</th>
-                      <th className="px-4 py-2">Remaining</th>
                       <th className="px-4 py-2">Last sync</th>
                     </tr>
                   </thead>
@@ -1024,12 +1044,14 @@ export default function Client({ data }: Props) {
                           key={machine.resource.id}
                           onClick={() => setSelectedResourceId(machine.resource.id)}
                           className={`cursor-pointer ${
-                            selected
-                              ? "bg-slate-950 text-white"
-                              : "bg-zinc-50 text-slate-900"
+                            selected ? "text-white" : "text-slate-900"
                           }`}
                         >
-                          <td className="rounded-l-[18px] px-4 py-4">
+                          <td
+                            className={`rounded-l-3xl px-4 py-4 ${
+                              selected ? "bg-[#0f172a]" : "bg-white"
+                            }`}
+                          >
                             <div className="font-semibold">
                               {machine.connection?.displayName ?? machine.resource.name}
                             </div>
@@ -1038,33 +1060,40 @@ export default function Client({ data }: Props) {
                                 selected ? "text-slate-300" : "text-slate-500"
                               }`}
                             >
-                              {machine.resource.name}
+                              {machine.externalMachineLabel ?? machine.resource.name}
                             </div>
                           </td>
-                          <td className="px-4 py-4 text-sm">{machine.providerLabel}</td>
-                          <td className="px-4 py-4 text-sm">{machine.technology}</td>
-                          <td className="px-4 py-4 text-sm">{machine.location}</td>
-                          <td className="px-4 py-4">
+                          <td className={`px-4 py-4 text-sm ${selected ? "bg-[#0f172a]" : "bg-white"}`}>
+                            {machine.providerLabel}
+                          </td>
+                          <td className={`px-4 py-4 text-sm ${selected ? "bg-[#0f172a]" : "bg-white"}`}>
+                            {machine.technology}
+                          </td>
+                          <td className={`px-4 py-4 ${selected ? "bg-[#0f172a]" : "bg-white"}`}>
                             <span
                               className={`rounded-full px-3 py-1 text-[11px] font-medium ${
                                 selected
-                                  ? "bg-white/15 text-white"
+                                  ? "bg-white/10 text-white"
                                   : getStatusBadgeClasses(machine.currentStatus)
                               }`}
                             >
                               {formatLabel(machine.currentStatus)}
                             </span>
                           </td>
-                          <td className="px-4 py-4 text-sm">
+                          <td className={`px-4 py-4 text-sm ${selected ? "bg-[#0f172a]" : "bg-white"}`}>
+                            {machine.rawVendorStatus ?? "—"}
+                          </td>
+                          <td className={`px-4 py-4 text-sm ${selected ? "bg-[#0f172a]" : "bg-white"}`}>
                             {machine.currentJobName ?? "—"}
                           </td>
-                          <td className="px-4 py-4 text-sm">
+                          <td className={`px-4 py-4 text-sm ${selected ? "bg-[#0f172a]" : "bg-white"}`}>
                             {machine.currentMaterial ?? "—"}
                           </td>
-                          <td className="px-4 py-4 text-sm">
-                            {formatDurationMs(machine.remainingTimeMs)}
-                          </td>
-                          <td className="rounded-r-[18px] px-4 py-4 text-sm">
+                          <td
+                            className={`rounded-r-3xl px-4 py-4 text-sm ${
+                              selected ? "bg-[#0f172a]" : "bg-white"
+                            }`}
+                          >
                             {formatDateTime(machine.connection?.lastSyncAt)}
                           </td>
                         </tr>
@@ -1077,20 +1106,21 @@ export default function Client({ data }: Props) {
           </div>
         </section>
 
-        <aside className="space-y-4 xl:sticky xl:top-6 xl:self-start">
+        <aside className="space-y-5 xl:sticky xl:top-6 xl:self-start">
           {data.canManageConnectors ? (
             <>
               <MachineActionPanel
-                resource={selectedMachine?.resource ?? null}
-                existingConnection={selectedMachine?.connection ?? null}
-                resources={data.resources}
-                credentialProfiles={data.credentialProfiles}
-                selectedResourceId={selectedResourceId}
-                onSelectedResourceChange={setSelectedResourceId}
-                defaultOrganizationId={getDefaultOrganizationId(data, selectedResourceId)}
-                onSaved={() => router.refresh()}
-                onDeleted={() => router.refresh()}
-              />
+  resource={selectedMachine?.resource ?? null}
+  existingConnection={selectedMachine?.connection ?? null}
+  resources={data.resources}
+  credentialProfiles={data.credentialProfiles}
+  capabilities={capabilities}
+  selectedResourceId={selectedResourceId}
+  onSelectedResourceChange={setSelectedResourceId}
+  defaultOrganizationId={getDefaultOrganizationId(data, selectedResourceId)}
+  onSaved={() => router.refresh()}
+  onDeleted={() => router.refresh()}
+/>
 
               <CredentialProfilesPanel
                 organizationId={getDefaultOrganizationId(data, selectedResourceId)}
@@ -1099,13 +1129,13 @@ export default function Client({ data }: Props) {
               />
             </>
           ) : (
-            <div className="rounded-[24px] border border-zinc-200 bg-white p-6 shadow-sm">
-              <div className="text-sm leading-7 text-slate-600">
+            <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="text-sm text-slate-600">
                 You are signed in as{" "}
                 <span className="font-semibold text-slate-900">
                   {data.viewerRole ?? "viewer"}
                 </span>
-                . Connector setup and vendor credentials can be managed only by
+                . Connector setup and provider credentials can be managed only by
                 organization admins.
               </div>
             </div>
@@ -1116,13 +1146,23 @@ export default function Client({ data }: Props) {
   );
 }
 
-function StatCard({ label, value }: { label: string; value: number }) {
+function inputClasses() {
+  return "w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#0b1633]/20 focus:ring-4 focus:ring-[#0b1633]/5";
+}
+
+function SideMenuSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
   return (
-    <div className="rounded-[20px] border border-zinc-200 bg-white p-4 shadow-sm">
-      <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-        {label}
+    <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+        {title}
       </div>
-      <div className="mt-2 text-2xl font-semibold text-slate-950">{value}</div>
+      <div className="mt-4 space-y-2">{children}</div>
     </div>
   );
 }
@@ -1140,10 +1180,10 @@ function FilterChip({
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+      className={`rounded-full px-3 py-2 text-xs font-medium transition ${
         active
-          ? "bg-slate-950 text-white"
-          : "border border-zinc-200 bg-white text-slate-700 hover:bg-zinc-50"
+          ? "bg-[#0b1633] text-white"
+          : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
       }`}
     >
       {children}
@@ -1160,8 +1200,44 @@ function Field({
 }) {
   return (
     <div className="space-y-2">
-      <label className="text-sm font-medium text-slate-700">{label}</label>
+      <label className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+        {label}
+      </label>
       {children}
+    </div>
+  );
+}
+
+function StatCard({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+        {label}
+      </div>
+      <div className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function InfoTile({
+  label,
+  value,
+  selected,
+}: {
+  label: string;
+  value: string;
+  selected: boolean;
+}) {
+  return (
+    <div className={`rounded-2xl p-3 ${selected ? "bg-white/5" : "bg-slate-50"}`}>
+      <div className={`text-[11px] uppercase tracking-[0.18em] ${selected ? "text-slate-400" : "text-slate-400"}`}>
+        {label}
+      </div>
+      <div className={`mt-1 text-sm font-medium ${selected ? "text-white" : "text-slate-900"}`}>
+        {value}
+      </div>
     </div>
   );
 }
@@ -1175,8 +1251,7 @@ function CredentialProfilesPanel({
   profiles: InternalConnectorCredentialProfile[];
   onSaved: () => void;
 }) {
-  const [providerKey, setProviderKey] =
-    useState<InternalConnectorProviderKey>("formlabs");
+  const [providerKey, setProviderKey] = useState<InternalConnectorProviderKey>("formlabs");
   const [displayName, setDisplayName] = useState("Primary Formlabs Account");
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
@@ -1186,8 +1261,7 @@ function CredentialProfilesPanel({
   const [creating, setCreating] = useState(false);
   const [testingId, setTestingId] = useState<string | null>(null);
   const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
-  const [editProviderKey, setEditProviderKey] =
-    useState<InternalConnectorProviderKey>("formlabs");
+  const [editProviderKey, setEditProviderKey] = useState<InternalConnectorProviderKey>("formlabs");
   const [editDisplayName, setEditDisplayName] = useState("");
   const [editClientId, setEditClientId] = useState("");
   const [editClientSecret, setEditClientSecret] = useState("");
@@ -1200,33 +1274,29 @@ function CredentialProfilesPanel({
   const [info, setInfo] = useState<string | null>(null);
 
   useEffect(() => {
-    if (providerKey === "formlabs") {
-      setDisplayName("Primary Formlabs Account");
-    } else if (providerKey === "ultimaker") {
-      setDisplayName("Primary Ultimaker Account");
-    } else if (providerKey === "markforged") {
-      setDisplayName("Primary Markforged Account");
-    } else if (providerKey === "stratasys") {
-      setDisplayName("Primary Stratasys Account");
-    } else if (providerKey === "hp") {
-      setDisplayName("Primary HP Account");
-    }
+    if (providerKey === "formlabs") setDisplayName("Primary Formlabs Account");
+    else if (providerKey === "ultimaker") setDisplayName("Primary Ultimaker Account");
+    else if (providerKey === "markforged") setDisplayName("Primary Markforged Account");
+    else if (providerKey === "stratasys") setDisplayName("Primary Stratasys Account");
+    else if (providerKey === "hp") setDisplayName("Primary HP Account");
   }, [providerKey]);
-
-  const createDefinition = getProviderDefinition(providerKey);
-  const editDefinition = getProviderDefinition(editProviderKey);
 
   function buildCreateBody() {
     return {
       organizationId,
       providerKey,
       displayName,
-      authMode: createDefinition.usesTokenAuth ? "oauth" : "api_key",
-      clientId: createDefinition.usesTokenAuth ? null : clientId,
-      clientSecret: createDefinition.usesTokenAuth ? null : clientSecret,
-      apiToken: createDefinition.usesTokenAuth ? accessToken : null,
-      refreshToken: createDefinition.usesTokenAuth ? refreshToken || null : null,
-      tokenExpiresAt: createDefinition.usesTokenAuth ? tokenExpiresAt || null : null,
+      authMode:
+        providerKey === "ultimaker"
+          ? "oauth"
+          : "api_key",
+      clientId:
+        providerKey === "ultimaker" ? null : clientId,
+      clientSecret:
+        providerKey === "ultimaker" ? null : clientSecret,
+      accessToken: providerKey === "ultimaker" ? accessToken : null,
+      refreshToken: providerKey === "ultimaker" ? refreshToken || null : null,
+      tokenExpiresAt: providerKey === "ultimaker" ? tokenExpiresAt || null : null,
     };
   }
 
@@ -1234,12 +1304,12 @@ function CredentialProfilesPanel({
     return {
       displayName: editDisplayName,
       providerKey: editProviderKey,
-      authMode: editDefinition.usesTokenAuth ? "oauth" : "api_key",
-      clientId: editDefinition.usesTokenAuth ? null : editClientId || null,
-      clientSecret: editDefinition.usesTokenAuth ? null : editClientSecret || null,
-      apiToken: editDefinition.usesTokenAuth ? editAccessToken || null : null,
-      refreshToken: editDefinition.usesTokenAuth ? editRefreshToken || null : null,
-      tokenExpiresAt: editDefinition.usesTokenAuth ? editTokenExpiresAt || null : null,
+      authMode: editProviderKey === "ultimaker" ? "oauth" : "api_key",
+      clientId: editProviderKey === "ultimaker" ? null : editClientId || null,
+      clientSecret: editProviderKey === "ultimaker" ? null : editClientSecret || null,
+      accessToken: editProviderKey === "ultimaker" ? editAccessToken || null : null,
+      refreshToken: editProviderKey === "ultimaker" ? editRefreshToken || null : null,
+      tokenExpiresAt: editProviderKey === "ultimaker" ? editTokenExpiresAt || null : null,
     };
   }
 
@@ -1258,9 +1328,7 @@ function CredentialProfilesPanel({
     try {
       const response = await fetch("/api/internal-manufacturing/connector-profiles", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(buildCreateBody()),
       });
 
@@ -1276,7 +1344,7 @@ function CredentialProfilesPanel({
       setRefreshToken("");
       setTokenExpiresAt("");
       setShowCreate(false);
-      setInfo(`${getProviderLabel(providerKey)} credentials saved.`);
+      setInfo(`${formatProviderLabel(providerKey)} credentials saved.`);
       onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save credentials.");
@@ -1293,17 +1361,13 @@ function CredentialProfilesPanel({
     try {
       const response = await fetch(
         `/api/internal-manufacturing/connector-profiles/${profileId}/test`,
-        {
-          method: "POST",
-        },
+        { method: "POST" },
       );
 
       const payload = await response.json();
 
       if (!response.ok) {
-        throw new Error(
-          payload.error || payload.message || "Failed to test credentials.",
-        );
+        throw new Error(payload.error || payload.message || "Failed to test credentials.");
       }
 
       setInfo(payload.message || "Credential test completed.");
@@ -1330,7 +1394,6 @@ function CredentialProfilesPanel({
 
   async function handleUpdate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
     if (!editingProfileId) return;
 
     setUpdating(true);
@@ -1342,9 +1405,7 @@ function CredentialProfilesPanel({
         `/api/internal-manufacturing/connector-profiles/${editingProfileId}`,
         {
           method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(buildUpdateBody()),
         },
       );
@@ -1365,14 +1426,16 @@ function CredentialProfilesPanel({
     }
   }
 
+  const creatableProviders = ["formlabs", "ultimaker", "markforged", "stratasys", "hp"] as const;
+
   return (
-    <div className="rounded-[24px] border border-zinc-200 bg-white p-5 shadow-sm">
+    <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
             Provider accounts
-          </p>
-          <h3 className="mt-2 text-lg font-semibold text-slate-950">
+          </div>
+          <h3 className="mt-2 text-xl font-semibold tracking-tight text-slate-950">
             Saved credentials
           </h3>
           <p className="mt-2 text-sm leading-7 text-slate-600">
@@ -1383,7 +1446,7 @@ function CredentialProfilesPanel({
         <button
           type="button"
           onClick={() => setShowCreate((current) => !current)}
-          className="rounded-full border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 transition hover:bg-zinc-50"
+          className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-900 transition hover:bg-slate-50"
         >
           {showCreate ? "Close" : "Add"}
         </button>
@@ -1391,14 +1454,14 @@ function CredentialProfilesPanel({
 
       <div className="mt-4 space-y-3">
         {profiles.length === 0 ? (
-          <div className="rounded-[18px] border border-dashed border-zinc-300 bg-zinc-50 p-4 text-sm text-slate-600">
+          <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-600">
             No provider accounts saved yet.
           </div>
         ) : (
           profiles.map((profile) => (
             <div
               key={profile.id}
-              className="rounded-[18px] border border-zinc-200 bg-zinc-50 p-4"
+              className="rounded-3xl border border-slate-200 bg-slate-50 p-4"
             >
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -1406,8 +1469,7 @@ function CredentialProfilesPanel({
                     {profile.displayName}
                   </div>
                   <div className="mt-1 text-xs text-slate-500">
-                    {getProviderLabel(profile.providerKey)} ·{" "}
-                    {profileSecondaryText(profile, formatDateTime)}
+                    {formatProviderLabel(profile.providerKey)} · {getProfileDisplaySecondary(profile)}
                   </div>
                   <div className="mt-2 text-xs text-slate-500">
                     {profile.connectionCount} connected machine
@@ -1426,7 +1488,7 @@ function CredentialProfilesPanel({
               </div>
 
               {profile.lastTestError ? (
-                <div className="mt-3 rounded-[14px] border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                <div className="mt-3 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
                   {profile.lastTestError}
                 </div>
               ) : null}
@@ -1436,7 +1498,7 @@ function CredentialProfilesPanel({
                   type="button"
                   onClick={() => handleTest(profile.id)}
                   disabled={testingId === profile.id}
-                  className="rounded-full border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 transition hover:bg-zinc-50 disabled:opacity-60"
+                  className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-900 transition hover:bg-slate-50 disabled:opacity-60"
                 >
                   {testingId === profile.id ? "Testing..." : "Test"}
                 </button>
@@ -1444,7 +1506,7 @@ function CredentialProfilesPanel({
                 <button
                   type="button"
                   onClick={() => openEdit(profile)}
-                  className="rounded-full border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 transition hover:bg-zinc-50"
+                  className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-900 transition hover:bg-slate-50"
                 >
                   Replace
                 </button>
@@ -1457,15 +1519,13 @@ function CredentialProfilesPanel({
       {editingProfileId ? (
         <form
           onSubmit={handleUpdate}
-          className="mt-4 space-y-4 rounded-[20px] border border-zinc-200 bg-zinc-50 p-4"
+          className="mt-4 space-y-4 rounded-3xl border border-slate-200 bg-slate-50 p-4"
         >
-          <div className="text-sm font-semibold text-slate-950">
-            Replace saved credentials
-          </div>
+          <div className="text-sm font-semibold text-slate-950">Replace saved credentials</div>
 
           <Field label="Provider">
-            <div className="rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-slate-700">
-              {getProviderLabel(editProviderKey)}
+            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
+              {formatProviderLabel(editProviderKey)}
             </div>
           </Field>
 
@@ -1473,11 +1533,11 @@ function CredentialProfilesPanel({
             <input
               value={editDisplayName}
               onChange={(event) => setEditDisplayName(event.target.value)}
-              className="w-full rounded-2xl border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
+              className={inputClasses()}
             />
           </Field>
 
-          {editDefinition.usesTokenAuth ? (
+          {editProviderKey === "ultimaker" ? (
             <>
               <Field label="New access token">
                 <input
@@ -1485,7 +1545,7 @@ function CredentialProfilesPanel({
                   value={editAccessToken}
                   onChange={(event) => setEditAccessToken(event.target.value)}
                   placeholder="Leave blank to keep current"
-                  className="w-full rounded-2xl border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
+                  className={inputClasses()}
                 />
               </Field>
 
@@ -1495,7 +1555,7 @@ function CredentialProfilesPanel({
                   value={editRefreshToken}
                   onChange={(event) => setEditRefreshToken(event.target.value)}
                   placeholder="Optional"
-                  className="w-full rounded-2xl border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
+                  className={inputClasses()}
                 />
               </Field>
 
@@ -1504,28 +1564,28 @@ function CredentialProfilesPanel({
                   type="datetime-local"
                   value={editTokenExpiresAt}
                   onChange={(event) => setEditTokenExpiresAt(event.target.value)}
-                  className="w-full rounded-2xl border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
+                  className={inputClasses()}
                 />
               </Field>
             </>
           ) : (
             <>
-              <Field label={editDefinition.createProfileLabel}>
+              <Field label="New client / access key">
                 <input
                   value={editClientId}
                   onChange={(event) => setEditClientId(event.target.value)}
                   placeholder="Leave blank to keep current"
-                  className="w-full rounded-2xl border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
+                  className={inputClasses()}
                 />
               </Field>
 
-              <Field label={editDefinition.createSecretLabel}>
+              <Field label="New secret">
                 <input
                   type="password"
                   value={editClientSecret}
                   onChange={(event) => setEditClientSecret(event.target.value)}
                   placeholder="Leave blank to keep current"
-                  className="w-full rounded-2xl border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
+                  className={inputClasses()}
                 />
               </Field>
             </>
@@ -1535,7 +1595,7 @@ function CredentialProfilesPanel({
             <button
               type="submit"
               disabled={updating}
-              className="rounded-full bg-slate-950 px-5 py-2.5 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-60"
+              className="rounded-full bg-[#0b1633] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#13224a] disabled:opacity-60"
             >
               {updating ? "Saving..." : "Save changes"}
             </button>
@@ -1543,7 +1603,7 @@ function CredentialProfilesPanel({
             <button
               type="button"
               onClick={() => setEditingProfileId(null)}
-              className="rounded-full border border-zinc-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-900 transition hover:bg-zinc-50"
+              className="rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-medium text-slate-900 transition hover:bg-slate-50"
             >
               Cancel
             </button>
@@ -1554,11 +1614,9 @@ function CredentialProfilesPanel({
       {showCreate ? (
         <form
           onSubmit={handleCreate}
-          className="mt-4 space-y-4 rounded-[20px] border border-zinc-200 bg-zinc-50 p-4"
+          className="mt-4 space-y-4 rounded-3xl border border-slate-200 bg-slate-50 p-4"
         >
-          <div className="text-sm font-semibold text-slate-950">
-            Add provider account
-          </div>
+          <div className="text-sm font-semibold text-slate-950">Add provider account</div>
 
           <Field label="Provider">
             <select
@@ -1566,19 +1624,11 @@ function CredentialProfilesPanel({
               onChange={(event) =>
                 setProviderKey(event.target.value as InternalConnectorProviderKey)
               }
-              className="w-full rounded-2xl border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
+              className={inputClasses()}
             >
-              {(
-                [
-                  "formlabs",
-                  "ultimaker",
-                  "markforged",
-                  "stratasys",
-                  "hp",
-                ] as const
-              ).map((value) => (
+              {creatableProviders.map((value) => (
                 <option key={value} value={value}>
-                  {getProviderLabel(value)}
+                  {formatProviderLabel(value)}
                 </option>
               ))}
             </select>
@@ -1588,18 +1638,18 @@ function CredentialProfilesPanel({
             <input
               value={displayName}
               onChange={(event) => setDisplayName(event.target.value)}
-              className="w-full rounded-2xl border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
+              className={inputClasses()}
             />
           </Field>
 
-          {createDefinition.usesTokenAuth ? (
+          {providerKey === "ultimaker" ? (
             <>
               <Field label="Access token">
                 <input
                   type="password"
                   value={accessToken}
                   onChange={(event) => setAccessToken(event.target.value)}
-                  className="w-full rounded-2xl border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
+                  className={inputClasses()}
                 />
               </Field>
 
@@ -1609,7 +1659,7 @@ function CredentialProfilesPanel({
                   value={refreshToken}
                   onChange={(event) => setRefreshToken(event.target.value)}
                   placeholder="Optional"
-                  className="w-full rounded-2xl border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
+                  className={inputClasses()}
                 />
               </Field>
 
@@ -1618,26 +1668,26 @@ function CredentialProfilesPanel({
                   type="datetime-local"
                   value={tokenExpiresAt}
                   onChange={(event) => setTokenExpiresAt(event.target.value)}
-                  className="w-full rounded-2xl border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
+                  className={inputClasses()}
                 />
               </Field>
             </>
           ) : (
             <>
-              <Field label={createDefinition.createProfileLabel}>
+              <Field label="Client / access key">
                 <input
                   value={clientId}
                   onChange={(event) => setClientId(event.target.value)}
-                  className="w-full rounded-2xl border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
+                  className={inputClasses()}
                 />
               </Field>
 
-              <Field label={createDefinition.createSecretLabel}>
+              <Field label="Secret">
                 <input
                   type="password"
                   value={clientSecret}
                   onChange={(event) => setClientSecret(event.target.value)}
-                  className="w-full rounded-2xl border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
+                  className={inputClasses()}
                 />
               </Field>
             </>
@@ -1646,21 +1696,21 @@ function CredentialProfilesPanel({
           <button
             type="submit"
             disabled={creating}
-            className="rounded-full bg-slate-950 px-5 py-2.5 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-60"
+            className="rounded-full bg-[#0b1633] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#13224a] disabled:opacity-60"
           >
-            {creating ? "Saving..." : `Save ${getProviderLabel(providerKey)} credentials`}
+            {creating ? "Saving..." : `Save ${formatProviderLabel(providerKey)} credentials`}
           </button>
         </form>
       ) : null}
 
       {error ? (
-        <div className="mt-4 rounded-[16px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+        <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
           {error}
         </div>
       ) : null}
 
       {info ? (
-        <div className="mt-4 rounded-[16px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+        <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
           {info}
         </div>
       ) : null}
@@ -1673,6 +1723,7 @@ function MachineActionPanel({
   existingConnection,
   resources,
   credentialProfiles,
+  capabilities,
   selectedResourceId,
   onSelectedResourceChange,
   defaultOrganizationId,
@@ -1683,101 +1734,223 @@ function MachineActionPanel({
   existingConnection: InternalResourceConnection | null;
   resources: InternalConnectorResource[];
   credentialProfiles: InternalConnectorCredentialProfile[];
+  capabilities: InternalManufacturingCapability[];
   selectedResourceId: string | null;
   onSelectedResourceChange: (resourceId: string) => void;
   defaultOrganizationId: string | null;
   onSaved: () => void;
   onDeleted: () => void;
 }) {
-  const [providerKey, setProviderKey] =
-    useState<InternalConnectorProviderKey>(existingConnection?.providerKey ?? "formlabs");
-  const [connectionMode, setConnectionMode] = useState<
-    InternalResourceConnection["connectionMode"]
-  >(
-    existingConnection?.connectionMode ??
-      getProviderDefaultConnectionMode(existingConnection?.providerKey ?? "formlabs"),
+  const [providerKey, setProviderKey] = useState<InternalConnectorProviderKey>(
+    existingConnection?.providerKey ?? "formlabs",
+  );
+  const [connectionMode, setConnectionMode] = useState<InternalResourceConnection["connectionMode"]>(
+    existingConnection?.connectionMode ?? getProviderPreset("formlabs").connectionMode,
   );
   const [displayName, setDisplayName] = useState(
     existingConnection?.displayName ?? `${resource?.name ?? "Machine"} Connector`,
   );
-  const [displayNameTouched, setDisplayNameTouched] = useState(false);
-  const [vaultSecretName, setVaultSecretName] = useState(
-    existingConnection?.vaultSecretName ?? "",
-  );
-  const [vaultSecretId, setVaultSecretId] = useState(
-    existingConnection?.vaultSecretId ?? "",
-  );
   const [credentialProfileId, setCredentialProfileId] = useState(
     existingConnection?.credentialProfileId ??
-      credentialProfiles.find((profile) => profile.providerKey === providerKey)?.id ??
+      credentialProfiles.find((profile) => profile.providerKey === (existingConnection?.providerKey ?? "formlabs"))?.id ??
       "",
   );
   const [baseUrl, setBaseUrl] = useState(existingConnection?.baseUrl ?? "");
   const [externalResourceId, setExternalResourceId] = useState(
     existingConnection?.externalResourceId ?? "",
   );
-  const [syncEnabled, setSyncEnabled] = useState(
-    existingConnection?.syncEnabled ?? true,
+  const [syncEnabled, setSyncEnabled] = useState(existingConnection?.syncEnabled ?? true);
+  const [vaultSecretName, setVaultSecretName] = useState(
+    existingConnection?.vaultSecretName ?? "",
   );
-  const [metadataText, setMetadataText] = useState(
-    JSON.stringify(existingConnection?.metadata ?? {}, null, 2),
+  const [vaultSecretId, setVaultSecretId] = useState(existingConnection?.vaultSecretId ?? "");
+  const [structuredMetadata, setStructuredMetadata] = useState<Record<string, unknown>>(
+    existingConnection?.metadata ?? {},
   );
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [discovering, setDiscovering] = useState(false);
-  const [discoveredMachines, setDiscoveredMachines] = useState<
-    NormalizedDiscoveredMachine[]
-  >([]);
-  const [selectedDiscoveredMachineId, setSelectedDiscoveredMachineId] = useState<
-    string | null
-  >(null);
+  const [discoveredMachines, setDiscoveredMachines] = useState<DiscoveredMachine[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const [creatingFromDiscoveryId, setCreatingFromDiscoveryId] = useState<string | null>(null);
+  const preset = getProviderPreset(providerKey);
+  function inferCapabilitySeed(machine: DiscoveredMachine) {
+    const technology = getDiscoveredMachineTechnology(machine);
+    const lower = technology.toLowerCase();
 
-  const providerDefinition = getProviderDefinition(providerKey);
+    if (lower.includes("sla")) {
+      return { code: "sla", name: "SLA Printing", serviceDomain: "additive" };
+    }
 
+    if (lower.includes("sls")) {
+      return { code: "sls", name: "SLS Printing", serviceDomain: "additive" };
+    }
+
+    if (lower.includes("fdm") || lower.includes("fff")) {
+      return { code: "fdm", name: "FDM Printing", serviceDomain: "additive" };
+    }
+
+    if (lower.includes("composite")) {
+      return {
+        code: "composite_fff",
+        name: "Composite / FFF Printing",
+        serviceDomain: "additive",
+      };
+    }
+
+    if (lower.includes("scanning")) {
+      return { code: "scanning", name: "Scanning", serviceDomain: "scanning" };
+    }
+
+    if (lower.includes("cnc")) {
+      return { code: "cnc", name: "CNC Machining", serviceDomain: "cnc" };
+    }
+
+    return {
+      code: "additive",
+      name: "Additive Manufacturing",
+      serviceDomain: "additive",
+    };
+  }
+  async function handleCreateFromDiscoveredMachine(
+    machine: DiscoveredMachine,
+    mode:
+      | "resource_only"
+      | "resource_and_capability"
+      | "resource_and_connector"
+      | "resource_capability_and_connector",
+  ) {
+    if (!defaultOrganizationId) {
+      setError("No customer organization context was found.");
+      return;
+    }
+
+    setCreatingFromDiscoveryId(getDiscoveredMachineId(machine));
+    setError(null);
+    setInfo(null);
+
+    try {
+      const capabilitySeed = inferCapabilitySeed(machine);
+      const selectedProfileId =
+        preset.requiresCredentialProfile ? credentialProfileId || null : null;
+
+      const response = await fetch(
+        "/api/internal-manufacturing/resources/from-discovery",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            organizationId: defaultOrganizationId,
+            providerKey: machine.providerKey,
+            machineName: getDiscoveredMachineName(machine),
+            externalResourceId: getDiscoveredMachineId(machine),
+            model: getDiscoveredMachineModel(machine),
+            technology: getDiscoveredMachineTechnology(machine),
+            locationLabel:
+              machine.providerKey === "markforged" || machine.providerKey === "stratasys"
+                ? machine.item.locationName || null
+                : null,
+            metadata: createAutoMetadata(machine),
+            createCapability:
+              mode === "resource_and_capability" ||
+              mode === "resource_capability_and_connector"
+                ? {
+                    code: capabilitySeed.code,
+                    name: capabilitySeed.name,
+                    serviceDomain: capabilitySeed.serviceDomain,
+                    description: `Auto-created from ${formatProviderLabel(machine.providerKey)} machine discovery.`,
+                  }
+                : null,
+            createConnection:
+              mode === "resource_and_connector" ||
+              mode === "resource_capability_and_connector"
+                ? {
+                    displayName: `${getDiscoveredMachineName(machine)} Connector`,
+                    credentialProfileId: selectedProfileId,
+                    baseUrl: baseUrl || null,
+                    syncEnabled: true,
+                    vaultSecretName:
+                      preset.allowLegacyFallback ? vaultSecretName || null : null,
+                    vaultSecretId:
+                      preset.allowLegacyFallback ? vaultSecretId || null : null,
+                  }
+                : null,
+          }),
+        },
+      );
+
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(payload.error || "Failed to create resource from discovery.");
+      }
+
+      if (mode === "resource_capability_and_connector") {
+        setInfo("Machine resource, suggested capability, and connector created.");
+      } else if (mode === "resource_and_connector") {
+        setInfo("Machine resource and connector created.");
+      } else if (mode === "resource_and_capability") {
+        setInfo("Machine resource and suggested capability created.");
+      } else {
+        setInfo("Machine resource created from discovery.");
+      }
+
+      onSaved();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to create resource from discovery.",
+      );
+    } finally {
+      setCreatingFromDiscoveryId(null);
+    }
+  }
   const scopedProfiles = useMemo(
-    () =>
-      credentialProfiles.filter((profile) => profile.providerKey === providerKey),
+    () => credentialProfiles.filter((profile) => profile.providerKey === providerKey),
     [credentialProfiles, providerKey],
   );
 
-  const selectedDiscoveredMachine =
-    discoveredMachines.find((item) => item.id === selectedDiscoveredMachineId) ?? null;
-
   useEffect(() => {
-    const nextProvider = existingConnection?.providerKey ?? "formlabs";
+    const initialProvider = existingConnection?.providerKey ?? "formlabs";
+    const initialPreset = getProviderPreset(initialProvider);
 
-    setProviderKey(nextProvider);
-    setConnectionMode(
-      existingConnection?.connectionMode ??
-        getProviderDefaultConnectionMode(nextProvider),
-    );
-    setDisplayName(
-      existingConnection?.displayName ?? `${resource?.name ?? "Machine"} Connector`,
-    );
-    setDisplayNameTouched(false);
-    setVaultSecretName(existingConnection?.vaultSecretName ?? "");
-    setVaultSecretId(existingConnection?.vaultSecretId ?? "");
+    setProviderKey(initialProvider);
+    setConnectionMode(existingConnection?.connectionMode ?? initialPreset.connectionMode);
+    setDisplayName(existingConnection?.displayName ?? `${resource?.name ?? "Machine"} Connector`);
     setCredentialProfileId(
       existingConnection?.credentialProfileId ??
-        credentialProfiles.find((profile) => profile.providerKey === nextProvider)?.id ??
+        credentialProfiles.find((profile) => profile.providerKey === initialProvider)?.id ??
         "",
     );
-    setBaseUrl(existingConnection?.baseUrl ?? getProviderDefinition(nextProvider).defaultBaseUrl);
+    setBaseUrl(existingConnection?.baseUrl ?? initialPreset.defaultBaseUrl);
     setExternalResourceId(existingConnection?.externalResourceId ?? "");
     setSyncEnabled(existingConnection?.syncEnabled ?? true);
-    setMetadataText(JSON.stringify(existingConnection?.metadata ?? {}, null, 2));
+    setVaultSecretName(existingConnection?.vaultSecretName ?? "");
+    setVaultSecretId(existingConnection?.vaultSecretId ?? "");
+    setStructuredMetadata(existingConnection?.metadata ?? {});
     setDiscoveredMachines([]);
-    setSelectedDiscoveredMachineId(null);
     setError(null);
     setInfo(null);
   }, [credentialProfiles, existingConnection, resource]);
 
   useEffect(() => {
-    setConnectionMode(getProviderDefaultConnectionMode(providerKey));
+    const nextPreset = getProviderPreset(providerKey);
+
+    setConnectionMode(nextPreset.connectionMode);
+
+    if (!existingConnection || existingConnection.providerKey !== providerKey) {
+      setBaseUrl(nextPreset.defaultBaseUrl);
+      setExternalResourceId("");
+      setVaultSecretName("");
+      setVaultSecretId("");
+      setDiscoveredMachines([]);
+      setStructuredMetadata({});
+      setDisplayName(createDefaultDisplayName(resource, null, providerKey));
+    }
 
     setCredentialProfileId((current) => {
       if (
@@ -1789,63 +1962,13 @@ function MachineActionPanel({
         return current;
       }
 
-      return (
-        credentialProfiles.find((profile) => profile.providerKey === providerKey)?.id ??
-        ""
-      );
+      return credentialProfiles.find((profile) => profile.providerKey === providerKey)?.id ?? "";
     });
-
-    setBaseUrl((current) => {
-      if (current?.trim()) {
-        return current;
-      }
-
-      return providerDefinition.defaultBaseUrl;
-    });
-
-    setDiscoveredMachines([]);
-    setSelectedDiscoveredMachineId(null);
-  }, [credentialProfiles, providerDefinition.defaultBaseUrl, providerKey]);
-
-  function applyDiscoveredMachine(machine: NormalizedDiscoveredMachine) {
-    setSelectedDiscoveredMachineId(machine.id);
-    setExternalResourceId(machine.id);
-
-    setMetadataText((current) => {
-      let parsed: Record<string, unknown> = {};
-
-      try {
-        parsed = current.trim()
-          ? (JSON.parse(current) as Record<string, unknown>)
-          : {};
-      } catch {
-        parsed = {};
-      }
-
-      const merged = {
-        ...parsed,
-        ...machine.metadata,
-      };
-
-      return JSON.stringify(merged, null, 2);
-    });
-
-    if (shouldAutoReplaceDisplayName(displayName, resource?.name ?? null) || !displayNameTouched) {
-      setDisplayName(buildConnectorDisplayName(resource?.name ?? null, machine));
-      setDisplayNameTouched(false);
-    }
-
-    setInfo(`Selected ${machine.displayName}. Connector fields were updated.`);
-  }
+  }, [credentialProfiles, existingConnection, providerKey, resource]);
 
   async function handleDiscoverMachines() {
     if (!credentialProfileId) {
-      setError(`Select a saved ${getProviderLabel(providerKey)} credential profile first.`);
-      return;
-    }
-
-    if (!providerSupportsDiscovery(providerKey)) {
-      setError(`${getProviderLabel(providerKey)} discovery is not available yet.`);
+      setError(`Select a saved ${preset.label} credential profile first.`);
       return;
     }
 
@@ -1856,27 +1979,39 @@ function MachineActionPanel({
     try {
       const response = await fetch(
         `/api/internal-manufacturing/connector-profiles/${credentialProfileId}/discover-printers`,
-        {
-          method: "POST",
-        },
+        { method: "POST" },
       );
 
       const payload = await response.json();
 
       if (!response.ok) {
-        throw new Error(
-          payload.error || payload.message || "Failed to discover machines.",
-        );
+        throw new Error(payload.error || payload.message || "Failed to discover machines.");
       }
 
-      const rawItems: unknown[] = Array.isArray(payload.printers)
-        ? payload.printers
-        : [];
+      const rawItems: unknown[] = Array.isArray(payload.printers) ? payload.printers : [];
 
-      const normalized = normalizeDiscoveredMachines(providerKey, rawItems);
+      const normalized: DiscoveredMachine[] =
+        providerKey === "ultimaker"
+          ? rawItems.map((item) => ({
+              providerKey: "ultimaker" as const,
+              item: item as UltimakerDiscoveredPrinter,
+            }))
+          : providerKey === "markforged"
+            ? rawItems.map((item) => ({
+                providerKey: "markforged" as const,
+                item: item as MarkforgedDiscoveredPrinter,
+              }))
+            : providerKey === "stratasys"
+              ? rawItems.map((item) => ({
+                  providerKey: "stratasys" as const,
+                  item: item as StratasysDiscoveredPrinter,
+                }))
+              : rawItems.map((item) => ({
+                  providerKey: "formlabs" as const,
+                  item: item as FormlabsDiscoveredPrinter,
+                }));
 
       setDiscoveredMachines(normalized);
-      setSelectedDiscoveredMachineId(null);
       setInfo(
         normalized.length > 0
           ? `Loaded ${normalized.length} machine(s).`
@@ -1902,15 +2037,7 @@ function MachineActionPanel({
     }
 
     try {
-      let metadata: Record<string, unknown> = {};
-
-      try {
-        metadata = metadataText.trim()
-          ? (JSON.parse(metadataText) as Record<string, unknown>)
-          : {};
-      } catch {
-        throw new Error("Metadata must be valid JSON.");
-      }
+      const metadata = structuredMetadata;
 
       const url = existingConnection
         ? `/api/internal-manufacturing/resource-connections/${existingConnection.id}`
@@ -1923,17 +2050,9 @@ function MachineActionPanel({
         providerKey,
         connectionMode,
         displayName,
-        vaultSecretName:
-          providerKey === "formlabs" && credentialProfileId
-            ? null
-            : vaultSecretName || null,
-        vaultSecretId:
-          providerKey === "formlabs" && credentialProfileId
-            ? null
-            : vaultSecretId || null,
-        credentialProfileId: providerRequiresCredentialProfile(providerKey)
-          ? credentialProfileId || null
-          : null,
+        vaultSecretName: preset.allowLegacyFallback ? vaultSecretName || null : null,
+        vaultSecretId: preset.allowLegacyFallback ? vaultSecretId || null : null,
+        credentialProfileId: preset.requiresCredentialProfile ? credentialProfileId || null : null,
         baseUrl: baseUrl || null,
         externalResourceId: externalResourceId || null,
         syncEnabled,
@@ -1942,9 +2061,7 @@ function MachineActionPanel({
 
       const response = await fetch(url, {
         method,
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
 
@@ -1976,17 +2093,13 @@ function MachineActionPanel({
     try {
       const response = await fetch(
         `/api/internal-manufacturing/resource-connections/${existingConnection.id}/test`,
-        {
-          method: "POST",
-        },
+        { method: "POST" },
       );
 
       const payload = await response.json();
 
       if (!response.ok) {
-        throw new Error(
-          payload.error || payload.message || "Failed to test connector.",
-        );
+        throw new Error(payload.error || payload.message || "Failed to test connector.");
       }
 
       setInfo(payload.message || "Connector test finished.");
@@ -2011,17 +2124,13 @@ function MachineActionPanel({
     try {
       const response = await fetch(
         `/api/internal-manufacturing/resource-connections/${existingConnection.id}/sync`,
-        {
-          method: "POST",
-        },
+        { method: "POST" },
       );
 
       const payload = await response.json();
 
       if (!response.ok) {
-        throw new Error(
-          payload.error || payload.message || "Failed to sync connector.",
-        );
+        throw new Error(payload.error || payload.message || "Failed to sync connector.");
       }
 
       setInfo(
@@ -2050,9 +2159,7 @@ function MachineActionPanel({
     try {
       const response = await fetch(
         `/api/internal-manufacturing/resource-connections/${existingConnection.id}`,
-        {
-          method: "DELETE",
-        },
+        { method: "DELETE" },
       );
 
       const payload = await response.json();
@@ -2070,32 +2177,29 @@ function MachineActionPanel({
     }
   }
 
-  const vendorProvider = isRealVendorProvider(providerKey);
+  const showConnectionModeSelector =
+    !["formlabs", "ultimaker", "markforged", "stratasys", "hp"].includes(providerKey);
 
   return (
-    <form
-      onSubmit={handleSave}
-      className="rounded-[24px] border border-zinc-200 bg-white p-5 shadow-sm"
-    >
+    <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
       <div>
-        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-          Machine connector
-        </p>
-        <h3 className="mt-2 text-lg font-semibold text-slate-950">
+        <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+          Connector workspace
+        </div>
+        <h3 className="mt-2 text-xl font-semibold tracking-tight text-slate-950">
           Selected machine
         </h3>
         <p className="mt-2 text-sm leading-7 text-slate-600">
-          Keep the page layout stable, change only the provider-specific inputs,
-          and let discovery populate connector details from the selected machine.
+          Discover provider machines first, then attach them cleanly to internal resources.
         </p>
       </div>
 
-      <div className="mt-4 space-y-4">
+      <form onSubmit={handleSave} className="mt-5 space-y-4">
         <Field label="Internal resource">
           <select
             value={selectedResourceId ?? ""}
             onChange={(event) => onSelectedResourceChange(event.target.value)}
-            className="w-full rounded-2xl border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
+            className={inputClasses()}
           >
             {resources.map((item) => (
               <option key={item.id} value={item.id}>
@@ -2106,12 +2210,10 @@ function MachineActionPanel({
         </Field>
 
         {resource ? (
-          <div className="rounded-[18px] border border-zinc-200 bg-zinc-50 p-4">
+          <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="text-sm font-semibold text-slate-950">
-                  {resource.name}
-                </div>
+                <div className="text-sm font-semibold text-slate-950">{resource.name}</div>
                 <div className="mt-1 text-xs text-slate-500">
                   {formatLabel(resource.resourceType)} · {formatLabel(resource.serviceDomain)}
                 </div>
@@ -2126,86 +2228,80 @@ function MachineActionPanel({
               </span>
             </div>
 
-            <div className="mt-3 grid gap-2 text-xs text-slate-500">
+            <div className="mt-3 grid gap-1 text-xs text-slate-500">
               <div>Location: {resource.locationLabel || "—"}</div>
               <div>Timezone: {resource.timezone || "—"}</div>
               <div>Status source: {formatLabel(resource.statusSource)}</div>
-              <div>
-                Latest update: {formatDateTime(resource.latestStatusEvent?.effectiveAt)}
-              </div>
+              <div>Latest update: {formatDateTime(resource.latestStatusEvent?.effectiveAt)}</div>
             </div>
           </div>
-        ) : (
-          <div className="rounded-[18px] border border-dashed border-zinc-300 bg-zinc-50 p-4 text-sm text-slate-600">
-            Select a machine to manage its connector.
-          </div>
-        )}
+        ) : null}
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <Field label="Provider">
-            <select
-              value={providerKey}
-              onChange={(event) =>
-                setProviderKey(event.target.value as InternalConnectorProviderKey)
-              }
-              className="w-full rounded-2xl border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
-            >
-              {providerOptions.map((value) => (
-                <option key={value} value={value}>
-                  {getProviderLabel(value)}
-                </option>
-              ))}
-            </select>
-          </Field>
+        <Field label="Provider">
+          <select
+            value={providerKey}
+            onChange={(event) =>
+              setProviderKey(event.target.value as InternalConnectorProviderKey)
+            }
+            className={inputClasses()}
+          >
+            {providerOptions.map((value) => (
+              <option key={value} value={value}>
+                {formatProviderLabel(value)}
+              </option>
+            ))}
+          </select>
+        </Field>
 
-          <Field label="Connection mode">
-            <select
-              value={connectionMode}
-              disabled={vendorProvider}
-              onChange={(event) =>
-                setConnectionMode(
-                  event.target.value as InternalResourceConnection["connectionMode"],
-                )
-              }
-              className="w-full rounded-2xl border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none disabled:bg-zinc-100"
-            >
-              {connectionModeOptions.map((value) => (
-                <option key={value} value={value}>
-                  {formatLabel(value)}
-                </option>
-              ))}
-            </select>
+        <div className={`grid gap-4 ${showConnectionModeSelector ? "md:grid-cols-2" : "grid-cols-1"}`}>
+          {showConnectionModeSelector ? (
+            <Field label="Connection mode">
+              <select
+                value={connectionMode}
+                onChange={(event) =>
+                  setConnectionMode(
+                    event.target.value as InternalResourceConnection["connectionMode"],
+                  )
+                }
+                className={inputClasses()}
+              >
+                {connectionModeOptions.map((value) => (
+                  <option key={value} value={value}>
+                    {formatLabel(value)}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          ) : null}
+
+          <Field label="Display name">
+            <input
+              value={displayName}
+              onChange={(event) => setDisplayName(event.target.value)}
+              className={inputClasses()}
+            />
           </Field>
         </div>
 
-        <Field label="Display name">
-          <input
-            value={displayName}
-            onChange={(event) => {
-              setDisplayName(event.target.value);
-              setDisplayNameTouched(true);
-            }}
-            className="w-full rounded-2xl border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
-          />
-        </Field>
-
-        <Field label={providerDefinition.externalIdLabel}>
+        <Field label={preset.externalIdLabel}>
           <input
             value={externalResourceId}
             onChange={(event) => setExternalResourceId(event.target.value)}
-            placeholder={providerDefinition.externalIdPlaceholder}
-            className="w-full rounded-2xl border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
+            placeholder={preset.externalIdPlaceholder}
+            className={inputClasses()}
           />
         </Field>
 
-        {vendorProvider ? (
-          <div className="space-y-4 rounded-[20px] border border-zinc-200 bg-zinc-50 p-4">
-            {providerDefinition.requiresCredentialProfile ? (
-              <Field label={`${getProviderLabel(providerKey)} credentials`}>
+        <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+          <div className="text-sm font-semibold text-slate-950">{preset.credentialsLabel}</div>
+
+          {preset.requiresCredentialProfile ? (
+            <div className="mt-4 space-y-4">
+              <Field label="Saved credentials">
                 <select
                   value={credentialProfileId}
                   onChange={(event) => setCredentialProfileId(event.target.value)}
-                  className="w-full rounded-2xl border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
+                  className={inputClasses()}
                 >
                   <option value="">Select credentials</option>
                   {scopedProfiles.map((profile) => (
@@ -2215,226 +2311,279 @@ function MachineActionPanel({
                   ))}
                 </select>
               </Field>
-            ) : null}
 
-            <Field label={providerDefinition.baseUrlLabel}>
-              <input
-                value={baseUrl}
-                onChange={(event) => setBaseUrl(event.target.value)}
-                placeholder={providerDefinition.baseUrlPlaceholder}
-                className="w-full rounded-2xl border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
-              />
-            </Field>
+              <Field label="Base URL">
+                <input
+                  value={baseUrl}
+                  onChange={(event) => setBaseUrl(event.target.value)}
+                  placeholder={
+                    providerKey === "stratasys" || providerKey === "hp"
+                      ? "Required base URL"
+                      : "Optional override"
+                  }
+                  className={inputClasses()}
+                />
+              </Field>
 
-            {providerKey === "formlabs" ? (
+              {preset.allowLegacyFallback ? (
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Field label="Legacy fallback secret name">
+                    <input
+                      value={vaultSecretName}
+                      onChange={(event) => setVaultSecretName(event.target.value)}
+                      placeholder="Optional legacy fallback"
+                      className={inputClasses()}
+                    />
+                  </Field>
+
+                  <Field label="Legacy fallback secret ID">
+                    <input
+                      value={vaultSecretId}
+                      onChange={(event) => setVaultSecretId(event.target.value)}
+                      placeholder="Optional secret ID"
+                      className={inputClasses()}
+                    />
+                  </Field>
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <div className="mt-4 space-y-4">
+              <Field label="Base URL">
+                <input
+                  value={baseUrl}
+                  onChange={(event) => setBaseUrl(event.target.value)}
+                  placeholder="Local agent or API base URL"
+                  className={inputClasses()}
+                />
+              </Field>
+
               <div className="grid gap-4 md:grid-cols-2">
-                <Field label="Legacy fallback secret name">
+                <Field label="Secret name">
                   <input
                     value={vaultSecretName}
                     onChange={(event) => setVaultSecretName(event.target.value)}
-                    placeholder="Optional legacy fallback"
-                    className="w-full rounded-2xl border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
+                    placeholder="Optional secret reference"
+                    className={inputClasses()}
                   />
                 </Field>
 
-                <Field label="Legacy fallback secret ID">
+                <Field label="Secret ID">
                   <input
                     value={vaultSecretId}
                     onChange={(event) => setVaultSecretId(event.target.value)}
-                    placeholder="Optional secret id"
-                    className="w-full rounded-2xl border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
+                    placeholder="Optional secret ID"
+                    className={inputClasses()}
                   />
                 </Field>
               </div>
-            ) : null}
+            </div>
+          )}
 
+          <div className="mt-4 flex items-center justify-between gap-3">
             <label className="inline-flex items-center gap-3 text-sm text-slate-700">
               <input
                 type="checkbox"
                 checked={syncEnabled}
                 onChange={(event) => setSyncEnabled(event.target.checked)}
-                className="h-4 w-4 rounded border-zinc-300"
+                className="h-4 w-4 rounded border-slate-300"
               />
               Sync enabled
             </label>
 
-            {providerDefinition.supportsDiscovery ? (
-              <div className="flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  onClick={handleDiscoverMachines}
-                  disabled={discovering || !credentialProfileId}
-                  className="rounded-full border border-zinc-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-900 transition hover:bg-zinc-50 disabled:opacity-60"
-                >
-                  {discovering ? "Loading..." : `Discover ${getProviderLabel(providerKey)} machines`}
-                </button>
-              </div>
-            ) : null}
-
-            {selectedDiscoveredMachine ? (
-              <div className="rounded-[16px] border border-emerald-200 bg-emerald-50 p-4">
-                <div className="text-sm font-semibold text-emerald-800">
-                  Selected discovered machine
-                </div>
-                <div className="mt-2 text-sm text-emerald-700">
-                  {selectedDiscoveredMachine.displayName}
-                </div>
-                <div className="mt-2 grid gap-1 text-xs text-emerald-700">
-                  <div>ID: {selectedDiscoveredMachine.id}</div>
-                  <div>Model: {selectedDiscoveredMachine.machineModel || "—"}</div>
-                  <div>Technology: {selectedDiscoveredMachine.technology || "—"}</div>
-                  <div>Location: {selectedDiscoveredMachine.locationLabel || "—"}</div>
-                </div>
-              </div>
-            ) : null}
-
-            {discoveredMachines.length > 0 ? (
-              <div className="grid gap-3">
-                {discoveredMachines.map((machine) => {
-                  const isSelected = selectedDiscoveredMachineId === machine.id;
-
-                  return (
-                    <button
-                      key={machine.id}
-                      type="button"
-                      onClick={() => applyDiscoveredMachine(machine)}
-                      className={`rounded-[16px] border p-4 text-left transition ${
-                        isSelected
-                          ? "border-slate-950 bg-slate-950 text-white"
-                          : "border-zinc-200 bg-white text-slate-900 hover:bg-zinc-50"
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className="text-sm font-semibold">
-                            {machine.displayName}
-                          </div>
-                          <div
-                            className={`mt-1 text-xs ${
-                              isSelected ? "text-slate-300" : "text-slate-500"
-                            }`}
-                          >
-                            {machine.subtitle}
-                          </div>
-                        </div>
-
-                        <span
-                          className={`rounded-full px-3 py-1 text-[11px] font-medium ${
-                            isSelected
-                              ? "bg-white/15 text-white"
-                              : getStatusBadgeClasses(machine.mappedStatus)
-                          }`}
-                        >
-                          {formatLabel(machine.mappedStatus)}
-                        </span>
-                      </div>
-
-                      <div
-                        className={`mt-3 grid gap-1 text-xs ${
-                          isSelected ? "text-slate-200" : "text-slate-500"
-                        }`}
-                      >
-                        <div>Technology: {machine.technology || "—"}</div>
-                        <div>Model: {machine.machineModel || "—"}</div>
-                        <div>Location: {machine.locationLabel || "—"}</div>
-                        <div>Material: {machine.material || "—"}</div>
-                        <div>Current job: {machine.currentJobName || "—"}</div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
+            {preset.supportsDiscovery ? (
+              <button
+                type="button"
+                onClick={handleDiscoverMachines}
+                disabled={discovering || !credentialProfileId}
+                className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-900 transition hover:bg-slate-50 disabled:opacity-60"
+              >
+                {discovering ? "Loading..." : preset.discoveryButtonLabel}
+              </button>
             ) : null}
           </div>
-        ) : (
-          <>
-            <div className="grid gap-4 md:grid-cols-2">
-              <Field label="Vault secret name">
-                <input
-                  value={vaultSecretName}
-                  onChange={(event) => setVaultSecretName(event.target.value)}
-                  placeholder="Secret reference name"
-                  className="w-full rounded-2xl border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
-                />
-              </Field>
+        </div>
 
-              <Field label="Vault secret ID">
-                <input
-                  value={vaultSecretId}
-                  onChange={(event) => setVaultSecretId(event.target.value)}
-                  placeholder="Secret reference ID"
-                  className="w-full rounded-2xl border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
-                />
-              </Field>
+        {discoveredMachines.length > 0 ? (
+          <div className="space-y-3">
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+              Discovered machines
             </div>
 
-            <Field label={providerDefinition.baseUrlLabel}>
-              <input
-                value={baseUrl}
-                onChange={(event) => setBaseUrl(event.target.value)}
-                placeholder={providerDefinition.baseUrlPlaceholder}
-                className="w-full rounded-2xl border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
-              />
-            </Field>
+            <div className="space-y-3">
+              {discoveredMachines.map((machine) => {
+                const discoveredId = getDiscoveredMachineId(machine);
+                const selected = externalResourceId === discoveredId;
 
-            <label className="inline-flex items-center gap-3 text-sm text-slate-700">
-              <input
-                type="checkbox"
-                checked={syncEnabled}
-                onChange={(event) => setSyncEnabled(event.target.checked)}
-                className="h-4 w-4 rounded border-zinc-300"
-              />
-              Sync enabled
-            </label>
-          </>
-        )}
+                return (
+                  <button
+                    key={discoveredId}
+                    type="button"
+                    onClick={() => {
+                      setExternalResourceId(discoveredId);
+                      setDisplayName(createDefaultDisplayName(resource, machine, providerKey));
+                      setStructuredMetadata(createAutoMetadata(machine));
+                    }}
+                    className={`w-full rounded-3xl border p-4 text-left transition ${
+                      selected
+                        ? "border-[#0b1633] bg-[#0f172a] text-white"
+                        : "border-slate-200 bg-white text-slate-900 hover:bg-slate-50"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-semibold">{getDiscoveredMachineName(machine)}</div>
+                        <div className={`mt-1 text-xs ${selected ? "text-slate-300" : "text-slate-500"}`}>
+                          {getDiscoveredMachineSubtitle(machine)}
+                        </div>
+                      </div>
 
-        <Field label="Metadata JSON">
-          <textarea
-            value={metadataText}
-            onChange={(event) => setMetadataText(event.target.value)}
-            rows={6}
-            className="w-full rounded-[18px] border border-zinc-300 bg-white px-4 py-3 font-mono text-sm text-slate-950 outline-none"
-            placeholder={`{\n  "technology": "",\n  "machineModel": "",\n  "externalDisplayName": ""\n}`}
-          />
-        </Field>
+                      <span
+                        className={`rounded-full px-3 py-1 text-[11px] font-medium ${
+                          selected
+                            ? "bg-white/10 text-white"
+                            : getStatusBadgeClasses(getDiscoveredMachineStatus(machine))
+                        }`}
+                      >
+                        {formatLabel(getDiscoveredMachineStatus(machine))}
+                      </span>
+                    </div>
+
+                    <div className={`mt-3 grid gap-1 text-xs ${selected ? "text-slate-200" : "text-slate-500"}`}>
+                      {getDiscoveredMachineMetaLines(machine).map((line) => (
+                        <div key={line}>{line}</div>
+                      ))}
+                    </div>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleCreateFromDiscoveredMachine(machine, "resource_only");
+                        }}
+                        disabled={creatingFromDiscoveryId === discoveredId}
+                        className={`rounded-full px-3 py-2 text-[11px] font-medium transition ${
+                          selected
+                            ? "bg-white/10 text-white hover:bg-white/15"
+                            : "border border-slate-200 bg-white text-slate-900 hover:bg-slate-50"
+                        } disabled:opacity-60`}
+                      >
+                        {creatingFromDiscoveryId === discoveredId
+                          ? "Creating..."
+                          : "Create resource"}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleCreateFromDiscoveredMachine(machine, "resource_and_capability");
+                        }}
+                        disabled={creatingFromDiscoveryId === discoveredId}
+                        className={`rounded-full px-3 py-2 text-[11px] font-medium transition ${
+                          selected
+                            ? "bg-white/10 text-white hover:bg-white/15"
+                            : "border border-slate-200 bg-white text-slate-900 hover:bg-slate-50"
+                        } disabled:opacity-60`}
+                      >
+                        {creatingFromDiscoveryId === discoveredId
+                          ? "Creating..."
+                          : "Create + capability"}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleCreateFromDiscoveredMachine(machine, "resource_and_connector");
+                        }}
+                        disabled={
+                          creatingFromDiscoveryId === discoveredId ||
+                          (preset.requiresCredentialProfile && !credentialProfileId)
+                        }
+                        className={`rounded-full px-3 py-2 text-[11px] font-medium transition ${
+                          selected
+                            ? "bg-white/10 text-white hover:bg-white/15"
+                            : "border border-slate-200 bg-white text-slate-900 hover:bg-slate-50"
+                        } disabled:opacity-60`}
+                      >
+                        {creatingFromDiscoveryId === discoveredId
+                          ? "Creating..."
+                          : "Create + connector"}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleCreateFromDiscoveredMachine(
+                            machine,
+                            "resource_capability_and_connector",
+                          );
+                        }}
+                        disabled={
+                          creatingFromDiscoveryId === discoveredId ||
+                          (preset.requiresCredentialProfile && !credentialProfileId)
+                        }
+                        className={`rounded-full px-3 py-2 text-[11px] font-medium transition ${
+                          selected
+                            ? "bg-white/10 text-white hover:bg-white/15"
+                            : "border border-slate-200 bg-white text-slate-900 hover:bg-slate-50"
+                        } disabled:opacity-60`}
+                      >
+                        {creatingFromDiscoveryId === discoveredId
+                          ? "Creating..."
+                          : "Create + capability + connector"}
+                      </button>
+                    </div>
+                                        {preset.requiresCredentialProfile && !credentialProfileId ? (
+                      <div
+                        className={`mt-3 text-[11px] ${
+                          selected ? "text-slate-300" : "text-amber-600"
+                        }`}
+                      >
+                        Select saved credentials above to enable connector creation.
+                      </div>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
 
         {defaultOrganizationId ? null : (
-          <div className="rounded-[16px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
             No customer organization context was found for creating new connectors.
           </div>
         )}
 
         {error ? (
-          <div className="rounded-[16px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
             {error}
           </div>
         ) : null}
 
         {info ? (
-          <div className="rounded-[16px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
             {info}
           </div>
         ) : null}
 
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap gap-3 pt-2">
           <button
             type="submit"
             disabled={saving || !resource}
-            className="rounded-full bg-slate-950 px-5 py-2.5 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-60"
+            className="rounded-full bg-[#0b1633] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#13224a] disabled:opacity-60"
           >
-            {saving
-              ? "Saving..."
-              : existingConnection
-                ? "Save connector"
-                : "Create connector"}
+            {saving ? "Saving..." : existingConnection ? "Save connector" : "Create connector"}
           </button>
 
           <button
             type="button"
             onClick={handleTest}
             disabled={testing || !existingConnection}
-            className="rounded-full border border-zinc-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-900 transition hover:bg-zinc-50 disabled:opacity-60"
+            className="rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-medium text-slate-900 transition hover:bg-slate-50 disabled:opacity-60"
           >
             {testing ? "Testing..." : "Test"}
           </button>
@@ -2443,7 +2592,7 @@ function MachineActionPanel({
             type="button"
             onClick={handleSync}
             disabled={syncing || !existingConnection}
-            className="rounded-full border border-zinc-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-900 transition hover:bg-zinc-50 disabled:opacity-60"
+            className="rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-medium text-slate-900 transition hover:bg-slate-50 disabled:opacity-60"
           >
             {syncing ? "Syncing..." : "Sync"}
           </button>
@@ -2453,7 +2602,7 @@ function MachineActionPanel({
               type="button"
               onClick={handleDelete}
               disabled={deleting}
-              className="rounded-full border border-zinc-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-900 transition hover:bg-zinc-50 disabled:opacity-60"
+              className="rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-medium text-slate-900 transition hover:bg-slate-50 disabled:opacity-60"
             >
               {deleting ? "Deleting..." : "Delete"}
             </button>
@@ -2461,14 +2610,12 @@ function MachineActionPanel({
         </div>
 
         {existingConnection ? (
-          <div className="rounded-[18px] border border-zinc-200 bg-zinc-50 p-4">
+          <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="text-sm font-semibold text-slate-950">
-                  Connection health
-                </div>
+                <div className="text-sm font-semibold text-slate-950">Connection health</div>
                 <div className="mt-1 text-xs text-slate-500">
-                  {getProviderLabel(existingConnection.providerKey)} ·{" "}
+                  {formatProviderLabel(existingConnection.providerKey)} ·{" "}
                   {formatLabel(existingConnection.connectionMode)}
                 </div>
               </div>
@@ -2489,13 +2636,13 @@ function MachineActionPanel({
             </div>
 
             {existingConnection.lastError ? (
-              <div className="mt-3 rounded-[14px] border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+              <div className="mt-3 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
                 {existingConnection.lastError}
               </div>
             ) : null}
           </div>
         ) : null}
-      </div>
-    </form>
+      </form>
+    </div>
   );
 }
