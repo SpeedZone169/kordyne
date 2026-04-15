@@ -2,12 +2,19 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { discoverFormlabsPrinters } from "@/lib/internal-connectors/formlabs";
 import { discoverMarkforgedDevices } from "@/lib/internal-connectors/markforged";
+import { discoverStratasysMachines } from "@/lib/internal-connectors/stratasys";
 import { discoverUltimakerPrinters } from "@/lib/internal-connectors/ultimaker";
-import type { InternalConnectorCredentialProfileSecretRecord } from "@/lib/internal-connectors/types";
+import type {
+  InternalConnectorCredentialProfileSecretRecord,
+  InternalResourceConnection,
+} from "@/lib/internal-connectors/types";
 
 type RouteContext = {
   params: Promise<{ profileId: string }>;
 };
+
+type ManagedProfileRow = InternalConnectorCredentialProfileSecretRecord;
+type OrgConnectionRow = InternalResourceConnection;
 
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
@@ -57,8 +64,7 @@ async function getManagedProfile(
     };
   }
 
-  const profile =
-    profileResult.data as unknown as InternalConnectorCredentialProfileSecretRecord;
+  const profile = profileResult.data as unknown as ManagedProfileRow;
 
   const membershipResult = await supabase
     .from("organization_members")
@@ -90,6 +96,49 @@ async function getManagedProfile(
   };
 }
 
+async function resolveStratasysConnectionContext(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  profile: InternalConnectorCredentialProfileSecretRecord,
+): Promise<OrgConnectionRow> {
+  const connectionResult = await supabase
+    .from("internal_resource_connections")
+    .select(
+      [
+        "id",
+        "organization_id",
+        "resource_id",
+        "provider_key",
+        "connection_mode",
+        "display_name",
+        "vault_secret_name",
+        "vault_secret_id",
+        "credential_profile_id",
+        "base_url",
+        "external_resource_id",
+        "sync_enabled",
+        "metadata",
+      ].join(", "),
+    )
+    .eq("organization_id", profile.organization_id)
+    .eq("provider_key", "stratasys")
+    .eq("credential_profile_id", profile.id)
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (connectionResult.error) {
+    throw new Error(connectionResult.error.message);
+  }
+
+  if (!connectionResult.data) {
+    throw new Error(
+      "Stratasys discovery requires at least one saved Stratasys connector using this credential profile so the base URL and metadata context are known.",
+    );
+  }
+
+  return connectionResult.data as unknown as OrgConnectionRow;
+}
+
 export async function POST(_request: Request, context: RouteContext) {
   const supabase = await createClient();
 
@@ -118,6 +167,27 @@ export async function POST(_request: Request, context: RouteContext) {
       printers = await discoverUltimakerPrinters(managed.profile);
     } else if (managed.profile.provider_key === "markforged") {
       printers = await discoverMarkforgedDevices(managed.profile);
+    } else if (managed.profile.provider_key === "stratasys") {
+      const connectionContext = await resolveStratasysConnectionContext(
+        supabase,
+        managed.profile,
+      );
+
+      if (!connectionContext.base_url) {
+        throw new Error(
+          "Stratasys discovery requires baseUrl on the saved connector.",
+        );
+      }
+
+      printers = await discoverStratasysMachines(
+        managed.profile,
+        connectionContext.base_url,
+        connectionContext,
+      );
+    } else if (managed.profile.provider_key === "hp") {
+      throw new Error(
+        'Printer discovery is not implemented for provider "hp" yet.',
+      );
     } else {
       throw new Error(
         `Printer discovery is not implemented for provider "${managed.profile.provider_key}" yet.`,

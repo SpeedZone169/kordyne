@@ -2,7 +2,13 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { encryptConnectorSecret } from "@/lib/internal-connectors/crypto";
 
-const ALLOWED_PROVIDER_KEYS = new Set(["formlabs", "ultimaker", "markforged"]);
+const ALLOWED_PROVIDER_KEYS = new Set([
+  "formlabs",
+  "ultimaker",
+  "markforged",
+  "stratasys",
+  "hp",
+]);
 
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
@@ -14,8 +20,37 @@ function normalizeOptionalText(value: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-function maskProfilePreview(providerKey: string, clientId: string | null) {
+function providerUsesTokenAuth(providerKey: string) {
+  return providerKey === "ultimaker";
+}
+
+function providerUsesKeyAndSecret(providerKey: string) {
+  return (
+    providerKey === "formlabs" ||
+    providerKey === "markforged" ||
+    providerKey === "stratasys" ||
+    providerKey === "hp"
+  );
+}
+
+function getStoredAuthMode(providerKey: string) {
   if (providerKey === "ultimaker") {
+    return "api_token";
+  }
+
+  if (
+    providerKey === "markforged" ||
+    providerKey === "stratasys" ||
+    providerKey === "hp"
+  ) {
+    return "api_key";
+  }
+
+  return "client_credentials";
+}
+
+function maskProfilePreview(providerKey: string, clientId: string | null) {
+  if (providerUsesTokenAuth(providerKey)) {
     return "Saved API token";
   }
 
@@ -115,9 +150,11 @@ export async function POST(request: Request) {
     organizationId?: string;
     providerKey?: string;
     displayName?: string;
-    clientId?: string;
-    clientSecret?: string;
-    apiToken?: string;
+    clientId?: string | null;
+    clientSecret?: string | null;
+    apiToken?: string | null;
+    refreshToken?: string | null;
+    tokenExpiresAt?: string | null;
   };
 
   try {
@@ -132,6 +169,8 @@ export async function POST(request: Request) {
   const clientId = normalizeOptionalText(body.clientId);
   const clientSecret = normalizeOptionalText(body.clientSecret);
   const apiToken = normalizeOptionalText(body.apiToken);
+  const refreshToken = normalizeOptionalText(body.refreshToken);
+  const tokenExpiresAt = normalizeOptionalText(body.tokenExpiresAt);
 
   if (!organizationId) {
     return jsonError("organizationId is required.", 400);
@@ -145,17 +184,12 @@ export async function POST(request: Request) {
     return jsonError("displayName is required.", 400);
   }
 
-  if (providerKey === "formlabs") {
+  if (providerUsesKeyAndSecret(providerKey)) {
     if (!clientId) return jsonError("clientId is required.", 400);
     if (!clientSecret) return jsonError("clientSecret is required.", 400);
   }
 
-  if (providerKey === "markforged") {
-    if (!clientId) return jsonError("clientId is required.", 400);
-    if (!clientSecret) return jsonError("clientSecret is required.", 400);
-  }
-
-  if (providerKey === "ultimaker") {
+  if (providerUsesTokenAuth(providerKey)) {
     if (!apiToken) return jsonError("apiToken is required.", 400);
   }
 
@@ -165,36 +199,53 @@ export async function POST(request: Request) {
     return access.response;
   }
 
-  const secretToEncrypt =
-    providerKey === "ultimaker" ? apiToken : clientSecret;
+  const secretToEncrypt = providerUsesTokenAuth(providerKey)
+    ? apiToken
+    : clientSecret;
 
   if (!secretToEncrypt) {
     return jsonError("A secret value is required.", 400);
   }
 
-  const encrypted = encryptConnectorSecret(secretToEncrypt);
+  const encryptedSecret = encryptConnectorSecret(secretToEncrypt);
+
+  const refreshTokenEncrypted = refreshToken
+    ? encryptConnectorSecret(refreshToken)
+    : null;
+
+  const insertPayload = {
+    organization_id: organizationId,
+    provider_key: providerKey,
+    auth_mode: getStoredAuthMode(providerKey),
+    display_name: displayName,
+    client_id: providerUsesTokenAuth(providerKey) ? null : clientId,
+    client_secret_ciphertext: providerUsesTokenAuth(providerKey)
+      ? null
+      : encryptedSecret.ciphertext,
+    client_secret_iv: providerUsesTokenAuth(providerKey) ? null : encryptedSecret.iv,
+    client_secret_tag: providerUsesTokenAuth(providerKey)
+      ? null
+      : encryptedSecret.tag,
+    access_token_ciphertext: providerUsesTokenAuth(providerKey)
+      ? encryptedSecret.ciphertext
+      : null,
+    access_token_iv: providerUsesTokenAuth(providerKey) ? encryptedSecret.iv : null,
+    access_token_tag: providerUsesTokenAuth(providerKey) ? encryptedSecret.tag : null,
+    refresh_token_ciphertext: refreshTokenEncrypted?.ciphertext ?? null,
+    refresh_token_iv: refreshTokenEncrypted?.iv ?? null,
+    refresh_token_tag: refreshTokenEncrypted?.tag ?? null,
+    token_expires_at: tokenExpiresAt || null,
+    last_test_status: "pending",
+    last_test_error: null,
+    created_by_user_id: user.id,
+    updated_by_user_id: user.id,
+  };
 
   const insertResult = await supabase
     .from("internal_connector_profiles")
-    .insert({
-      organization_id: organizationId,
-      provider_key: providerKey,
-      auth_mode:
-        providerKey === "formlabs"
-          ? "client_credentials"
-          : "api_key",
-      display_name: displayName,
-      client_id: providerKey === "ultimaker" ? null : clientId,
-      client_secret_ciphertext: encrypted.ciphertext,
-      client_secret_iv: encrypted.iv,
-      client_secret_tag: encrypted.tag,
-      last_test_status: "pending",
-      last_test_error: null,
-      created_by_user_id: user.id,
-      updated_by_user_id: user.id,
-    })
+    .insert(insertPayload)
     .select(
-      "id, organization_id, provider_key, auth_mode, display_name, client_id, last_tested_at, last_test_status, last_test_error, created_at, updated_at",
+      "id, organization_id, provider_key, auth_mode, display_name, client_id, access_token_ciphertext, refresh_token_ciphertext, token_expires_at, last_tested_at, last_test_status, last_test_error, created_at, updated_at",
     )
     .single();
 
@@ -214,7 +265,11 @@ export async function POST(request: Request) {
           insertResult.data.provider_key,
           insertResult.data.client_id,
         ),
-        hasSecret: true,
+        hasSecret: Boolean(
+          insertResult.data.client_id || insertResult.data.access_token_ciphertext,
+        ),
+        hasRefreshToken: Boolean(insertResult.data.refresh_token_ciphertext),
+        tokenExpiresAt: insertResult.data.token_expires_at,
         lastTestedAt: insertResult.data.last_tested_at,
         lastTestStatus: insertResult.data.last_test_status,
         lastTestError: insertResult.data.last_test_error,

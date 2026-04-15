@@ -46,8 +46,8 @@ export type InternalConnectorLatestStatusEvent = {
   status: InternalResourceStatus;
   reasonCode: string | null;
   reasonDetail: string | null;
-  effectiveAt: string;
   payload: Record<string, unknown>;
+  effectiveAt: string;
   createdAt: string;
 };
 
@@ -147,6 +147,41 @@ export type MarkforgedDiscoveredPrinter = {
   currentJobName: string | null;
   material: string | null;
 };
+
+export type StratasysDiscoveredMachine = {
+  id: string;
+  name: string;
+  serial: string | null;
+  model: string | null;
+  technology: string | null;
+  material: string | null;
+  locationName: string | null;
+  rawStatus: string | null;
+  mappedStatus: InternalResourceStatus;
+  currentJobName: string | null;
+};
+
+export type HpDiscoveredMachine = {
+  id: string;
+  name: string;
+  serial: string | null;
+  model: string | null;
+  technology: string | null;
+  material: string | null;
+  locationName: string | null;
+  rawStatus: string | null;
+  mappedStatus: InternalResourceStatus;
+  currentJobName: string | null;
+};
+
+export type InternalEquipmentClass =
+  | "printer"
+  | "machine"
+  | "station"
+  | "cell"
+  | "scanner"
+  | "work_center"
+  | "other";
 
 export type InternalResourceConnectionsData = {
   resources: InternalConnectorResource[];
