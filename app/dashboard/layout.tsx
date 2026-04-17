@@ -29,7 +29,7 @@ export default async function DashboardLayout({
   return (
     <div className="min-h-screen bg-[#f5f5f3] text-slate-950">
       <header className="sticky top-0 z-40 border-b border-zinc-200 bg-[#f5f5f3]/95 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-6 px-6 py-6 lg:px-10">
+        <div className="mx-auto flex w-full max-w-[1800px] items-center justify-between gap-6 px-4 py-5 lg:px-6 2xl:px-8">
           <Link href="/dashboard" className="flex shrink-0 items-center">
             <Image
               src="/kordyne-logo.svg"
@@ -73,7 +73,9 @@ export default async function DashboardLayout({
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-6 py-8 lg:px-10">{children}</main>
+      <main className="mx-auto w-full max-w-[1800px] px-4 py-6 lg:px-6 2xl:px-8">
+  {children}
+</main>
 
       <footer className="mt-12 border-t border-zinc-200 bg-white">
         <div className="mx-auto flex max-w-7xl flex-col gap-3 px-6 py-6 text-sm text-slate-600 lg:flex-row lg:items-center lg:justify-between lg:px-10">
