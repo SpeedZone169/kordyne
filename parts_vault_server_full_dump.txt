@@ -1,0 +1,562 @@
+========================================================================================================================
+FILE: .\app\dashboard\parts\[id]\UploadSection.tsx
+========================================================================================================================
+
+"use client";
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "../../../../lib/supabase/client";
+
+type UploadSectionProps = {
+  partId: string;
+};
+
+const CATEGORY_OPTIONS = [
+  { value: "cad_3d", label: "CAD 3D" },
+  { value: "drawing_2d", label: "2D Drawing" },
+  { value: "image", label: "Image" },
+  { value: "manufacturing_doc", label: "Manufacturing Doc" },
+  { value: "quality_doc", label: "Quality Doc" },
+  { value: "other", label: "Other" },
+] as const;
+
+const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
+
+const ALLOWED_EXTENSIONS_BY_CATEGORY: Record<string, string[]> = {
+  cad_3d: ["step", "stp", "iges", "igs", "stl"],
+  drawing_2d: ["pdf"],
+  image: ["png", "jpg", "jpeg"],
+  manufacturing_doc: ["pdf", "doc", "docx", "xls", "xlsx", "csv"],
+  quality_doc: ["pdf", "doc", "docx", "xls", "xlsx", "csv"],
+  other: ["pdf", "png", "jpg", "jpeg", "csv", "txt"],
+};
+
+function getFileExtension(fileName: string) {
+  const parts = fileName.split(".");
+  if (parts.length < 2) return "";
+  return parts.pop()!.toLowerCase();
+}
+
+function sanitizeFileName(fileName: string) {
+  return fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
+}
+
+function formatBytes(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+export default function UploadSection({ partId }: UploadSectionProps) {
+  const supabase = createClient();
+  const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const [role, setRole] = useState<string | null>(null);
+  const [roleLoading, setRoleLoading] = useState(true);
+
+  const [file, setFile] = useState<File | null>(null);
+  const [assetCategory, setAssetCategory] = useState("cad_3d");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  const canUpload = role === "admin" || role === "engineer";
+
+  useEffect(() => {
+    async function loadRole() {
+      setRoleLoading(true);
+
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) {
+          setRole(null);
+          return;
+        }
+
+        const { data: orgRole } = await supabase.rpc("get_current_org_role");
+        setRole(orgRole || null);
+      } finally {
+        setRoleLoading(false);
+      }
+    }
+
+    loadRole();
+  }, [supabase]);
+
+  const allowedExtensions = useMemo(() => {
+    return ALLOWED_EXTENSIONS_BY_CATEGORY[assetCategory] || [];
+  }, [assetCategory]);
+
+  const acceptedFileText = useMemo(() => {
+    return allowedExtensions.map((ext) => `.${ext}`).join(", ");
+  }, [allowedExtensions]);
+
+  function validateSelectedFile(selectedFile: File | null, category: string) {
+    if (!selectedFile) {
+      return "Please choose a file.";
+    }
+
+    if (selectedFile.size > MAX_FILE_SIZE_BYTES) {
+      return `File is too large. Maximum allowed size is ${formatBytes(
+        MAX_FILE_SIZE_BYTES
+      )}.`;
+    }
+
+    const extension = getFileExtension(selectedFile.name);
+
+    if (!extension) {
+      return "File must have a valid extension.";
+    }
+
+    const allowed = ALLOWED_EXTENSIONS_BY_CATEGORY[category] || [];
+
+    if (!allowed.includes(extension)) {
+      return `Invalid file type for this category. Allowed types: ${allowed
+        .map((ext) => `.${ext}`)
+        .join(", ")}.`;
+    }
+
+    return null;
+  }
+
+  async function handleUpload(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError("");
+    setSuccess("");
+
+    if (!canUpload) {
+      setError("Only engineers and admins can upload files.");
+      return;
+    }
+
+    const validationError = validateSelectedFile(file, assetCategory);
+
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        setError("You must be logged in.");
+        return;
+      }
+
+      const selectedFile = file as File;
+      const fileExt = getFileExtension(selectedFile.name);
+      const safeFileName = sanitizeFileName(selectedFile.name);
+      const filePath = `${user.id}/${partId}/${Date.now()}-${safeFileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("part-files")
+        .upload(filePath, selectedFile, {
+          upsert: false,
+        });
+
+      if (uploadError) {
+        setError(`Storage upload failed: ${uploadError.message}`);
+        return;
+      }
+
+      const { error: insertError } = await supabase.from("part_files").insert({
+        part_id: partId,
+        user_id: user.id,
+        file_name: selectedFile.name,
+        file_type: fileExt,
+        asset_category: assetCategory,
+        storage_path: filePath,
+        file_size_bytes: selectedFile.size,
+      });
+
+      if (insertError) {
+        setError(`Database insert failed: ${insertError.message}`);
+        return;
+      }
+
+      setSuccess("File uploaded successfully.");
+      setFile(null);
+
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+
+      router.refresh();
+    } catch {
+      setError("Something went wrong during upload.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    setError("");
+    setSuccess("");
+
+    const selectedFile = e.target.files?.[0] || null;
+    setFile(selectedFile);
+
+    const validationError = validateSelectedFile(selectedFile, assetCategory);
+
+    if (validationError) {
+      setError(validationError);
+    }
+  }
+
+  function handleCategoryChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const nextCategory = e.target.value;
+    setAssetCategory(nextCategory);
+    setError("");
+    setSuccess("");
+
+    if (file) {
+      const validationError = validateSelectedFile(file, nextCategory);
+      if (validationError) {
+        setError(validationError);
+      }
+    }
+  }
+
+  return (
+    <div className="h-full rounded-3xl border border-gray-200 p-6 shadow-sm">
+      <h2 className="text-xl font-semibold">Upload File</h2>
+
+      {!roleLoading && !canUpload ? (
+        <p className="mt-4 text-sm text-gray-600">
+          File upload is available to engineers and admins only.
+        </p>
+      ) : null}
+
+      <form onSubmit={handleUpload} className="mt-6 space-y-4">
+        <div>
+          <label className="mb-2 block text-sm font-medium">
+            Asset Category
+          </label>
+          <select
+            value={assetCategory}
+            onChange={handleCategoryChange}
+            disabled={!canUpload || roleLoading || loading}
+            className="w-full rounded-2xl border border-gray-300 px-4 py-3 disabled:bg-gray-50 disabled:text-gray-500"
+          >
+            {CATEGORY_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+          <p className="text-sm font-medium text-gray-900">Upload rules</p>
+          <p className="mt-2 text-sm text-gray-600">
+            Allowed file types for this category: {acceptedFileText || "None"}
+          </p>
+          <p className="mt-1 text-sm text-gray-600">
+            Maximum file size: {formatBytes(MAX_FILE_SIZE_BYTES)}
+          </p>
+        </div>
+
+        <div>
+          <label className="mb-2 block text-sm font-medium">Choose File</label>
+
+          <label
+            className={`inline-flex items-center rounded-2xl border border-gray-300 px-4 py-3 text-sm font-medium text-gray-900 transition ${
+              canUpload && !roleLoading && !loading
+                ? "cursor-pointer hover:bg-gray-50"
+                : "cursor-not-allowed bg-gray-50 text-gray-500"
+            }`}
+          >
+            Select File
+            <input
+              ref={fileInputRef}
+              type="file"
+              onChange={handleFileChange}
+              disabled={!canUpload || roleLoading || loading}
+              className="hidden"
+            />
+          </label>
+
+          <p className="mt-2 text-sm text-gray-600">
+            {file
+              ? `${file.name} (${formatBytes(file.size)})`
+              : "No file selected"}
+          </p>
+        </div>
+
+        <button
+          type="submit"
+          disabled={roleLoading || loading || !file || !canUpload}
+          className="rounded-2xl bg-gray-900 px-5 py-3 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50"
+        >
+          {roleLoading ? "Loading access..." : loading ? "Uploading..." : "Upload File"}
+        </button>
+
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
+        {success ? <p className="text-sm text-green-700">{success}</p> : null}
+      </form>
+    </div>
+  );
+}
+
+
+========================================================================================================================
+FILE: .\app\api\parts\create-revision\route.ts
+========================================================================================================================
+
+import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+
+type CreateRevisionBody = {
+  sourcePartId?: string;
+  revisionNote?: string;
+  fileCopyMode?: "none" | "selected";
+  selectedSourceFileIds?: string[];
+};
+
+type SourceFileRow = {
+  id: string;
+  part_id: string;
+  file_name: string;
+  file_type: string | null;
+  file_size_bytes: number | null;
+  storage_path: string;
+  asset_category: string | null;
+};
+
+function sanitizeFileName(fileName: string) {
+  return fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
+}
+
+async function cleanupCopiedFiles(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  storagePaths: string[]
+) {
+  if (storagePaths.length === 0) return;
+
+  const { error } = await supabase.storage.from("part-files").remove(storagePaths);
+
+  if (error) {
+    console.error("Failed to clean up copied storage objects", error);
+  }
+}
+
+export async function POST(req: Request) {
+  try {
+    const supabase = await createClient();
+
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+    }
+
+    const body = (await req.json()) as CreateRevisionBody;
+
+    const sourcePartId = body.sourcePartId?.trim();
+    const revisionNote = body.revisionNote?.trim() || null;
+    const fileCopyMode = body.fileCopyMode ?? "none";
+
+    if (!sourcePartId) {
+      return NextResponse.json(
+        { error: "Source part is required." },
+        { status: 400 }
+      );
+    }
+
+    if (!["none", "selected"].includes(fileCopyMode)) {
+      return NextResponse.json(
+        { error: "Invalid file copy mode." },
+        { status: 400 }
+      );
+    }
+
+    const selectedSourceFileIds = Array.from(
+      new Set((body.selectedSourceFileIds ?? []).filter(Boolean))
+    );
+
+    if (fileCopyMode === "selected" && selectedSourceFileIds.length === 0) {
+      return NextResponse.json(
+        {
+          error:
+            "Select at least one file to copy, or choose Start with no files.",
+        },
+        { status: 400 }
+      );
+    }
+
+    const { data: sourcePart, error: sourcePartError } = await supabase
+      .from("parts")
+      .select("id, organization_id, part_family_id")
+      .eq("id", sourcePartId)
+      .single();
+
+    if (sourcePartError || !sourcePart) {
+      return NextResponse.json(
+        { error: "Source part not found." },
+        { status: 404 }
+      );
+    }
+
+    const { data: familyParts, error: familyPartsError } = await supabase
+      .from("parts")
+      .select("id")
+      .eq("organization_id", sourcePart.organization_id)
+      .eq("part_family_id", sourcePart.part_family_id);
+
+    if (familyPartsError || !familyParts) {
+      return NextResponse.json(
+        { error: "Failed to load revision family." },
+        { status: 500 }
+      );
+    }
+
+    const familyPartIds = familyParts.map((part) => part.id);
+
+    let sourceFilesToCopy: SourceFileRow[] = [];
+
+    if (fileCopyMode === "selected") {
+      const { data: sourceFiles, error: sourceFilesError } = await supabase
+        .from("part_files")
+        .select(
+          "id, part_id, file_name, file_type, file_size_bytes, storage_path, asset_category"
+        )
+        .in("id", selectedSourceFileIds)
+        .in("part_id", familyPartIds);
+
+      if (sourceFilesError) {
+        return NextResponse.json(
+          { error: `Failed to load source files: ${sourceFilesError.message}` },
+          { status: 500 }
+        );
+      }
+
+      if (!sourceFiles || sourceFiles.length !== selectedSourceFileIds.length) {
+        return NextResponse.json(
+          {
+            error:
+              "One or more selected files could not be found in this revision family.",
+          },
+          { status: 400 }
+        );
+      }
+
+      const sourceFileMap = new Map(
+        (sourceFiles as SourceFileRow[]).map((file) => [file.id, file] as const)
+      );
+
+      sourceFilesToCopy = selectedSourceFileIds
+        .map((fileId) => sourceFileMap.get(fileId))
+        .filter(Boolean) as SourceFileRow[];
+    }
+
+    const { data: newPartId, error: rpcError } = await supabase.rpc(
+      "create_part_revision",
+      {
+        p_source_part_id: sourcePartId,
+        p_revision_note: revisionNote,
+      }
+    );
+
+    if (rpcError || !newPartId) {
+      return NextResponse.json(
+        { error: rpcError?.message || "Failed to create revision." },
+        { status: 400 }
+      );
+    }
+
+    if (sourceFilesToCopy.length > 0) {
+      const copiedStoragePaths: string[] = [];
+      const copiedFileRows = [];
+
+      for (const sourceFile of sourceFilesToCopy) {
+        const safeFileName = sanitizeFileName(sourceFile.file_name);
+        const destinationPath = `${sourcePart.organization_id}/${newPartId}/${crypto.randomUUID()}-${safeFileName}`;
+
+        const { error: copyError } = await supabase.storage
+          .from("part-files")
+          .copy(sourceFile.storage_path, destinationPath);
+
+        if (copyError) {
+          await cleanupCopiedFiles(supabase, copiedStoragePaths);
+
+          return NextResponse.json(
+            {
+              error: `Failed to copy file "${sourceFile.file_name}": ${copyError.message}`,
+            },
+            { status: 500 }
+          );
+        }
+
+        copiedStoragePaths.push(destinationPath);
+
+        copiedFileRows.push({
+          part_id: newPartId,
+          user_id: user.id,
+          file_name: sourceFile.file_name,
+          file_type: sourceFile.file_type,
+          file_size_bytes: sourceFile.file_size_bytes,
+          storage_path: destinationPath,
+          asset_category: sourceFile.asset_category,
+        });
+      }
+
+      const { error: insertFileError } = await supabase
+        .from("part_files")
+        .insert(copiedFileRows);
+
+      if (insertFileError) {
+        await cleanupCopiedFiles(supabase, copiedStoragePaths);
+
+        return NextResponse.json(
+          {
+            error: `Failed to create copied file records: ${insertFileError.message}`,
+          },
+          { status: 500 }
+        );
+      }
+    }
+
+    return NextResponse.json({ id: newPartId }, { status: 201 });
+  } catch (error) {
+    console.error("POST /api/parts/create-revision failed", error);
+    return NextResponse.json(
+      { error: "Unexpected server error." },
+      { status: 500 }
+    );
+  }
+}
+
+
+========================================================================================================================
+FILE NOT FOUND: .\app\api\part-files\[id]\content\route.ts
+========================================================================================================================
+
+
+========================================================================================================================
+FILE NOT FOUND: .\app\api\part-files\upload\route.ts
+========================================================================================================================
+
+
+========================================================================================================================
+FILE NOT FOUND: .\app\api\part-files\[id]\route.ts
+========================================================================================================================
+
+
+========================================================================================================================
+FILE NOT FOUND: .\app\api\part-files\[id]\categorize\route.ts
+========================================================================================================================
+
+
