@@ -1,0 +1,3752 @@
+========================================================================================================================
+FILE: .\app\dashboard\parts\page.tsx
+========================================================================================================================
+
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { createClient } from "../../../lib/supabase/server";
+
+type PartsPageProps = {
+  searchParams?: Promise<{
+    q?: string;
+    status?: string;
+    process?: string;
+    material?: string;
+  }>;
+};
+
+type PartRow = {
+  id: string;
+  part_family_id: string;
+  name: string;
+  part_number: string | null;
+  process_type: string | null;
+  material: string | null;
+  revision: string | null;
+  revision_index: number | null;
+  revision_note: string | null;
+  status: string | null;
+  updated_at: string | null;
+  created_at: string;
+};
+
+type PartFamilyGroup = {
+  partFamilyId: string;
+  familyName: string;
+  familyPartNumber: string | null;
+  latestRevision: PartRow;
+  revisions: PartRow[];
+  revisionCount: number;
+  latestUpdatedAt: string;
+};
+
+function formatDate(dateString: string | null) {
+  if (!dateString) return "-";
+
+  const date = new Date(dateString);
+  return new Intl.DateTimeFormat("en-IE", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(date);
+}
+
+function formatDateTime(dateString: string | null) {
+  if (!dateString) return "-";
+
+  const date = new Date(dateString);
+  return new Intl.DateTimeFormat("en-IE", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function getStatusBadgeClass(status: string | null) {
+  switch (status) {
+    case "active":
+      return "bg-green-100 text-green-800";
+    case "draft":
+      return "bg-yellow-100 text-yellow-800";
+    case "archived":
+      return "bg-gray-100 text-gray-700";
+    default:
+      return "bg-gray-100 text-gray-700";
+  }
+}
+
+function getRoleBadgeClass(role: string | null) {
+  switch (role) {
+    case "admin":
+      return "bg-gray-900 text-white";
+    case "engineer":
+      return "bg-blue-100 text-blue-800";
+    case "viewer":
+      return "bg-gray-100 text-gray-700";
+    default:
+      return "bg-gray-100 text-gray-700";
+  }
+}
+
+function comparePartsByRevision(a: PartRow, b: PartRow) {
+  const aRevisionIndex = a.revision_index ?? 0;
+  const bRevisionIndex = b.revision_index ?? 0;
+
+  if (aRevisionIndex !== bRevisionIndex) {
+    return bRevisionIndex - aRevisionIndex;
+  }
+
+  const aUpdatedAt = new Date(a.updated_at || a.created_at).getTime();
+  const bUpdatedAt = new Date(b.updated_at || b.created_at).getTime();
+
+  return bUpdatedAt - aUpdatedAt;
+}
+
+function buildFamilyGroups(parts: PartRow[]) {
+  const familyMap = new Map<string, PartRow[]>();
+
+  for (const part of parts) {
+    const existing = familyMap.get(part.part_family_id) || [];
+    existing.push(part);
+    familyMap.set(part.part_family_id, existing);
+  }
+
+  return Array.from(familyMap.entries())
+    .map(([partFamilyId, familyParts]) => {
+      const revisions = [...familyParts].sort(comparePartsByRevision);
+      const latestRevision = revisions[0];
+
+      return {
+        partFamilyId,
+        familyName: latestRevision.name,
+        familyPartNumber: latestRevision.part_number,
+        latestRevision,
+        revisions,
+        revisionCount: revisions.length,
+        latestUpdatedAt: latestRevision.updated_at || latestRevision.created_at,
+      } satisfies PartFamilyGroup;
+    })
+    .sort((a, b) => {
+      const aTime = new Date(a.latestUpdatedAt).getTime();
+      const bTime = new Date(b.latestUpdatedAt).getTime();
+      return bTime - aTime;
+    });
+}
+
+export default async function PartsPage({ searchParams }: PartsPageProps) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  const { data: orgRole } = await supabase.rpc("get_current_org_role");
+  const canCreatePart = orgRole === "admin" || orgRole === "engineer";
+
+  const resolvedSearchParams = searchParams ? await searchParams : {};
+  const queryText = resolvedSearchParams.q?.trim() || "";
+  const statusFilter = resolvedSearchParams.status?.trim() || "";
+  const processFilter = resolvedSearchParams.process?.trim() || "";
+  const materialFilter = resolvedSearchParams.material?.trim() || "";
+
+  let filteredFamilySeedQuery = supabase
+    .from("parts")
+    .select(
+      "id, part_family_id, name, part_number, process_type, material, revision, revision_index, revision_note, status, updated_at, created_at"
+    )
+    .order("updated_at", { ascending: false })
+    .order("created_at", { ascending: false });
+
+  if (queryText) {
+    filteredFamilySeedQuery = filteredFamilySeedQuery.or(
+      `name.ilike.%${queryText}%,part_number.ilike.%${queryText}%,material.ilike.%${queryText}%`
+    );
+  }
+
+  if (statusFilter) {
+    filteredFamilySeedQuery = filteredFamilySeedQuery.eq("status", statusFilter);
+  }
+
+  if (processFilter) {
+    filteredFamilySeedQuery = filteredFamilySeedQuery.eq(
+      "process_type",
+      processFilter
+    );
+  }
+
+  if (materialFilter) {
+    filteredFamilySeedQuery = filteredFamilySeedQuery.eq(
+      "material",
+      materialFilter
+    );
+  }
+
+  const { data: filteredSeedParts, error } = await filteredFamilySeedQuery;
+
+  const { data: allPartsForFilters } = await supabase
+    .from("parts")
+    .select("status, process_type, material");
+
+  const statusOptions = Array.from(
+    new Set(
+      (allPartsForFilters || [])
+        .map((part) => part.status)
+        .filter((value): value is string => Boolean(value))
+    )
+  ).sort();
+
+  const processOptions = Array.from(
+    new Set(
+      (allPartsForFilters || [])
+        .map((part) => part.process_type)
+        .filter((value): value is string => Boolean(value))
+    )
+  ).sort();
+
+  const materialOptions = Array.from(
+    new Set(
+      (allPartsForFilters || [])
+        .map((part) => part.material)
+        .filter((value): value is string => Boolean(value))
+    )
+  ).sort();
+
+  const matchingFamilyIds = Array.from(
+    new Set(
+      ((filteredSeedParts as PartRow[] | null) ?? []).map(
+        (part) => part.part_family_id
+      )
+    )
+  );
+
+  const { data: familyParts } =
+    matchingFamilyIds.length > 0
+      ? await supabase
+          .from("parts")
+          .select(
+            "id, part_family_id, name, part_number, process_type, material, revision, revision_index, revision_note, status, updated_at, created_at"
+          )
+          .in("part_family_id", matchingFamilyIds)
+      : { data: [] as PartRow[] };
+
+  const familyGroups = buildFamilyGroups((familyParts as PartRow[] | null) ?? []);
+
+  return (
+    <main className="min-h-screen bg-gray-50 text-gray-900">
+      <section className="mx-auto max-w-7xl px-6 py-12 lg:px-8 lg:py-16">
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h1 className="text-4xl font-semibold tracking-tight text-gray-950">
+              Parts Vault
+            </h1>
+            <p className="mt-4 max-w-2xl text-gray-600">
+              Manage your parts, revisions, and manufacturing metadata through a
+              family-based vault view.
+            </p>
+
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <span
+                className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${getRoleBadgeClass(
+                  orgRole
+                )}`}
+              >
+                {orgRole || "unknown"}
+              </span>
+
+              {!canCreatePart ? (
+                <p className="text-sm text-gray-500">
+                  Read-only access. Viewers can browse parts but cannot create
+                  or edit them.
+                </p>
+              ) : null}
+            </div>
+          </div>
+
+          {canCreatePart ? (
+            <Link
+              href="/dashboard/parts/new"
+              className="inline-flex items-center justify-center rounded-full bg-gray-950 px-5 py-3 text-sm font-medium text-white transition hover:bg-gray-800"
+            >
+              New Part
+            </Link>
+          ) : null}
+        </div>
+
+        <div className="mt-8 rounded-[28px] border border-gray-200 bg-white p-6 shadow-sm">
+          <form className="grid gap-4 md:grid-cols-4">
+            <div className="md:col-span-4">
+              <label className="mb-2 block text-sm font-medium text-gray-900">
+                Search
+              </label>
+              <input
+                type="text"
+                name="q"
+                defaultValue={queryText}
+                placeholder="Search by part name, part number, or material"
+                className="w-full rounded-2xl border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-gray-400"
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-900">
+                Status
+              </label>
+              <select
+                name="status"
+                defaultValue={statusFilter}
+                className="w-full rounded-2xl border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-gray-400"
+              >
+                <option value="">All</option>
+                {statusOptions.map((status) => (
+                  <option key={status} value={status}>
+                    {status}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-900">
+                Process
+              </label>
+              <select
+                name="process"
+                defaultValue={processFilter}
+                className="w-full rounded-2xl border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-gray-400"
+              >
+                <option value="">All</option>
+                {processOptions.map((process) => (
+                  <option key={process} value={process}>
+                    {process}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-900">
+                Material
+              </label>
+              <select
+                name="material"
+                defaultValue={materialFilter}
+                className="w-full rounded-2xl border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-gray-400"
+              >
+                <option value="">All</option>
+                {materialOptions.map((material) => (
+                  <option key={material} value={material}>
+                    {material}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-end gap-3">
+              <button
+                type="submit"
+                className="rounded-full bg-gray-950 px-5 py-3 text-sm font-medium text-white transition hover:bg-gray-800"
+              >
+                Apply Filters
+              </button>
+
+              <Link
+                href="/dashboard/parts"
+                className="rounded-full border border-gray-300 bg-white px-5 py-3 text-sm font-medium text-gray-900 transition hover:bg-gray-100"
+              >
+                Clear
+              </Link>
+            </div>
+          </form>
+        </div>
+
+        <div className="mt-10 overflow-x-auto rounded-[28px] border border-gray-200 bg-white">
+          <div className="lg:min-w-[1420px]">
+            <div className="hidden grid-cols-[72px_minmax(280px,2.2fr)_180px_180px_180px_120px_100px_130px_150px] gap-4 bg-gray-50 px-6 py-4 text-left text-sm font-medium text-gray-700 lg:grid">
+              <div>Expand</div>
+              <div>Name</div>
+              <div>Part Number</div>
+              <div>Process</div>
+              <div>Material</div>
+              <div>Latest Rev</div>
+              <div>Count</div>
+              <div>Status</div>
+              <div>Updated</div>
+            </div>
+
+            {familyGroups.length > 0 ? (
+              <div className="divide-y divide-gray-200">
+                {familyGroups.map((family) => (
+                  <details key={family.partFamilyId} className="group">
+                    <summary className="list-none cursor-pointer px-6 py-5 transition hover:bg-gray-50">
+                      <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[72px_minmax(140px,2.2fr)_140px_140px_180px_120px_100px_130px_150px] lg:items-center lg:gap-4">
+                        <div className="flex items-center gap-3">
+                          <span className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-300 text-lg font-medium text-gray-700">
+                            <span className="group-open:hidden">+</span>
+                            <span className="hidden group-open:inline">−</span>
+                          </span>
+                          <span className="text-xs font-medium uppercase tracking-[0.12em] text-gray-400 lg:hidden">
+                            Expand
+                          </span>
+                        </div>
+
+                        <div className="min-w-0">
+                          <div className="text-base font-semibold text-gray-900 break-words">
+                            {family.familyName}
+                          </div>
+                          <div className="mt-1 text-sm text-gray-500 lg:hidden">
+                            Open family to see revision history
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 lg:block">
+                          <span className="text-xs font-medium uppercase tracking-[0.12em] text-gray-400 lg:hidden">
+                            Part Number
+                          </span>
+                          <span className="text-sm text-gray-900 break-words">
+                            {family.familyPartNumber || "-"}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 lg:block">
+                          <span className="text-xs font-medium uppercase tracking-[0.12em] text-gray-400 lg:hidden">
+                            Process
+                          </span>
+                          <span className="text-sm text-gray-900 break-words">
+                            {family.latestRevision.process_type || "-"}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 lg:block">
+                          <span className="text-xs font-medium uppercase tracking-[0.12em] text-gray-400 lg:hidden">
+                            Material
+                          </span>
+                          <span className="text-sm text-gray-900 break-words">
+                            {family.latestRevision.material || "-"}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 lg:block">
+                          <span className="text-xs font-medium uppercase tracking-[0.12em] text-gray-400 lg:hidden">
+                            Latest Revision
+                          </span>
+                          <span className="font-medium text-gray-900">
+                            {family.latestRevision.revision || "-"}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 lg:block">
+                          <span className="text-xs font-medium uppercase tracking-[0.12em] text-gray-400 lg:hidden">
+                            Revision Count
+                          </span>
+                          <span className="font-medium text-gray-900">
+                            {family.revisionCount}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 lg:block">
+                          <span className="text-xs font-medium uppercase tracking-[0.12em] text-gray-400 lg:hidden">
+                            Status
+                          </span>
+                          {family.latestRevision.status ? (
+                            <span
+                              className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${getStatusBadgeClass(
+                                family.latestRevision.status
+                              )}`}
+                            >
+                              {family.latestRevision.status}
+                            </span>
+                          ) : (
+                            "-"
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2 lg:block">
+                          <span className="text-xs font-medium uppercase tracking-[0.12em] text-gray-400 lg:hidden">
+                            Updated
+                          </span>
+                          <span className="text-sm text-gray-900">
+                            {formatDate(family.latestUpdatedAt)}
+                          </span>
+                        </div>
+                      </div>
+                    </summary>
+
+                    <div className="border-t border-gray-200 bg-gray-50/70 px-6 py-5">
+                      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-gray-500">
+                            Revision History
+                          </h2>
+                          <p className="mt-1 text-sm text-gray-600">
+                            Exact revision records for this part family.
+                          </p>
+                        </div>
+
+                        <Link
+                          href={`/dashboard/parts/${family.latestRevision.id}`}
+                          className="inline-flex rounded-xl border border-gray-300 px-3 py-2 text-xs font-medium text-gray-900 transition hover:bg-white"
+                        >
+                          Open Latest Revision
+                        </Link>
+                      </div>
+
+                      <div className="space-y-3">
+                        {family.revisions.map((revision, index) => {
+                          const isLatest =
+                            revision.id === family.latestRevision.id;
+
+                          return (
+                            <div
+                              key={revision.id}
+                              className="rounded-2xl border border-gray-200 bg-white px-4 py-4"
+                            >
+                              <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                                <div className="min-w-0">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <Link
+                                      href={`/dashboard/parts/${revision.id}`}
+                                      className="text-sm font-semibold text-green-700 hover:text-green-800 hover:underline"
+                                    >
+                                      Rev {revision.revision || "-"}
+                                    </Link>
+
+                                    {isLatest ? (
+                                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-700">
+                                        Latest
+                                      </span>
+                                    ) : null}
+
+                                    {index === 0 ? (
+                                      <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700">
+                                        Current family head
+                                      </span>
+                                    ) : null}
+                                  </div>
+
+                                  <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+                                    <span>
+                                      Part Number {revision.part_number || "-"}
+                                    </span>
+                                    <span>
+                                      Process {revision.process_type || "-"}
+                                    </span>
+                                    <span>
+                                      Material {revision.material || "-"}
+                                    </span>
+                                    <span>
+                                      Updated{" "}
+                                      {formatDateTime(
+                                        revision.updated_at || revision.created_at
+                                      )}
+                                    </span>
+                                  </div>
+
+                                  {revision.revision_note ? (
+                                    <p className="mt-2 text-sm text-gray-600 break-words">
+                                      {revision.revision_note}
+                                    </p>
+                                  ) : (
+                                    <p className="mt-2 text-sm text-gray-400">
+                                      No revision note added.
+                                    </p>
+                                  )}
+                                </div>
+
+                                <div className="flex flex-wrap items-center gap-2">
+                                  {revision.status ? (
+                                    <span
+                                      className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${getStatusBadgeClass(
+                                        revision.status
+                                      )}`}
+                                    >
+                                      {revision.status}
+                                    </span>
+                                  ) : null}
+
+                                  <Link
+                                    href={`/dashboard/parts/${revision.id}`}
+                                    className="inline-flex rounded-xl border border-gray-300 px-3 py-2 text-xs font-medium text-gray-900 transition hover:bg-gray-50"
+                                  >
+                                    Open Revision
+                                  </Link>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </details>
+                ))}
+              </div>
+            ) : (
+              <div className="px-6 py-8 text-gray-500">
+                No parts found for the current filters.
+              </div>
+            )}
+          </div>
+        </div>
+
+        {error ? (
+          <p className="mt-6 text-sm text-red-600">Failed to load parts.</p>
+        ) : null}
+      </section>
+    </main>
+  );
+}
+
+
+========================================================================================================================
+FILE: .\app\dashboard\parts\new\page.tsx
+========================================================================================================================
+
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "../../../../lib/supabase/client";
+import Navbar from "../../../../components/Navbar";
+import Footer from "../../../../components/Footer";
+import {
+  PART_CATEGORY_OPTIONS,
+  PROCESS_TYPE_OPTIONS,
+  getPartCategoryLabel,
+  getProcessTypeLabel,
+} from "@/lib/parts";
+
+const STATUS_OPTIONS = [
+  { value: "draft", label: "Draft" },
+  { value: "active", label: "Active" },
+  { value: "archived", label: "Archived" },
+] as const;
+
+const REVISION_SCHEME_OPTIONS = [
+  { value: "alphabetic", label: "Alphabetic (A, B, C...)" },
+  { value: "numeric", label: "Numeric (1, 2, 3...)" },
+] as const;
+
+type RevisionScheme = "alphabetic" | "numeric";
+
+type MembershipState = {
+  organizationId: string | null;
+  role: string | null;
+};
+
+function getInitialRevisionLabel(revisionScheme: RevisionScheme) {
+  return revisionScheme === "numeric" ? "1" : "A";
+}
+
+export default function NewPartPage() {
+  const router = useRouter();
+  const supabase = createClient();
+
+  const [membership, setMembership] = useState<MembershipState>({
+    organizationId: null,
+    role: null,
+  });
+  const [membershipLoading, setMembershipLoading] = useState(true);
+
+  const [name, setName] = useState("");
+  const [partNumber, setPartNumber] = useState("");
+  const [description, setDescription] = useState("");
+  const [processType, setProcessType] = useState("");
+  const [material, setMaterial] = useState("");
+  const [revisionScheme, setRevisionScheme] =
+    useState<RevisionScheme>("alphabetic");
+  const [category, setCategory] = useState("");
+  const [status, setStatus] = useState("draft");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const canCreatePart =
+    membership.role === "admin" || membership.role === "engineer";
+
+  const initialRevisionLabel = useMemo(
+    () => getInitialRevisionLabel(revisionScheme),
+    [revisionScheme]
+  );
+
+  useEffect(() => {
+    async function loadMembership() {
+      setMembershipLoading(true);
+      setError("");
+
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) {
+          router.push("/login");
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from("organization_members")
+          .select("organization_id, role")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (error) {
+          setError(`Failed to load organization membership: ${error.message}`);
+          setMembershipLoading(false);
+          return;
+        }
+
+        setMembership({
+          organizationId: data?.organization_id || null,
+          role: data?.role || null,
+        });
+      } catch {
+        setError("Unable to load your organization membership.");
+      } finally {
+        setMembershipLoading(false);
+      }
+    }
+
+    loadMembership();
+  }, [router, supabase]);
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+
+    if (!canCreatePart) {
+      setError("Only engineers and admins can create parts.");
+      setLoading(false);
+      return;
+    }
+
+    if (!membership.organizationId) {
+      setError("No organization found for your account.");
+      setLoading(false);
+      return;
+    }
+
+    const trimmedName = name.trim();
+    const trimmedPartNumber = partNumber.trim();
+    const trimmedDescription = description.trim();
+    const trimmedMaterial = material.trim();
+
+    if (!trimmedName) {
+      setError("Part name is required.");
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const { data: newPartId, error: createError } = await supabase.rpc(
+        "create_part_with_family",
+        {
+          p_name: trimmedName,
+          p_part_number: trimmedPartNumber || null,
+          p_description: trimmedDescription || null,
+          p_process_type: processType || null,
+          p_material: trimmedMaterial || null,
+          p_revision_scheme: revisionScheme,
+          p_category: category || null,
+          p_status: status,
+        }
+      );
+
+      if (createError || !newPartId) {
+        setError(createError?.message || "Failed to create part.");
+        setLoading(false);
+        return;
+      }
+
+      router.push(`/dashboard/parts/${newPartId}`);
+      router.refresh();
+    } catch {
+      setError("Something went wrong while creating the part.");
+      setLoading(false);
+    }
+  }
+
+  return (
+    <main className="min-h-screen bg-white text-gray-900">
+      <Navbar />
+
+      <section className="mx-auto max-w-3xl px-6 py-20">
+        <h1 className="text-4xl font-bold">Create New Part</h1>
+        <p className="mt-4 text-gray-600">
+          Add a new part record to your vault. A new part family will be created
+          automatically and the first revision will be assigned by the selected
+          revision scheme.
+        </p>
+
+        {membership.role === "viewer" ? (
+          <div className="mt-8 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+            You have read-only access. Only engineers and admins can create
+            parts.
+          </div>
+        ) : null}
+
+        <form
+          onSubmit={handleSubmit}
+          className="mt-10 grid gap-4 rounded-3xl border border-gray-200 p-6 shadow-sm"
+        >
+          <div>
+            <label className="mb-2 block text-sm font-medium">Part Name</label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full rounded-2xl border border-gray-300 px-4 py-3 disabled:bg-gray-50 disabled:text-gray-500"
+              required
+              disabled={!canCreatePart || membershipLoading || loading}
+            />
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-medium">Part Number</label>
+            <input
+              type="text"
+              value={partNumber}
+              onChange={(e) => setPartNumber(e.target.value)}
+              className="w-full rounded-2xl border border-gray-300 px-4 py-3 disabled:bg-gray-50 disabled:text-gray-500"
+              disabled={!canCreatePart || membershipLoading || loading}
+            />
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-medium">Description</label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="min-h-[120px] w-full rounded-2xl border border-gray-300 px-4 py-3 disabled:bg-gray-50 disabled:text-gray-500"
+              disabled={!canCreatePart || membershipLoading || loading}
+            />
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div>
+              <label className="mb-2 block text-sm font-medium">Process Type</label>
+              <select
+                value={processType}
+                onChange={(e) => setProcessType(e.target.value)}
+                className="w-full rounded-2xl border border-gray-300 px-4 py-3 disabled:bg-gray-50 disabled:text-gray-500"
+                disabled={!canCreatePart || membershipLoading || loading}
+              >
+                <option value="">Select process type</option>
+                {PROCESS_TYPE_OPTIONS.map((option) => (
+                  <option key={option} value={option}>
+                    {getProcessTypeLabel(option)}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium">Material</label>
+              <input
+                type="text"
+                value={material}
+                onChange={(e) => setMaterial(e.target.value)}
+                className="w-full rounded-2xl border border-gray-300 px-4 py-3 disabled:bg-gray-50 disabled:text-gray-500"
+                disabled={!canCreatePart || membershipLoading || loading}
+              />
+            </div>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-3">
+            <div>
+              <label className="mb-2 block text-sm font-medium">
+                Revision Scheme
+              </label>
+              <select
+                value={revisionScheme}
+                onChange={(e) =>
+                  setRevisionScheme(e.target.value as RevisionScheme)
+                }
+                className="w-full rounded-2xl border border-gray-300 px-4 py-3 disabled:bg-gray-50 disabled:text-gray-500"
+                disabled={!canCreatePart || membershipLoading || loading}
+              >
+                {REVISION_SCHEME_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium">
+                Initial Revision
+              </label>
+              <div className="w-full rounded-2xl border border-gray-300 bg-gray-50 px-4 py-3 text-gray-900">
+                {initialRevisionLabel}
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium">Status</label>
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
+                className="w-full rounded-2xl border border-gray-300 px-4 py-3 disabled:bg-gray-50 disabled:text-gray-500"
+                disabled={!canCreatePart || membershipLoading || loading}
+              >
+                {STATUS_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-medium">Category</label>
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="w-full rounded-2xl border border-gray-300 px-4 py-3 disabled:bg-gray-50 disabled:text-gray-500"
+              disabled={!canCreatePart || membershipLoading || loading}
+            >
+              <option value="">Select category</option>
+              {PART_CATEGORY_OPTIONS.map((option) => (
+                <option key={option} value={option}>
+                  {getPartCategoryLabel(option)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <button
+            type="submit"
+            disabled={!canCreatePart || membershipLoading || loading}
+            className="mt-4 rounded-2xl bg-gray-900 px-6 py-3 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50"
+          >
+            {membershipLoading
+              ? "Loading access..."
+              : loading
+              ? "Creating..."
+              : "Create Part"}
+          </button>
+
+          {error ? <p className="text-sm text-red-600">{error}</p> : null}
+        </form>
+      </section>
+
+      <Footer />
+    </main>
+  );
+}
+
+
+========================================================================================================================
+FILE: .\app\dashboard\parts\[id]\page.tsx
+========================================================================================================================
+
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { createClient } from "../../../../lib/supabase/server";
+import UploadSection from "./UploadSection";
+import FileActions from "./FileActions";
+import PartStatusEditor from "./PartStatusEditor";
+import ServiceRequestActions from "./ServiceRequestActions";
+import ServiceRequestHistory from "./ServiceRequestHistory";
+import CreateRevisionButton from "./CreateRevisionButton";
+import PartFilesViewer from "./PartFilesViewer";
+import { getPartCategoryLabel, getProcessTypeLabel } from "@/lib/parts";
+
+type PageProps = {
+  params: Promise<{ id: string }>;
+};
+
+const CATEGORY_ORDER = [
+  "cad_3d",
+  "drawing_2d",
+  "image",
+  "manufacturing_doc",
+  "quality_doc",
+  "other",
+] as const;
+
+const CATEGORY_LABELS: Record<string, string> = {
+  cad_3d: "CAD 3D",
+  drawing_2d: "2D Drawings",
+  image: "Images",
+  manufacturing_doc: "Manufacturing Docs",
+  quality_doc: "Quality Docs",
+  other: "Other",
+};
+
+type PartFile = {
+  id: string;
+  part_id: string;
+  user_id: string;
+  file_name: string;
+  file_type: string | null;
+  file_size_bytes: number | null;
+  storage_path: string;
+  asset_category: string | null;
+  created_at: string;
+};
+
+type PartFileWithUrls = PartFile & {
+  previewUrl: string | null;
+  downloadUrl: string | null;
+  uploaderName: string | null;
+  previewKind: "image" | "pdf" | "cad" | "other";
+};
+
+type ProfileRow = {
+  user_id: string;
+  full_name: string | null;
+  email: string | null;
+};
+
+type RevisionRow = {
+  id: string;
+  name: string;
+  part_number: string | null;
+  revision: string | null;
+  revision_note: string | null;
+  status: string | null;
+  updated_at: string | null;
+  created_at: string;
+};
+
+type FamilyFileRow = {
+  id: string;
+  part_id: string;
+  file_name: string;
+  file_type: string | null;
+  file_size_bytes: number | null;
+  asset_category: string | null;
+  created_at: string;
+};
+
+type FamilySourceFile = {
+  id: string;
+  partId: string;
+  fileName: string;
+  fileType: string | null;
+  fileSizeBytes: number | null;
+  assetCategory: string | null;
+  createdAt: string;
+  sourceRevision: {
+    partId: string;
+    revision: string | null;
+    name: string;
+    partNumber: string | null;
+    createdAt: string;
+    updatedAt: string | null;
+    status: string | null;
+    isCurrent: boolean;
+  };
+};
+
+function groupFilesByCategory(files: PartFileWithUrls[]) {
+  const grouped: Record<string, PartFileWithUrls[]> = {
+    cad_3d: [],
+    drawing_2d: [],
+    image: [],
+    manufacturing_doc: [],
+    quality_doc: [],
+    other: [],
+  };
+
+  for (const file of files) {
+    const category =
+      file.asset_category && CATEGORY_LABELS[file.asset_category]
+        ? file.asset_category
+        : "other";
+
+    grouped[category].push(file);
+  }
+
+  return grouped;
+}
+
+function formatDate(dateString: string | null) {
+  if (!dateString) return "-";
+
+  const date = new Date(dateString);
+
+  return new Intl.DateTimeFormat("en-IE", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(date);
+}
+
+function formatDateTime(dateString: string | null) {
+  if (!dateString) return "-";
+
+  const date = new Date(dateString);
+
+  return new Intl.DateTimeFormat("en-IE", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function formatBytes(bytes: number | null) {
+  if (!bytes || bytes <= 0) return "-";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function getDisplayName(profile: ProfileRow | null | undefined) {
+  if (!profile) return "-";
+  return profile.full_name || profile.email || "-";
+}
+
+function getStatusBadgeClass(status: string | null) {
+  switch (status) {
+    case "active":
+      return "bg-emerald-100 text-emerald-800";
+    case "draft":
+      return "bg-amber-100 text-amber-800";
+    case "archived":
+      return "bg-slate-100 text-slate-700";
+    default:
+      return "bg-slate-100 text-slate-700";
+  }
+}
+
+function getPreviewKind(
+  fileName: string,
+  fileType: string | null,
+): "image" | "pdf" | "cad" | "other" {
+  const extension = fileName.split(".").pop()?.toLowerCase() ?? "";
+  const mime = (fileType || "").toLowerCase();
+
+  if (
+    mime.startsWith("image/") ||
+    ["png", "jpg", "jpeg", "webp", "gif", "bmp", "svg"].includes(extension)
+  ) {
+    return "image";
+  }
+
+  if (mime === "application/pdf" || extension === "pdf") {
+    return "pdf";
+  }
+
+  if (["stl", "step", "stp"].includes(extension)) {
+    return "cad";
+  }
+
+  return "other";
+}
+
+export default async function PartDetailPage({ params }: PageProps) {
+  const { id } = await params;
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  const { data: orgRole } = await supabase.rpc("get_current_org_role");
+  const canEditPart = orgRole === "admin" || orgRole === "engineer";
+  const canRequest = canEditPart;
+
+  const { data: part, error } = await supabase
+    .from("parts")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  if (error || !part) {
+    return (
+      <section className="mx-auto max-w-7xl px-6 py-10">
+        <h1 className="text-3xl font-bold text-slate-900">Part not found</h1>
+        <p className="mt-4 text-slate-600">
+          We could not find this part in your vault.
+        </p>
+      </section>
+    );
+  }
+
+  const { data: files } = await supabase
+    .from("part_files")
+    .select("*")
+    .eq("part_id", id)
+    .order("created_at", { ascending: false });
+
+  const profileIds = Array.from(
+    new Set(
+      [part.user_id, ...(files || []).map((file) => file.user_id)].filter(Boolean),
+    ),
+  );
+
+  const { data: profiles } =
+    profileIds.length > 0
+      ? await supabase
+          .from("profiles")
+          .select("user_id, full_name, email")
+          .in("user_id", profileIds)
+      : { data: [] as ProfileRow[] };
+
+  const profileMap = new Map(
+    (profiles || []).map((profile) => [profile.user_id, profile]),
+  );
+
+  const creatorProfile = part.user_id ? profileMap.get(part.user_id) : null;
+
+  const filesWithUrls: PartFileWithUrls[] = ((files as PartFile[] | null) ?? []).map(
+    (file) => {
+      const previewKind = getPreviewKind(file.file_name, file.file_type);
+      const baseContentUrl = `/api/part-files/${file.id}/content`;
+
+      return {
+        ...file,
+        previewUrl:
+          previewKind === "image" ||
+          previewKind === "pdf" ||
+          previewKind === "cad"
+            ? `${baseContentUrl}?mode=inline`
+            : null,
+        downloadUrl: `${baseContentUrl}?mode=download`,
+        uploaderName: getDisplayName(profileMap.get(file.user_id)),
+        previewKind,
+      };
+    },
+  );
+
+  const groupedFiles = groupFilesByCategory(filesWithUrls);
+
+  const { data: revisions } = await supabase
+    .from("parts")
+    .select(
+      "id, name, part_number, revision, revision_note, status, updated_at, created_at",
+    )
+    .eq("organization_id", part.organization_id)
+    .eq("part_family_id", part.part_family_id)
+    .order("created_at", { ascending: true });
+
+  const revisionRows = (revisions as RevisionRow[] | null) ?? [];
+
+  const revisionIds = revisionRows.map((revisionPart) => revisionPart.id);
+
+  const { data: familyFiles } =
+    revisionIds.length > 0
+      ? await supabase
+          .from("part_files")
+          .select(
+            "id, part_id, file_name, file_type, file_size_bytes, asset_category, created_at",
+          )
+          .in("part_id", revisionIds)
+          .order("created_at", { ascending: false })
+      : { data: [] as FamilyFileRow[] };
+
+  const revisionMap = new Map(
+    revisionRows.map((revisionPart) => [revisionPart.id, revisionPart] as const),
+  );
+
+  const familyFilesForRevisionPicker: FamilySourceFile[] = (
+    (familyFiles as FamilyFileRow[] | null) ?? []
+  ).flatMap((file) => {
+    const sourceRevision = revisionMap.get(file.part_id);
+
+    if (!sourceRevision) {
+      return [];
+    }
+
+    return [
+      {
+        id: file.id,
+        partId: file.part_id,
+        fileName: file.file_name,
+        fileType: file.file_type,
+        fileSizeBytes: file.file_size_bytes,
+        assetCategory: file.asset_category,
+        createdAt: file.created_at,
+        sourceRevision: {
+          partId: sourceRevision.id,
+          revision: sourceRevision.revision,
+          name: sourceRevision.name,
+          partNumber: sourceRevision.part_number,
+          createdAt: sourceRevision.created_at,
+          updatedAt: sourceRevision.updated_at,
+          status: sourceRevision.status,
+          isCurrent: sourceRevision.id === part.id,
+        },
+      },
+    ];
+  });
+
+  const previewableFilesCount = filesWithUrls.filter(
+    (file) => file.previewKind !== "other",
+  ).length;
+
+  return (
+    <section className="mx-auto max-w-7xl px-6 py-10">
+      <div className="rounded-[32px] border border-slate-200 bg-white p-8 shadow-sm">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+          <div className="max-w-4xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
+              Part detail
+            </p>
+
+            <h1 className="mt-3 text-4xl font-semibold tracking-tight text-slate-950">
+              {part.name}
+            </h1>
+
+            <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-600">
+              {part.description || "No description added yet."}
+            </p>
+
+            <div className="mt-5 flex flex-wrap gap-2">
+              <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                Part number {part.part_number || "-"}
+              </span>
+              <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                Revision {part.revision || "-"}
+              </span>
+              <span
+                className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${getStatusBadgeClass(
+                  part.status,
+                )}`}
+              >
+                {part.status || "-"}
+              </span>
+              <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                {getProcessTypeLabel(part.process_type)}
+              </span>
+            </div>
+
+            {!canEditPart ? (
+              <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                You have read-only access. Viewers can browse files and metadata
+                but cannot upload, recategorize, delete, or update part status.
+              </div>
+            ) : null}
+          </div>
+
+          {canEditPart ? (
+            <div className="flex flex-wrap gap-3">
+              <CreateRevisionButton
+                sourcePartId={part.id}
+                currentRevision={part.revision}
+                sourceFiles={familyFilesForRevisionPicker.map((file) => ({
+                  id: file.id,
+                  fileName: file.fileName,
+                  assetCategory: file.assetCategory,
+                  fileType: file.fileType,
+                  sourceRevision: file.sourceRevision.revision,
+                }))}
+              />
+
+              <Link
+                href={`/dashboard/parts/${part.id}/edit`}
+                className="inline-flex rounded-full border border-slate-300 px-5 py-3 text-sm font-medium text-slate-900 transition hover:bg-slate-50"
+              >
+                Edit part
+              </Link>
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="mt-8 rounded-[32px] border border-slate-200 bg-white p-8 shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h2 className="text-2xl font-semibold tracking-tight text-slate-950">
+              Revisions
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              Related revisions for this part family.
+            </p>
+          </div>
+        </div>
+
+        {revisionRows.length > 0 ? (
+          <div className="mt-6 flex flex-wrap gap-3">
+            {revisionRows.map((revisionPart) => {
+              const isCurrent = revisionPart.id === part.id;
+
+              return (
+                <Link
+                  key={revisionPart.id}
+                  href={`/dashboard/parts/${revisionPart.id}`}
+                  className={`min-w-[140px] rounded-2xl border px-4 py-3 transition ${
+                    isCurrent
+                      ? "border-slate-900 bg-slate-50"
+                      : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-semibold text-slate-900">
+                      Rev {revisionPart.revision || "-"}
+                    </span>
+
+                    <span
+                      className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${getStatusBadgeClass(
+                        revisionPart.status,
+                      )}`}
+                    >
+                      {revisionPart.status || "-"}
+                    </span>
+                  </div>
+
+                  <div className="mt-2 text-xs text-slate-500">
+                    {revisionPart.part_number || "-"}
+                  </div>
+
+                  <div className="mt-1 text-xs text-slate-400">
+                    {formatDate(
+                      revisionPart.updated_at || revisionPart.created_at,
+                    )}
+                  </div>
+
+                  {revisionPart.revision_note ? (
+                    <div className="mt-2 line-clamp-2 text-xs text-slate-600">
+                      {revisionPart.revision_note}
+                    </div>
+                  ) : null}
+
+                  {isCurrent ? (
+                    <div className="mt-2 text-[11px] font-medium text-slate-900">
+                      Current
+                    </div>
+                  ) : null}
+                </Link>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="mt-4 text-sm text-slate-600">No linked revisions found.</p>
+        )}
+      </div>
+
+      <div className="mt-8 grid gap-6 lg:grid-cols-[380px_1fr] lg:items-stretch">
+        <div className="h-full rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-2xl font-semibold tracking-tight text-slate-950">
+            Part information
+          </h2>
+
+          <div className="mt-6 grid gap-4 text-sm">
+            <div>
+              <p className="text-slate-500">Part Number</p>
+              <p className="font-medium text-slate-900">
+                {part.part_number || "-"}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-slate-500">Process Type</p>
+              <p className="font-medium text-slate-900">
+                {getProcessTypeLabel(part.process_type)}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-slate-500">Material</p>
+              <p className="font-medium text-slate-900">
+                {part.material || "-"}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-slate-500">Revision</p>
+              <p className="font-medium text-slate-900">
+                {part.revision || "-"}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-slate-500">Revision Note</p>
+              <p className="font-medium text-slate-900">
+                {part.revision_note || "-"}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-slate-500">Category</p>
+              <p className="font-medium text-slate-900">
+                {getPartCategoryLabel(part.category)}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-slate-500">Created By</p>
+              <p className="font-medium text-slate-900">
+                {getDisplayName(creatorProfile)}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-slate-500">Created</p>
+              <p className="font-medium text-slate-900">
+                {formatDate(part.created_at)}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-slate-500">Last Updated</p>
+              <p className="font-medium text-slate-900">
+                {formatDateTime(part.updated_at || part.created_at)}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-slate-500">Status</p>
+
+              {canEditPart ? (
+                <PartStatusEditor
+                  partId={part.id}
+                  currentStatus={part.status}
+                />
+              ) : (
+                <span
+                  className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${getStatusBadgeClass(
+                    part.status,
+                  )}`}
+                >
+                  {part.status || "-"}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="h-full">
+          {canEditPart ? (
+            <div className="h-full">
+              <UploadSection partId={part.id} />
+            </div>
+          ) : (
+            <div className="h-full rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
+              <h2 className="text-2xl font-semibold tracking-tight text-slate-950">
+                Upload files
+              </h2>
+              <p className="mt-4 text-sm text-slate-600">
+                File upload is available to engineers and admins only.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-8 rounded-[32px] border border-slate-200 bg-white p-8 shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h2 className="text-2xl font-semibold tracking-tight text-slate-950">
+              In-page preview
+            </h2>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+              Review part files directly inside the page. PDF, image and preview
+              surfaces are handled in a tidy split view, while STL and STEP files
+              are prepared for the next dedicated 3D/CAD viewer layer.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            <div className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-700">
+              {filesWithUrls.length} file{filesWithUrls.length === 1 ? "" : "s"}
+            </div>
+            <div className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-700">
+              {previewableFilesCount} preview-ready
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-8">
+          <PartFilesViewer
+            files={filesWithUrls.map((file) => ({
+              id: file.id,
+              fileName: file.file_name,
+              fileType: file.file_type,
+              fileSizeBytes: file.file_size_bytes,
+              assetCategory: file.asset_category,
+              createdAt: file.created_at,
+              uploaderName: file.uploaderName,
+              previewUrl: file.previewUrl,
+              downloadUrl: file.downloadUrl,
+              previewKind: file.previewKind,
+            }))}
+          />
+        </div>
+      </div>
+
+      <div className="mt-6 rounded-[32px] border border-slate-200 bg-white p-8 shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h2 className="text-2xl font-semibold tracking-tight text-slate-950">
+              File management
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              Keep the existing categorized file controls for download, recategorization,
+              and management.
+            </p>
+          </div>
+        </div>
+
+        {filesWithUrls.length > 0 ? (
+          <div className="mt-6 space-y-6">
+            {CATEGORY_ORDER.map((category) => {
+              const categoryFiles = groupedFiles[category];
+
+              if (!categoryFiles || categoryFiles.length === 0) {
+                return null;
+              }
+
+              return (
+                <div key={category}>
+                  <div className="mb-3 flex items-center justify-between">
+                    <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-500">
+                      {CATEGORY_LABELS[category]}
+                    </h3>
+                    <span className="text-sm text-slate-400">
+                      {categoryFiles.length}
+                    </span>
+                  </div>
+
+                  <div className="space-y-3">
+                    {categoryFiles.map((file) => (
+                      <div
+                        key={file.id}
+                        className="flex flex-col gap-4 rounded-2xl border border-slate-200 px-4 py-3 md:flex-row md:items-center md:justify-between"
+                      >
+                        <div>
+                          <p className="font-medium text-slate-900">
+                            {file.file_name}
+                          </p>
+                          <p className="text-sm text-slate-500">
+                            {file.file_type || "unknown"} ·{" "}
+                            {formatBytes(file.file_size_bytes)}
+                          </p>
+                          <p className="mt-1 text-xs text-slate-400">
+                            Uploaded {formatDateTime(file.created_at)}
+                            {file.uploaderName
+                              ? ` by ${file.uploaderName}`
+                              : ""}
+                          </p>
+                        </div>
+
+                        {canEditPart ? (
+                          <FileActions
+                            fileId={file.id}
+                            fileName={file.file_name}
+                            storagePath={file.storage_path}
+                            downloadUrl={file.downloadUrl}
+                            assetCategory={file.asset_category}
+                          />
+                        ) : file.downloadUrl ? (
+                          <Link
+                            href={file.downloadUrl}
+                            className="inline-flex rounded-xl border border-slate-300 px-3 py-2 text-xs font-medium text-slate-900 transition hover:bg-slate-50"
+                          >
+                            Download
+                          </Link>
+                        ) : (
+                          <span className="text-sm text-slate-400">
+                            Download unavailable
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="mt-4 text-sm text-slate-600">No files attached yet.</p>
+        )}
+      </div>
+
+      <div className="mt-10">
+        <div className="mb-6">
+          <h2 className="text-2xl font-semibold text-slate-900">
+            Manufacturing Requests
+          </h2>
+          <p className="mt-2 text-sm text-slate-600">
+            Create and track manufacturing or engineering service workflows
+            for this part.
+          </p>
+        </div>
+
+        <div className="grid gap-6 xl:grid-cols-2 xl:items-stretch">
+          <ServiceRequestActions
+            partId={part.id}
+            canRequest={canRequest}
+            availableFiles={filesWithUrls.map((file) => ({
+              id: file.id,
+              fileName: file.file_name,
+              assetCategory: file.asset_category,
+              fileType: file.file_type,
+            }))}
+          />
+
+          <ServiceRequestHistory partId={part.id} />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+
+========================================================================================================================
+FILE: .\app\dashboard\parts\[id]\CreateRevisionButton.tsx
+========================================================================================================================
+
+"use client";
+
+import { FormEvent, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+
+type SourceFileOption = {
+  id: string;
+  fileName: string;
+  assetCategory: string | null;
+  fileType: string | null;
+  sourceRevision: string | null;
+};
+
+type Props = {
+  sourcePartId: string;
+  currentRevision: string | null;
+  sourceFiles: SourceFileOption[];
+};
+
+const FILE_CATEGORY_ORDER = [
+  "cad_3d",
+  "drawing_2d",
+  "image",
+  "manufacturing_doc",
+  "quality_doc",
+  "other",
+] as const;
+
+const FILE_CATEGORY_LABELS: Record<string, string> = {
+  cad_3d: "CAD 3D",
+  drawing_2d: "2D Drawings",
+  image: "Images",
+  manufacturing_doc: "Manufacturing Docs",
+  quality_doc: "Quality Docs",
+  other: "Other",
+};
+
+type RevisionCategoryGroup = {
+  category: string;
+  files: SourceFileOption[];
+};
+
+type RevisionFileGroup = {
+  revision: string;
+  isCurrent: boolean;
+  files: SourceFileOption[];
+  categories: RevisionCategoryGroup[];
+};
+
+type RevisionSortKey =
+  | { type: "numeric"; value: number }
+  | { type: "alphabetic"; value: number }
+  | { type: "text"; value: string };
+
+function normalizeCategory(assetCategory: string | null) {
+  return assetCategory && FILE_CATEGORY_LABELS[assetCategory]
+    ? assetCategory
+    : "other";
+}
+
+function normalizeRevisionLabel(revision: string | null) {
+  return revision?.trim() || "-";
+}
+
+function detectRevisionScheme(
+  revision: string | null
+): "numeric" | "alphabetic" | null {
+  const normalized = revision?.trim().toUpperCase();
+
+  if (!normalized) return null;
+  if (/^[0-9]+$/.test(normalized)) return "numeric";
+  if (/^[A-Z]+$/.test(normalized)) return "alphabetic";
+
+  return null;
+}
+
+function alphabeticLabelToIndex(label: string) {
+  const normalized = label.trim().toUpperCase();
+
+  if (!/^[A-Z]+$/.test(normalized)) {
+    return null;
+  }
+
+  let result = 0;
+
+  for (let i = 0; i < normalized.length; i += 1) {
+    result = result * 26 + (normalized.charCodeAt(i) - 64);
+  }
+
+  return result;
+}
+
+function indexToAlphabeticLabel(index: number) {
+  if (index < 1) return null;
+
+  let value = index;
+  let result = "";
+
+  while (value > 0) {
+    const remainder = (value - 1) % 26;
+    result = String.fromCharCode(65 + remainder) + result;
+    value = Math.floor((value - 1) / 26);
+  }
+
+  return result;
+}
+
+function getNextRevisionPreview(currentRevision: string | null) {
+  const normalized = currentRevision?.trim();
+
+  if (!normalized) {
+    return "Automatically assigned";
+  }
+
+  const scheme = detectRevisionScheme(normalized);
+
+  if (scheme === "numeric") {
+    return String(Number(normalized) + 1);
+  }
+
+  if (scheme === "alphabetic") {
+    const currentIndex = alphabeticLabelToIndex(normalized);
+
+    if (!currentIndex) {
+      return "Automatically assigned";
+    }
+
+    return indexToAlphabeticLabel(currentIndex + 1) || "Automatically assigned";
+  }
+
+  return "Automatically assigned";
+}
+
+function getRevisionSortKey(revision: string): RevisionSortKey {
+  const normalized = normalizeRevisionLabel(revision);
+  const scheme = detectRevisionScheme(normalized);
+
+  if (scheme === "numeric") {
+    return { type: "numeric", value: Number(normalized) };
+  }
+
+  if (scheme === "alphabetic") {
+    return {
+      type: "alphabetic",
+      value: alphabeticLabelToIndex(normalized) ?? 0,
+    };
+  }
+
+  return { type: "text", value: normalized.toUpperCase() };
+}
+
+function compareRevisionLabels(a: string, b: string) {
+  const aKey = getRevisionSortKey(a);
+  const bKey = getRevisionSortKey(b);
+
+  if (aKey.type === "numeric" && bKey.type === "numeric") {
+    return bKey.value - aKey.value;
+  }
+
+  if (aKey.type === "alphabetic" && bKey.type === "alphabetic") {
+    return bKey.value - aKey.value;
+  }
+
+  if (aKey.type === "text" && bKey.type === "text") {
+    return bKey.value.localeCompare(aKey.value, undefined, {
+      numeric: true,
+      sensitivity: "base",
+    });
+  }
+
+  return b.localeCompare(a, undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
+}
+
+function groupSourceFiles(
+  files: SourceFileOption[],
+  currentRevision: string | null
+): RevisionFileGroup[] {
+  const revisionMap = new Map<string, SourceFileOption[]>();
+
+  for (const file of files) {
+    const revision = normalizeRevisionLabel(file.sourceRevision);
+    const existing = revisionMap.get(revision) || [];
+    existing.push(file);
+    revisionMap.set(revision, existing);
+  }
+
+  const currentRevisionLabel = normalizeRevisionLabel(currentRevision);
+
+  return Array.from(revisionMap.entries())
+    .map(([revision, revisionFiles]) => {
+      const categories: RevisionCategoryGroup[] = FILE_CATEGORY_ORDER.map(
+        (category) => ({
+          category,
+          files: revisionFiles.filter(
+            (file) => normalizeCategory(file.assetCategory) === category
+          ),
+        })
+      ).filter((group) => group.files.length > 0);
+
+      return {
+        revision,
+        isCurrent: revision === currentRevisionLabel,
+        files: revisionFiles,
+        categories,
+      };
+    })
+    .sort((a, b) => {
+      if (a.isCurrent && !b.isCurrent) return -1;
+      if (!a.isCurrent && b.isCurrent) return 1;
+      return compareRevisionLabels(a.revision, b.revision);
+    });
+}
+
+export default function CreateRevisionButton({
+  sourcePartId,
+  currentRevision,
+  sourceFiles,
+}: Props) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [revisionNote, setRevisionNote] = useState("");
+  const [fileCopyMode, setFileCopyMode] = useState<"none" | "selected">("none");
+  const [selectedSourceFileIds, setSelectedSourceFileIds] = useState<string[]>(
+    []
+  );
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const revisionGroups = useMemo(
+    () => groupSourceFiles(sourceFiles, currentRevision),
+    [sourceFiles, currentRevision]
+  );
+
+  const nextRevisionPreview = useMemo(
+    () => getNextRevisionPreview(currentRevision),
+    [currentRevision]
+  );
+
+  function closeModal(force = false) {
+    if (loading && !force) return;
+
+    setOpen(false);
+    setRevisionNote("");
+    setFileCopyMode("none");
+    setSelectedSourceFileIds([]);
+    setError("");
+  }
+
+  function toggleFile(fileId: string) {
+    setSelectedSourceFileIds((prev) =>
+      prev.includes(fileId)
+        ? prev.filter((id) => id !== fileId)
+        : [...prev, fileId]
+    );
+  }
+
+  function selectAllInRevision(fileIds: string[]) {
+    setSelectedSourceFileIds((prev) => Array.from(new Set([...prev, ...fileIds])));
+  }
+
+  function clearRevision(fileIds: string[]) {
+    setSelectedSourceFileIds((prev) => prev.filter((id) => !fileIds.includes(id)));
+  }
+
+  function selectAllInCategory(fileIds: string[]) {
+    setSelectedSourceFileIds((prev) => Array.from(new Set([...prev, ...fileIds])));
+  }
+
+  function clearCategory(fileIds: string[]) {
+    setSelectedSourceFileIds((prev) => prev.filter((id) => !fileIds.includes(id)));
+  }
+
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+
+    const trimmedRevisionNote = revisionNote.trim();
+
+    if (fileCopyMode === "selected" && selectedSourceFileIds.length === 0) {
+      setError("Select at least one file to copy, or choose Start with no files.");
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/parts/create-revision", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          sourcePartId,
+          revisionNote: trimmedRevisionNote,
+          fileCopyMode,
+          selectedSourceFileIds,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data?.error || "Failed to create revision.");
+      }
+
+      closeModal(true);
+      router.push(`/dashboard/parts/${data.id}`);
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create revision.");
+      setLoading(false);
+    }
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="inline-flex rounded-2xl border border-gray-300 px-5 py-3 text-sm font-medium text-gray-900 transition hover:bg-gray-50"
+      >
+        Create New Revision
+      </button>
+
+      {open ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+          <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-2xl bg-white shadow-xl">
+            <div className="border-b border-gray-200 px-6 py-4">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Create New Revision
+              </h3>
+              <p className="mt-1 text-sm text-gray-600">
+                The next revision is assigned automatically by the system based on
+                this part family&apos;s revision scheme.
+              </p>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-6 px-6 py-6">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                    Current revision
+                  </label>
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+                    {currentRevision || "-"}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                    Next revision
+                  </label>
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+                    {nextRevisionPreview}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700">
+                  What changed in this revision?
+                </label>
+                <textarea
+                  value={revisionNote}
+                  onChange={(e) => setRevisionNote(e.target.value)}
+                  rows={4}
+                  placeholder="Example: Updated mounting hole positions and revised manufacturing drawing."
+                  className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-500"
+                  disabled={loading}
+                />
+              </div>
+
+              <div className="rounded-2xl border border-gray-200 p-4">
+                <h4 className="text-sm font-semibold text-gray-900">
+                  File handling
+                </h4>
+                <p className="mt-1 text-sm text-gray-600">
+                  Decide whether the new revision starts empty or copies selected
+                  files from any revision in this part family.
+                </p>
+
+                <div className="mt-4 space-y-3">
+                  <label className="flex items-start gap-3 rounded-xl border border-gray-200 px-4 py-3">
+                    <input
+                      type="radio"
+                      name="fileCopyMode"
+                      value="none"
+                      checked={fileCopyMode === "none"}
+                      onChange={() => setFileCopyMode("none")}
+                      disabled={loading}
+                      className="mt-1"
+                    />
+                    <div>
+                      <div className="text-sm font-medium text-gray-900">
+                        Start with no files
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        Create the revision and upload or attach files later.
+                      </div>
+                    </div>
+                  </label>
+
+                  <label className="flex items-start gap-3 rounded-xl border border-gray-200 px-4 py-3">
+                    <input
+                      type="radio"
+                      name="fileCopyMode"
+                      value="selected"
+                      checked={fileCopyMode === "selected"}
+                      onChange={() => setFileCopyMode("selected")}
+                      disabled={loading}
+                      className="mt-1"
+                    />
+                    <div>
+                      <div className="text-sm font-medium text-gray-900">
+                        Copy selected files from revision family
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        Pick files from any revision in the family and copy them
+                        into the new revision.
+                      </div>
+                    </div>
+                  </label>
+                </div>
+
+                {fileCopyMode === "selected" ? (
+                  <div className="mt-5 rounded-xl border border-gray-200 p-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <h5 className="text-sm font-semibold text-gray-900">
+                          Select files to copy
+                        </h5>
+                        <p className="mt-1 text-sm text-gray-600">
+                          Files are grouped by revision first, then by category.
+                        </p>
+                      </div>
+
+                      <div className="text-xs text-gray-500">
+                        {selectedSourceFileIds.length} selected
+                      </div>
+                    </div>
+
+                    {sourceFiles.length === 0 ? (
+                      <p className="mt-4 text-sm text-gray-500">
+                        No files are attached anywhere in this revision family.
+                      </p>
+                    ) : (
+                      <div className="mt-4 space-y-4">
+                        {revisionGroups.map((group) => {
+                          const revisionFileIds = group.files.map((file) => file.id);
+
+                          return (
+                            <div
+                              key={group.revision}
+                              className="rounded-xl border border-gray-200 p-4"
+                            >
+                              <div className="flex flex-wrap items-center justify-between gap-3">
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <div className="text-sm font-medium text-gray-900">
+                                      Rev {group.revision}
+                                    </div>
+                                    {group.isCurrent ? (
+                                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-700">
+                                        Current
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                  <div className="text-xs text-gray-500">
+                                    {group.files.length} file
+                                    {group.files.length === 1 ? "" : "s"}
+                                  </div>
+                                </div>
+
+                                <div className="flex flex-wrap gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => selectAllInRevision(revisionFileIds)}
+                                    className="rounded-lg border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                                    disabled={loading}
+                                  >
+                                    Select all in revision
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => clearRevision(revisionFileIds)}
+                                    className="rounded-lg border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                                    disabled={loading}
+                                  >
+                                    Clear revision
+                                  </button>
+                                </div>
+                              </div>
+
+                              <div className="mt-4 space-y-4">
+                                {group.categories.map((categoryGroup) => {
+                                  const categoryFileIds = categoryGroup.files.map(
+                                    (file) => file.id
+                                  );
+
+                                  return (
+                                    <div
+                                      key={`${group.revision}-${categoryGroup.category}`}
+                                    >
+                                      <div className="mb-2 flex items-center justify-between gap-3">
+                                        <div className="text-xs font-semibold uppercase tracking-[0.12em] text-gray-500">
+                                          {FILE_CATEGORY_LABELS[
+                                            categoryGroup.category
+                                          ] || "Other"}
+                                        </div>
+
+                                        <div className="flex flex-wrap gap-2">
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              selectAllInCategory(categoryFileIds)
+                                            }
+                                            className="rounded-lg border border-gray-300 px-2 py-1 text-[11px] font-medium text-gray-700 hover:bg-gray-50"
+                                            disabled={loading}
+                                          >
+                                            Select category
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              clearCategory(categoryFileIds)
+                                            }
+                                            className="rounded-lg border border-gray-300 px-2 py-1 text-[11px] font-medium text-gray-700 hover:bg-gray-50"
+                                            disabled={loading}
+                                          >
+                                            Clear
+                                          </button>
+                                        </div>
+                                      </div>
+
+                                      <div className="space-y-2">
+                                        {categoryGroup.files.map((file) => {
+                                          const isSelected =
+                                            selectedSourceFileIds.includes(file.id);
+
+                                          return (
+                                            <label
+                                              key={file.id}
+                                              className="flex cursor-pointer items-start gap-3 rounded-lg border border-gray-200 px-3 py-2 hover:bg-gray-50"
+                                            >
+                                              <input
+                                                type="checkbox"
+                                                checked={isSelected}
+                                                onChange={() => toggleFile(file.id)}
+                                                disabled={loading}
+                                                className="mt-0.5 h-4 w-4 rounded border-gray-300"
+                                              />
+
+                                              <div className="min-w-0">
+                                                <div className="text-sm font-medium text-gray-900">
+                                                  {file.fileName}
+                                                </div>
+                                                <div className="text-xs text-gray-500">
+                                                  {file.fileType || "unknown"}
+                                                </div>
+                                              </div>
+                                            </label>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+
+              {error ? (
+                <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                  {error}
+                </div>
+              ) : null}
+
+              <div className="flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => closeModal()}
+                  className="rounded-xl border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  disabled={loading}
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="rounded-xl bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60"
+                >
+                  {loading ? "Creating..." : "Create Revision"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+
+========================================================================================================================
+FILE: .\app\dashboard\parts\[id]\UploadSection.tsx
+========================================================================================================================
+
+"use client";
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "../../../../lib/supabase/client";
+
+type UploadSectionProps = {
+  partId: string;
+};
+
+const CATEGORY_OPTIONS = [
+  { value: "cad_3d", label: "CAD 3D" },
+  { value: "drawing_2d", label: "2D Drawing" },
+  { value: "image", label: "Image" },
+  { value: "manufacturing_doc", label: "Manufacturing Doc" },
+  { value: "quality_doc", label: "Quality Doc" },
+  { value: "other", label: "Other" },
+] as const;
+
+const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
+
+const ALLOWED_EXTENSIONS_BY_CATEGORY: Record<string, string[]> = {
+  cad_3d: ["step", "stp", "iges", "igs", "stl"],
+  drawing_2d: ["pdf"],
+  image: ["png", "jpg", "jpeg"],
+  manufacturing_doc: ["pdf", "doc", "docx", "xls", "xlsx", "csv"],
+  quality_doc: ["pdf", "doc", "docx", "xls", "xlsx", "csv"],
+  other: ["pdf", "png", "jpg", "jpeg", "csv", "txt"],
+};
+
+function getFileExtension(fileName: string) {
+  const parts = fileName.split(".");
+  if (parts.length < 2) return "";
+  return parts.pop()!.toLowerCase();
+}
+
+function sanitizeFileName(fileName: string) {
+  return fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
+}
+
+function formatBytes(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+export default function UploadSection({ partId }: UploadSectionProps) {
+  const supabase = createClient();
+  const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const [role, setRole] = useState<string | null>(null);
+  const [roleLoading, setRoleLoading] = useState(true);
+
+  const [file, setFile] = useState<File | null>(null);
+  const [assetCategory, setAssetCategory] = useState("cad_3d");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  const canUpload = role === "admin" || role === "engineer";
+
+  useEffect(() => {
+    async function loadRole() {
+      setRoleLoading(true);
+
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) {
+          setRole(null);
+          return;
+        }
+
+        const { data: orgRole } = await supabase.rpc("get_current_org_role");
+        setRole(orgRole || null);
+      } finally {
+        setRoleLoading(false);
+      }
+    }
+
+    loadRole();
+  }, [supabase]);
+
+  const allowedExtensions = useMemo(() => {
+    return ALLOWED_EXTENSIONS_BY_CATEGORY[assetCategory] || [];
+  }, [assetCategory]);
+
+  const acceptedFileText = useMemo(() => {
+    return allowedExtensions.map((ext) => `.${ext}`).join(", ");
+  }, [allowedExtensions]);
+
+  function validateSelectedFile(selectedFile: File | null, category: string) {
+    if (!selectedFile) {
+      return "Please choose a file.";
+    }
+
+    if (selectedFile.size > MAX_FILE_SIZE_BYTES) {
+      return `File is too large. Maximum allowed size is ${formatBytes(
+        MAX_FILE_SIZE_BYTES
+      )}.`;
+    }
+
+    const extension = getFileExtension(selectedFile.name);
+
+    if (!extension) {
+      return "File must have a valid extension.";
+    }
+
+    const allowed = ALLOWED_EXTENSIONS_BY_CATEGORY[category] || [];
+
+    if (!allowed.includes(extension)) {
+      return `Invalid file type for this category. Allowed types: ${allowed
+        .map((ext) => `.${ext}`)
+        .join(", ")}.`;
+    }
+
+    return null;
+  }
+
+  async function handleUpload(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError("");
+    setSuccess("");
+
+    if (!canUpload) {
+      setError("Only engineers and admins can upload files.");
+      return;
+    }
+
+    const validationError = validateSelectedFile(file, assetCategory);
+
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        setError("You must be logged in.");
+        return;
+      }
+
+      const selectedFile = file as File;
+      const fileExt = getFileExtension(selectedFile.name);
+      const safeFileName = sanitizeFileName(selectedFile.name);
+      const filePath = `${user.id}/${partId}/${Date.now()}-${safeFileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("part-files")
+        .upload(filePath, selectedFile, {
+          upsert: false,
+        });
+
+      if (uploadError) {
+        setError(`Storage upload failed: ${uploadError.message}`);
+        return;
+      }
+
+      const { error: insertError } = await supabase.from("part_files").insert({
+        part_id: partId,
+        user_id: user.id,
+        file_name: selectedFile.name,
+        file_type: fileExt,
+        asset_category: assetCategory,
+        storage_path: filePath,
+        file_size_bytes: selectedFile.size,
+      });
+
+      if (insertError) {
+        setError(`Database insert failed: ${insertError.message}`);
+        return;
+      }
+
+      setSuccess("File uploaded successfully.");
+      setFile(null);
+
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+
+      router.refresh();
+    } catch {
+      setError("Something went wrong during upload.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    setError("");
+    setSuccess("");
+
+    const selectedFile = e.target.files?.[0] || null;
+    setFile(selectedFile);
+
+    const validationError = validateSelectedFile(selectedFile, assetCategory);
+
+    if (validationError) {
+      setError(validationError);
+    }
+  }
+
+  function handleCategoryChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const nextCategory = e.target.value;
+    setAssetCategory(nextCategory);
+    setError("");
+    setSuccess("");
+
+    if (file) {
+      const validationError = validateSelectedFile(file, nextCategory);
+      if (validationError) {
+        setError(validationError);
+      }
+    }
+  }
+
+  return (
+    <div className="h-full rounded-3xl border border-gray-200 p-6 shadow-sm">
+      <h2 className="text-xl font-semibold">Upload File</h2>
+
+      {!roleLoading && !canUpload ? (
+        <p className="mt-4 text-sm text-gray-600">
+          File upload is available to engineers and admins only.
+        </p>
+      ) : null}
+
+      <form onSubmit={handleUpload} className="mt-6 space-y-4">
+        <div>
+          <label className="mb-2 block text-sm font-medium">
+            Asset Category
+          </label>
+          <select
+            value={assetCategory}
+            onChange={handleCategoryChange}
+            disabled={!canUpload || roleLoading || loading}
+            className="w-full rounded-2xl border border-gray-300 px-4 py-3 disabled:bg-gray-50 disabled:text-gray-500"
+          >
+            {CATEGORY_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+          <p className="text-sm font-medium text-gray-900">Upload rules</p>
+          <p className="mt-2 text-sm text-gray-600">
+            Allowed file types for this category: {acceptedFileText || "None"}
+          </p>
+          <p className="mt-1 text-sm text-gray-600">
+            Maximum file size: {formatBytes(MAX_FILE_SIZE_BYTES)}
+          </p>
+        </div>
+
+        <div>
+          <label className="mb-2 block text-sm font-medium">Choose File</label>
+
+          <label
+            className={`inline-flex items-center rounded-2xl border border-gray-300 px-4 py-3 text-sm font-medium text-gray-900 transition ${
+              canUpload && !roleLoading && !loading
+                ? "cursor-pointer hover:bg-gray-50"
+                : "cursor-not-allowed bg-gray-50 text-gray-500"
+            }`}
+          >
+            Select File
+            <input
+              ref={fileInputRef}
+              type="file"
+              onChange={handleFileChange}
+              disabled={!canUpload || roleLoading || loading}
+              className="hidden"
+            />
+          </label>
+
+          <p className="mt-2 text-sm text-gray-600">
+            {file
+              ? `${file.name} (${formatBytes(file.size)})`
+              : "No file selected"}
+          </p>
+        </div>
+
+        <button
+          type="submit"
+          disabled={roleLoading || loading || !file || !canUpload}
+          className="rounded-2xl bg-gray-900 px-5 py-3 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50"
+        >
+          {roleLoading ? "Loading access..." : loading ? "Uploading..." : "Upload File"}
+        </button>
+
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
+        {success ? <p className="text-sm text-green-700">{success}</p> : null}
+      </form>
+    </div>
+  );
+}
+
+
+========================================================================================================================
+FILE: .\app\dashboard\parts\[id]\PartFilesViewer.tsx
+========================================================================================================================
+
+"use client";
+
+import { useMemo, useState } from "react";
+import StlPreview from "./StlPreview";
+import ApsStepPreview from "./ApsStepPreview";
+
+type PreviewFile = {
+  id: string;
+  fileName: string;
+  fileType: string | null;
+  fileSizeBytes: number | null;
+  assetCategory: string | null;
+  createdAt: string;
+  uploaderName: string | null;
+  previewUrl: string | null;
+  downloadUrl: string | null;
+  previewKind: "image" | "pdf" | "cad" | "other";
+};
+
+type Props = {
+  files: PreviewFile[];
+};
+
+const CATEGORY_ORDER = [
+  "cad_3d",
+  "drawing_2d",
+  "image",
+  "manufacturing_doc",
+  "quality_doc",
+  "other",
+] as const;
+
+const CATEGORY_LABELS: Record<string, string> = {
+  cad_3d: "CAD 3D",
+  drawing_2d: "2D Drawings",
+  image: "Images",
+  manufacturing_doc: "Manufacturing Docs",
+  quality_doc: "Quality Docs",
+  other: "Other",
+};
+
+function formatDateTime(dateString: string | null) {
+  if (!dateString) return "-";
+
+  const date = new Date(dateString);
+
+  return new Intl.DateTimeFormat("en-IE", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function formatBytes(bytes: number | null) {
+  if (!bytes || bytes <= 0) return "-";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function getCategoryLabel(category: string | null) {
+  if (!category) return CATEGORY_LABELS.other;
+  return CATEGORY_LABELS[category] || CATEGORY_LABELS.other;
+}
+
+function getTypeBadgeLabel(file: PreviewFile) {
+  if (file.previewKind === "image") return "Image preview";
+  if (file.previewKind === "pdf") return "PDF preview";
+  if (file.previewKind === "cad") return "3D/CAD";
+  return "Download only";
+}
+
+function getTypeBadgeClass(file: PreviewFile) {
+  if (file.previewKind === "image") {
+    return "bg-emerald-100 text-emerald-700";
+  }
+
+  if (file.previewKind === "pdf") {
+    return "bg-rose-100 text-rose-700";
+  }
+
+  if (file.previewKind === "cad") {
+    return "bg-sky-100 text-sky-700";
+  }
+
+  return "bg-slate-100 text-slate-700";
+}
+
+function buildGroupedFiles(files: PreviewFile[]) {
+  const grouped: Record<string, PreviewFile[]> = {
+    cad_3d: [],
+    drawing_2d: [],
+    image: [],
+    manufacturing_doc: [],
+    quality_doc: [],
+    other: [],
+  };
+
+  for (const file of files) {
+    const category =
+      file.assetCategory && CATEGORY_LABELS[file.assetCategory]
+        ? file.assetCategory
+        : "other";
+
+    grouped[category].push(file);
+  }
+
+  return grouped;
+}
+
+function getFileExtension(fileName: string) {
+  return fileName.split(".").pop()?.toLowerCase() ?? "";
+}
+
+export default function PartFilesViewer({ files }: Props) {
+  const groupedFiles = useMemo(() => buildGroupedFiles(files), [files]);
+
+  const initialSelected =
+    files.find((file) => file.previewKind !== "other") ?? files[0] ?? null;
+
+  const [selectedFileId, setSelectedFileId] = useState<string | null>(
+    initialSelected?.id ?? null,
+  );
+
+  const selectedFile =
+    files.find((file) => file.id === selectedFileId) ?? initialSelected;
+
+  if (!files.length) {
+    return (
+      <div className="rounded-[28px] border border-dashed border-slate-300 bg-slate-50 p-8 text-sm text-slate-600">
+        No files available for preview yet.
+      </div>
+    );
+  }
+
+  const selectedExtension = selectedFile ? getFileExtension(selectedFile.fileName) : "";
+  const isStlSelected = selectedExtension === "stl";
+  const isStepSelected = selectedExtension === "step" || selectedExtension === "stp";
+
+  return (
+    <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
+      <div className="rounded-[28px] border border-slate-200 bg-slate-50/70 p-4">
+        <div className="mb-4 flex items-center justify-between gap-4 px-2">
+          <div>
+            <h3 className="text-lg font-semibold text-slate-950">File rail</h3>
+            <p className="mt-1 text-sm text-slate-600">
+              Select a file to preview in the same page.
+            </p>
+          </div>
+
+          <div className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700">
+            {files.length} file{files.length === 1 ? "" : "s"}
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          {CATEGORY_ORDER.map((category) => {
+            const categoryFiles = groupedFiles[category];
+
+            if (!categoryFiles || categoryFiles.length === 0) {
+              return null;
+            }
+
+            return (
+              <div key={category}>
+                <div className="mb-3 flex items-center justify-between px-2">
+                  <h4 className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    {CATEGORY_LABELS[category]}
+                  </h4>
+                  <span className="text-xs text-slate-400">
+                    {categoryFiles.length}
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  {categoryFiles.map((file) => {
+                    const isSelected = selectedFile?.id === file.id;
+                    const extension = getFileExtension(file.fileName);
+                    const isStl = extension === "stl";
+                    const isStep = extension === "step" || extension === "stp";
+
+                    return (
+                      <button
+                        key={file.id}
+                        type="button"
+                        onClick={() => setSelectedFileId(file.id)}
+                        className={`w-full rounded-[22px] border p-4 text-left transition ${
+                          isSelected
+                            ? "border-slate-900 bg-white shadow-sm"
+                            : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="truncate font-medium text-slate-950">
+                              {file.fileName}
+                            </div>
+
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              <span
+                                className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-medium ${getTypeBadgeClass(
+                                  file,
+                                )}`}
+                              >
+                                {getTypeBadgeLabel(file)}
+                              </span>
+
+                              {isStl ? (
+                                <span className="inline-flex rounded-full bg-sky-100 px-2.5 py-1 text-[11px] font-medium text-sky-700">
+                                  Live STL
+                                </span>
+                              ) : null}
+
+                              {isStep ? (
+                                <span className="inline-flex rounded-full bg-violet-100 px-2.5 py-1 text-[11px] font-medium text-violet-700">
+                                  Live STEP
+                                </span>
+                              ) : null}
+
+                              <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-700">
+                                {getCategoryLabel(file.assetCategory)}
+                              </span>
+                            </div>
+
+                            <div className="mt-3 text-xs text-slate-500">
+                              {file.fileType || "unknown"} ·{" "}
+                              {formatBytes(file.fileSizeBytes)}
+                            </div>
+
+                            <div className="mt-1 text-xs text-slate-400">
+                              Uploaded {formatDateTime(file.createdAt)}
+                              {file.uploaderName ? ` by ${file.uploaderName}` : ""}
+                            </div>
+                          </div>
+
+                          <span className="text-xs font-medium text-slate-500">
+                            Preview
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+        {selectedFile ? (
+          <div className="flex h-full flex-col">
+            <div className="flex flex-col gap-4 border-b border-slate-200 pb-5 lg:flex-row lg:items-start lg:justify-between">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="truncate text-xl font-semibold tracking-tight text-slate-950">
+                    {selectedFile.fileName}
+                  </h3>
+
+                  <span
+                    className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${getTypeBadgeClass(
+                      selectedFile,
+                    )}`}
+                  >
+                    {getTypeBadgeLabel(selectedFile)}
+                  </span>
+
+                  {isStlSelected ? (
+                    <span className="inline-flex rounded-full bg-sky-100 px-2.5 py-1 text-xs font-medium text-sky-700">
+                      Live STL viewer
+                    </span>
+                  ) : null}
+
+                  {isStepSelected ? (
+                    <span className="inline-flex rounded-full bg-violet-100 px-2.5 py-1 text-xs font-medium text-violet-700">
+                      Live STEP viewer
+                    </span>
+                  ) : null}
+                </div>
+
+                <p className="mt-2 text-sm text-slate-600">
+                  {selectedFile.fileType || "unknown"} ·{" "}
+                  {formatBytes(selectedFile.fileSizeBytes)} ·{" "}
+                  {getCategoryLabel(selectedFile.assetCategory)}
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-3">
+                {selectedFile.previewUrl ? (
+                  <a
+                    href={selectedFile.previewUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-900 transition hover:bg-slate-50"
+                  >
+                    Open
+                  </a>
+                ) : null}
+
+                {selectedFile.downloadUrl ? (
+                  <a
+                    href={selectedFile.downloadUrl}
+                    className="inline-flex rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white transition hover:opacity-90"
+                  >
+                    Download
+                  </a>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="mt-5 mx-auto w-full max-w-[920px]">
+              <div className="min-h-[560px] overflow-hidden rounded-[24px] border border-slate-200 bg-slate-50">
+                {selectedFile.previewKind === "image" && selectedFile.previewUrl ? (
+                  <div className="flex h-full min-h-[560px] items-center justify-center bg-[radial-gradient(circle_at_top,#f8fafc,#eef2f7)] p-6">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={selectedFile.previewUrl}
+                      alt={selectedFile.fileName}
+                      className="max-h-[520px] w-auto max-w-full rounded-2xl border border-slate-200 bg-white object-contain shadow-sm"
+                    />
+                  </div>
+                ) : null}
+
+                {selectedFile.previewKind === "pdf" && selectedFile.previewUrl ? (
+                  <iframe
+                    src={selectedFile.previewUrl}
+                    title={selectedFile.fileName}
+                    className="h-[560px] w-full bg-white"
+                  />
+                ) : null}
+
+                {selectedFile.previewKind === "cad" &&
+                isStlSelected &&
+                selectedFile.previewUrl ? (
+                  <StlPreview
+                    url={selectedFile.previewUrl}
+                    fileName={selectedFile.fileName}
+                  />
+                ) : null}
+
+                {selectedFile.previewKind === "cad" &&
+                isStepSelected ? (
+                  <ApsStepPreview
+                    fileId={selectedFile.id}
+                    fileName={selectedFile.fileName}
+                  />
+                ) : null}
+
+                {selectedFile.previewKind === "cad" &&
+                !isStlSelected &&
+                !isStepSelected ? (
+                  <div className="flex h-full min-h-[560px] flex-col items-center justify-center bg-[radial-gradient(circle_at_top,#eff6ff,#f8fafc_55%,#ffffff)] px-8 text-center">
+                    <div className="max-w-xl">
+                      <span className="inline-flex rounded-full bg-sky-100 px-3 py-1 text-xs font-medium text-sky-700">
+                        3D/CAD surface ready
+                      </span>
+
+                      <h4 className="mt-4 text-2xl font-semibold tracking-tight text-slate-950">
+                        This CAD file type is queued for the next viewer layer
+                      </h4>
+
+                      <p className="mt-3 text-sm leading-7 text-slate-600">
+                        The preview area is already in place. STL is now live, and
+                        STEP is handled with APS. Additional CAD formats can be added
+                        into the same premium panel later.
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
+
+                {selectedFile.previewKind === "other" ? (
+                  <div className="flex h-full min-h-[560px] flex-col items-center justify-center bg-[radial-gradient(circle_at_top,#f8fafc,#ffffff)] px-8 text-center">
+                    <div className="max-w-lg">
+                      <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                        Download-only file
+                      </span>
+
+                      <h4 className="mt-4 text-2xl font-semibold tracking-tight text-slate-950">
+                        Preview is not available for this file type yet
+                      </h4>
+
+                      <p className="mt-3 text-sm leading-7 text-slate-600">
+                        This document can still be opened or downloaded securely from
+                        the current page. The preview surface is reserved for native
+                        image, PDF, and 3D/CAD experiences.
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-3 md:grid-cols-3">
+              <div className="rounded-[20px] border border-slate-200 bg-slate-50 p-4">
+                <div className="text-xs uppercase tracking-[0.14em] text-slate-500">
+                  Uploaded
+                </div>
+                <div className="mt-2 font-medium text-slate-900">
+                  {formatDateTime(selectedFile.createdAt)}
+                </div>
+              </div>
+
+              <div className="rounded-[20px] border border-slate-200 bg-slate-50 p-4">
+                <div className="text-xs uppercase tracking-[0.14em] text-slate-500">
+                  Uploaded by
+                </div>
+                <div className="mt-2 font-medium text-slate-900">
+                  {selectedFile.uploaderName || "-"}
+                </div>
+              </div>
+
+              <div className="rounded-[20px] border border-slate-200 bg-slate-50 p-4">
+                <div className="text-xs uppercase tracking-[0.14em] text-slate-500">
+                  Category
+                </div>
+                <div className="mt-2 font-medium text-slate-900">
+                  {getCategoryLabel(selectedFile.assetCategory)}
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+
+========================================================================================================================
+FILE: .\app\dashboard\parts\[id]\FileActions.tsx
+========================================================================================================================
+
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "../../../../lib/supabase/client";
+
+type FileActionsProps = {
+  fileId: string;
+  fileName: string;
+  storagePath: string;
+  downloadUrl: string | null;
+  assetCategory: string | null;
+};
+
+const CATEGORY_OPTIONS = [
+  { value: "cad_3d", label: "CAD 3D" },
+  { value: "drawing_2d", label: "2D Drawing" },
+  { value: "image", label: "Image" },
+  { value: "manufacturing_doc", label: "Manufacturing Doc" },
+  { value: "quality_doc", label: "Quality Doc" },
+  { value: "other", label: "Other" },
+] as const;
+
+const ALLOWED_EXTENSIONS_BY_CATEGORY: Record<string, string[]> = {
+  cad_3d: ["step", "stp", "iges", "igs", "stl"],
+  drawing_2d: ["pdf"],
+  image: ["png", "jpg", "jpeg"],
+  manufacturing_doc: ["pdf", "doc", "docx", "xls", "xlsx", "csv"],
+  quality_doc: ["pdf", "doc", "docx", "xls", "xlsx", "csv"],
+  other: ["pdf", "png", "jpg", "jpeg", "csv"],
+};
+
+function getFileExtension(fileName: string) {
+  const parts = fileName.split(".");
+  if (parts.length < 2) return "";
+  return parts.pop()!.toLowerCase();
+}
+
+export default function FileActions({
+  fileId,
+  fileName,
+  storagePath,
+  downloadUrl,
+  assetCategory,
+}: FileActionsProps) {
+  const supabase = createClient();
+  const router = useRouter();
+
+  const [role, setRole] = useState<string | null>(null);
+  const [roleLoading, setRoleLoading] = useState(true);
+
+  const initialCategory = assetCategory || "other";
+  const fileExtension = getFileExtension(fileName);
+
+  const allowedCategoryOptions = useMemo(() => {
+    return CATEGORY_OPTIONS.filter((option) =>
+      (ALLOWED_EXTENSIONS_BY_CATEGORY[option.value] || []).includes(
+        fileExtension,
+      ),
+    );
+  }, [fileExtension]);
+
+  const safeInitialCategory = allowedCategoryOptions.some(
+    (option) => option.value === initialCategory,
+  )
+    ? initialCategory
+    : allowedCategoryOptions[0]?.value || "other";
+
+  const [selectedCategory, setSelectedCategory] = useState(safeInitialCategory);
+  const [savingCategory, setSavingCategory] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  const canManageFile = role === "admin" || role === "engineer";
+  const categoryChanged = selectedCategory !== safeInitialCategory;
+  const canChangeCategory = allowedCategoryOptions.length > 1;
+
+  useEffect(() => {
+    async function loadRole() {
+      setRoleLoading(true);
+
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) {
+          setRole(null);
+          return;
+        }
+
+        const { data: orgRole } = await supabase.rpc("get_current_org_role");
+        setRole(orgRole || null);
+      } finally {
+        setRoleLoading(false);
+      }
+    }
+
+    loadRole();
+  }, [supabase]);
+
+  async function handleSaveCategory() {
+    setError("");
+    setSuccess("");
+
+    if (!canManageFile) {
+      setError("Only engineers and admins can update file categories.");
+      return;
+    }
+
+    setSavingCategory(true);
+
+    try {
+      const { error: updateError } = await supabase
+        .from("part_files")
+        .update({ asset_category: selectedCategory })
+        .eq("id", fileId);
+
+      if (updateError) {
+        setError(`Category update failed: ${updateError.message}`);
+        return;
+      }
+
+      setSuccess("Category updated.");
+      router.refresh();
+    } catch {
+      setError("Something went wrong while updating the category.");
+    } finally {
+      setSavingCategory(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!canManageFile) {
+      setError("Only engineers and admins can delete files.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Delete "${fileName}"? This cannot be undone.`,
+    );
+
+    if (!confirmed) return;
+
+    setDeleting(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const { error: storageError } = await supabase.storage
+        .from("part-files")
+        .remove([storagePath]);
+
+      if (storageError) {
+        setError(`Storage delete failed: ${storageError.message}`);
+        return;
+      }
+
+      const { error: dbError } = await supabase
+        .from("part_files")
+        .delete()
+        .eq("id", fileId);
+
+      if (dbError) {
+        setError(`Database delete failed: ${dbError.message}`);
+        return;
+      }
+
+      router.refresh();
+    } catch {
+      setError("Something went wrong while deleting the file.");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  if (roleLoading) {
+    return <div className="text-sm text-gray-400">Loading actions...</div>;
+  }
+
+  if (!canManageFile) {
+    return (
+      <div className="flex flex-col items-end gap-2">
+        {downloadUrl ? (
+          <a
+            href={downloadUrl}
+            className="rounded-xl border border-gray-300 px-4 py-2 text-sm font-medium text-gray-900 transition hover:bg-gray-50"
+          >
+            Download
+          </a>
+        ) : (
+          <span className="text-sm text-gray-400">Unavailable</span>
+        )}
+
+        <p className="text-xs text-gray-500">Read-only access</p>
+
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col items-end gap-2">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <select
+          value={selectedCategory}
+          onChange={(e) => {
+            setSelectedCategory(e.target.value);
+            setError("");
+            setSuccess("");
+          }}
+          disabled={!canChangeCategory || savingCategory || deleting}
+          className="rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-900 disabled:opacity-50"
+        >
+          {allowedCategoryOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+
+        <button
+          type="button"
+          onClick={handleSaveCategory}
+          disabled={
+            !canChangeCategory || !categoryChanged || savingCategory || deleting
+          }
+          className="rounded-xl border border-gray-300 px-4 py-2 text-sm font-medium text-gray-900 transition hover:bg-gray-50 disabled:opacity-50"
+        >
+          {savingCategory ? "Saving..." : "Save"}
+        </button>
+
+        {downloadUrl ? (
+          <a
+            href={downloadUrl}
+            className="rounded-xl border border-gray-300 px-4 py-2 text-sm font-medium text-gray-900 transition hover:bg-gray-50"
+          >
+            Download
+          </a>
+        ) : (
+          <span className="text-sm text-gray-400">Unavailable</span>
+        )}
+
+        <button
+          type="button"
+          onClick={handleDelete}
+          disabled={deleting || savingCategory}
+          className="rounded-xl border border-red-200 px-4 py-2 text-sm font-medium text-red-700 transition hover:bg-red-50 disabled:opacity-50"
+        >
+          {deleting ? "Deleting..." : "Delete"}
+        </button>
+      </div>
+
+      {!canChangeCategory ? (
+        <p className="text-xs text-gray-500">
+          This file type can only belong to one category.
+        </p>
+      ) : null}
+
+      {success ? <p className="text-xs text-green-700">{success}</p> : null}
+      {error ? <p className="text-sm text-red-600">{error}</p> : null}
+    </div>
+  );
+}
+
+
+========================================================================================================================
+FILE: .\app\dashboard\parts\[id]\edit\page.tsx
+========================================================================================================================
+
+"use client";
+
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "../../../../../lib/supabase/client";
+import Navbar from "../../../../../components/Navbar";
+import Footer from "../../../../../components/Footer";
+import {
+  PART_CATEGORY_OPTIONS,
+  PROCESS_TYPE_OPTIONS,
+  getPartCategoryLabel,
+  getProcessTypeLabel,
+} from "@/lib/parts";
+
+type EditPartPageProps = {
+  params: Promise<{ id: string }>;
+};
+
+const STATUS_OPTIONS = [
+  { value: "draft", label: "Draft" },
+  { value: "active", label: "Active" },
+  { value: "archived", label: "Archived" },
+];
+
+type MembershipState = {
+  organizationId: string | null;
+  role: string | null;
+};
+
+type PartState = {
+  id: string;
+  organization_id: string | null;
+  name: string;
+  part_number: string | null;
+  description: string | null;
+  process_type: string | null;
+  material: string | null;
+  revision: string | null;
+  category: string | null;
+  status: string | null;
+};
+
+export default function EditPartPage({ params }: EditPartPageProps) {
+  const router = useRouter();
+  const supabase = createClient();
+
+  const [partId, setPartId] = useState<string>("");
+
+  const [membership, setMembership] = useState<MembershipState>({
+    organizationId: null,
+    role: null,
+  });
+  const [membershipLoading, setMembershipLoading] = useState(true);
+
+  const [partLoading, setPartLoading] = useState(true);
+  const [partNotFound, setPartNotFound] = useState(false);
+
+  const [name, setName] = useState("");
+  const [partNumber, setPartNumber] = useState("");
+  const [description, setDescription] = useState("");
+  const [processType, setProcessType] = useState("");
+  const [material, setMaterial] = useState("");
+  const [revision, setRevision] = useState("A");
+  const [category, setCategory] = useState("");
+  const [status, setStatus] = useState("draft");
+
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const canEditPart =
+    membership.role === "admin" || membership.role === "engineer";
+
+  useEffect(() => {
+    async function resolveParamsAndLoad() {
+      setError("");
+      setMembershipLoading(true);
+      setPartLoading(true);
+
+      try {
+        const { id } = await params;
+        setPartId(id);
+
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) {
+          router.push("/login");
+          return;
+        }
+
+        const { data: membershipData, error: membershipError } = await supabase
+          .from("organization_members")
+          .select("organization_id, role")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (membershipError) {
+          setError(
+            `Failed to load organization membership: ${membershipError.message}`
+          );
+          setMembershipLoading(false);
+          setPartLoading(false);
+          return;
+        }
+
+        const nextMembership = {
+          organizationId: membershipData?.organization_id || null,
+          role: membershipData?.role || null,
+        };
+
+        setMembership(nextMembership);
+        setMembershipLoading(false);
+
+        const { data: partData, error: partError } = await supabase
+          .from("parts")
+          .select(
+            "id, organization_id, name, part_number, description, process_type, material, revision, category, status"
+          )
+          .eq("id", id)
+          .single();
+
+        if (partError || !partData) {
+          setPartNotFound(true);
+          setPartLoading(false);
+          return;
+        }
+
+        const part = partData as PartState;
+
+        if (
+          nextMembership.organizationId &&
+          part.organization_id &&
+          nextMembership.organizationId !== part.organization_id
+        ) {
+          setPartNotFound(true);
+          setPartLoading(false);
+          return;
+        }
+
+        setName(part.name || "");
+        setPartNumber(part.part_number || "");
+        setDescription(part.description || "");
+        setProcessType(part.process_type || "");
+        setMaterial(part.material || "");
+        setRevision(part.revision || "A");
+        setCategory(part.category || "");
+        setStatus(part.status || "draft");
+      } catch {
+        setError("Unable to load part details.");
+      } finally {
+        setMembershipLoading(false);
+        setPartLoading(false);
+      }
+    }
+
+    resolveParamsAndLoad();
+  }, [params, router, supabase]);
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+    setSuccess("");
+
+    if (!canEditPart) {
+      setError("Only engineers and admins can edit parts.");
+      setLoading(false);
+      return;
+    }
+
+    if (!partId) {
+      setError("Part not found.");
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from("parts")
+        .update({
+          name,
+          part_number: partNumber || null,
+          description: description || null,
+          process_type: processType || null,
+          material: material || null,
+          revision: revision || null,
+          category: category || null,
+          status,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", partId);
+
+      if (error) {
+        setError(error.message);
+        setLoading(false);
+        return;
+      }
+
+      setSuccess("Part updated.");
+
+      setTimeout(() => {
+        router.push(`/dashboard/parts/${partId}`);
+        router.refresh();
+      }, 800);
+    } catch {
+      setError("Something went wrong while updating the part.");
+      setLoading(false);
+    }
+  }
+
+  if (partNotFound) {
+    return (
+      <main className="min-h-screen bg-white text-gray-900">
+        <Navbar />
+
+        <section className="mx-auto max-w-3xl px-6 py-20">
+          <h1 className="text-4xl font-bold">Part not found</h1>
+          <p className="mt-4 text-gray-600">
+            We could not find this part in your vault.
+          </p>
+
+          <div className="mt-8">
+            <Link
+              href="/dashboard/parts"
+              className="rounded-2xl border border-gray-300 px-5 py-3 text-sm font-medium text-gray-900 transition hover:bg-gray-50"
+            >
+              Back to Parts Vault
+            </Link>
+          </div>
+        </section>
+
+        <Footer />
+      </main>
+    );
+  }
+
+  return (
+    <main className="min-h-screen bg-white text-gray-900">
+      <Navbar />
+
+      <section className="mx-auto max-w-3xl px-6 py-20">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-4xl font-bold">Edit Part</h1>
+            <p className="mt-4 text-gray-600">
+              Update the part metadata in your vault.
+            </p>
+          </div>
+
+          {partId ? (
+            <Link
+              href={`/dashboard/parts/${partId}`}
+              className="rounded-2xl border border-gray-300 px-5 py-3 text-sm font-medium text-gray-900 transition hover:bg-gray-50"
+            >
+              Back to Part
+            </Link>
+          ) : null}
+        </div>
+
+        {membership.role === "viewer" ? (
+          <div className="mt-8 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+            You have read-only access. Only engineers and admins can edit
+            parts.
+          </div>
+        ) : null}
+
+        <form
+          onSubmit={handleSubmit}
+          className="mt-10 grid gap-4 rounded-3xl border border-gray-200 p-6 shadow-sm"
+        >
+          <div>
+            <label className="mb-2 block text-sm font-medium">Part Name</label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full rounded-2xl border border-gray-300 px-4 py-3 disabled:bg-gray-50 disabled:text-gray-500"
+              required
+              disabled={!canEditPart || membershipLoading || partLoading || loading}
+            />
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-medium">Part Number</label>
+            <input
+              type="text"
+              value={partNumber}
+              onChange={(e) => setPartNumber(e.target.value)}
+              className="w-full rounded-2xl border border-gray-300 px-4 py-3 disabled:bg-gray-50 disabled:text-gray-500"
+              disabled={!canEditPart || membershipLoading || partLoading || loading}
+            />
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-medium">Description</label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="min-h-[120px] w-full rounded-2xl border border-gray-300 px-4 py-3 disabled:bg-gray-50 disabled:text-gray-500"
+              disabled={!canEditPart || membershipLoading || partLoading || loading}
+            />
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div>
+              <label className="mb-2 block text-sm font-medium">Process Type</label>
+              <select
+                value={processType}
+                onChange={(e) => setProcessType(e.target.value)}
+                className="w-full rounded-2xl border border-gray-300 px-4 py-3 disabled:bg-gray-50 disabled:text-gray-500"
+                disabled={!canEditPart || membershipLoading || partLoading || loading}
+              >
+                <option value="">Select process type</option>
+                {PROCESS_TYPE_OPTIONS.map((option) => (
+                  <option key={option} value={option}>
+                    {getProcessTypeLabel(option)}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium">Material</label>
+              <input
+                type="text"
+                value={material}
+                onChange={(e) => setMaterial(e.target.value)}
+                className="w-full rounded-2xl border border-gray-300 px-4 py-3 disabled:bg-gray-50 disabled:text-gray-500"
+                disabled={!canEditPart || membershipLoading || partLoading || loading}
+              />
+            </div>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-3">
+            <div>
+              <label className="mb-2 block text-sm font-medium">Revision</label>
+              <input
+                type="text"
+                value={revision}
+                onChange={(e) => setRevision(e.target.value)}
+                className="w-full rounded-2xl border border-gray-300 px-4 py-3 disabled:bg-gray-50 disabled:text-gray-500"
+                disabled={!canEditPart || membershipLoading || partLoading || loading}
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium">Category</label>
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="w-full rounded-2xl border border-gray-300 px-4 py-3 disabled:bg-gray-50 disabled:text-gray-500"
+                disabled={!canEditPart || membershipLoading || partLoading || loading}
+              >
+                <option value="">Select category</option>
+                {PART_CATEGORY_OPTIONS.map((option) => (
+                  <option key={option} value={option}>
+                    {getPartCategoryLabel(option)}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium">Status</label>
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
+                className="w-full rounded-2xl border border-gray-300 px-4 py-3 disabled:bg-gray-50 disabled:text-gray-500"
+                disabled={!canEditPart || membershipLoading || partLoading || loading}
+              >
+                {STATUS_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-3">
+            <button
+              type="submit"
+              disabled={!canEditPart || membershipLoading || partLoading || loading}
+              className="rounded-2xl bg-gray-900 px-6 py-3 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50"
+            >
+              {membershipLoading || partLoading
+                ? "Loading..."
+                : loading
+                ? "Saving..."
+                : "Save Changes"}
+            </button>
+
+            {partId ? (
+              <Link
+                href={`/dashboard/parts/${partId}`}
+                className="rounded-2xl border border-gray-300 px-6 py-3 text-sm font-medium text-gray-900 transition hover:bg-gray-50"
+              >
+                Cancel
+              </Link>
+            ) : null}
+          </div>
+
+          {success ? <p className="text-sm text-green-700">{success}</p> : null}
+          {error ? <p className="text-sm text-red-600">{error}</p> : null}
+        </form>
+      </section>
+
+      <Footer />
+    </main>
+  );
+}
+
+
