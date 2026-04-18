@@ -608,17 +608,17 @@ export async function POST(request: Request) {
         .update({
           status: publishResult.ok ? "succeeded" : "failed",
           completed_at: completedAt,
-          summary: {
-            publish_mode: publishMode,
-            part_id: targetPart.id,
-            part_family_id: targetPart.part_family_id,
-            source_link_id: sourceLinkId,
-            external_document_id: externalDocumentId,
-            external_item_id: externalItemId,
-            external_version_id: externalVersionId,
-            file_count: input.files?.length ?? 0,
-            inserted_file_rows: filesToInsert.length,
-          },
+                 summary: {
+          publish_mode: publishMode,
+          part_id: targetPart.id,
+          part_family_id: targetPart.part_family_id,
+          source_link_id: sourceLinkId,
+          external_document_id: externalDocumentId,
+          external_item_id: externalItemId,
+          external_version_id: externalVersionId,
+          file_count: input.files?.length ?? 0,
+          inserted_file_rows: filesToInsert.length,
+        },
           error_message: publishResult.ok ? null : publishResult.message,
         })
         .eq("id", syncRun.id);
