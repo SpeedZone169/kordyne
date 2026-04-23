@@ -1,3 +1,111 @@
+========================================================================================================================
+FILE: .\app\dashboard\layout.tsx
+========================================================================================================================
+
+import type { ReactNode } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { getProviderContext, isProviderOnlyUser } from "@/lib/auth/provider-access";
+import LogoutButton from "./LogoutButton";
+
+const navItems = [
+  { href: "/dashboard", label: "Overview" },
+  { href: "/dashboard/parts", label: "Parts" },
+  { href: "/dashboard/requests", label: "Requests" },
+  { href: "/dashboard/internal-manufacturing", label: "Internal Manufacturing" },
+  { href: "/dashboard/organization", label: "Organization" },
+  { href: "/dashboard/account", label: "Account" },
+  { href: "/dashboard/insights", label: "Insights" },
+];
+
+export default async function DashboardLayout({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  const providerContext = await getProviderContext();
+
+  if (providerContext && isProviderOnlyUser(providerContext)) {
+    redirect("/provider");
+  }
+
+  return (
+    <div className="min-h-screen bg-[#f5f5f3] text-slate-950">
+      <header className="sticky top-0 z-40 border-b border-zinc-200 bg-[#f5f5f3]/95 backdrop-blur">
+        <div className="mx-auto flex w-full max-w-[1800px] items-center justify-between gap-6 px-4 py-5 lg:px-6 2xl:px-8">
+          <Link href="/dashboard" className="flex shrink-0 items-center">
+            <Image
+              src="/kordyne-logo.svg"
+              alt="Kordyne"
+              width={260}
+              height={64}
+              priority
+              className="h-11 w-auto object-contain"
+            />
+          </Link>
+
+          <nav className="hidden min-w-0 flex-1 items-center justify-center gap-8 lg:flex">
+            {navItems.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="text-sm font-medium text-slate-600 transition hover:text-slate-950"
+              >
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+
+          <div className="flex shrink-0 items-center gap-3">
+            <LogoutButton />
+          </div>
+        </div>
+
+        <div className="border-t border-zinc-200 px-6 py-3 lg:hidden">
+          <nav className="flex flex-wrap gap-3">
+            {navItems.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="rounded-full border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-zinc-50"
+              >
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+        </div>
+      </header>
+
+      <main className="mx-auto w-full max-w-[1800px] px-4 py-6 lg:px-6 2xl:px-8">
+  {children}
+</main>
+
+      <footer className="mt-12 border-t border-zinc-200 bg-white">
+        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-6 py-6 text-sm text-slate-600 lg:flex-row lg:items-center lg:justify-between lg:px-10">
+          <p>Kordyne Customer Workspace</p>
+          <div className="flex flex-wrap gap-4">
+            <Link href="/privacy" className="hover:text-slate-900">
+              Privacy
+            </Link>
+            <Link href="/terms" className="hover:text-slate-900">
+              Terms
+            </Link>
+            <Link href="/contact" className="hover:text-slate-900">
+              Contact
+            </Link>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}
+
+
+========================================================================================================================
+FILE: .\app\dashboard\page.tsx
+========================================================================================================================
+
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -180,8 +288,8 @@ export default async function DashboardPage() {
 
             <p className="mt-4 max-w-4xl text-gray-600">
               Welcome to your Kordyne workspace. This is your high-level view
-              across part families, revision-controlled records, service
-              requests, and bidirectional design connector workflows.
+              across part families, revision-controlled records, and service
+              requests for engineering and manufacturing workflows.
             </p>
 
             <p className="mt-2 text-sm text-gray-500">
@@ -217,7 +325,7 @@ export default async function DashboardPage() {
         </div>
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-2 xl:grid-cols-5">
+      <section className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
         <ActionCard
           title="Open Parts Vault"
           description="Browse your family-based parts library, revisions, and attached vault files."
@@ -228,11 +336,6 @@ export default async function DashboardPage() {
           title="Service Requests"
           description="Manage manufacturing, CAD, and optimization requests as their own operational workspace."
           href="/dashboard/requests"
-        />
-        <ActionCard
-          title="Design Connectors"
-          description="Manage Fusion, SolidWorks, Inventor, and Onshape connector setup, publishing, and pull flows."
-          href="/dashboard/design-connectors"
         />
         <ActionCard
           title="View Organization"
@@ -282,3 +385,5 @@ export default async function DashboardPage() {
     </div>
   );
 }
+
+
