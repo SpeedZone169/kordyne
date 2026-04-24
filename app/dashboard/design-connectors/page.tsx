@@ -2,6 +2,13 @@ import { redirect } from "next/navigation";
 import { createClient } from "../../../lib/supabase/server";
 import Client from "./Client";
 
+const SUPPORTED_PROFILE_PROVIDERS = [
+  "fusion",
+  "solidworks",
+  "inventor",
+  "onshape",
+] as const;
+
 export default async function DesignConnectorsPage() {
   const supabase = await createClient();
 
@@ -44,15 +51,19 @@ export default async function DesignConnectorsPage() {
 
   const { data: profiles } = await supabase
     .from("internal_connector_profiles")
-    .select("id, provider_key, display_name, auth_mode, last_test_status, organization_id")
+    .select(
+      "id, organization_id, provider_key, display_name, auth_mode, client_id, last_tested_at, last_test_status, last_test_error, created_at, updated_at, token_expires_at",
+    )
     .eq("organization_id", membership.organization_id)
-    .in("provider_key", ["fusion", "solidworks", "inventor", "onshape"])
+    .in("provider_key", [...SUPPORTED_PROFILE_PROVIDERS])
     .order("provider_key", { ascending: true })
     .order("display_name", { ascending: true });
 
   const { data: recentRuns } = await supabase
     .from("design_sync_runs")
-    .select("id, provider_key, run_type, direction, status, started_at, completed_at, design_connector_id")
+    .select(
+      "id, provider_key, run_type, direction, status, started_at, completed_at, design_connector_id",
+    )
     .eq("organization_id", membership.organization_id)
     .order("started_at", { ascending: false })
     .limit(20);
