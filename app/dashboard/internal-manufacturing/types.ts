@@ -1,42 +1,30 @@
-export type InternalResourceStatus =
-  | "idle"
-  | "queued"
-  | "running"
-  | "paused"
-  | "blocked"
-  | "maintenance"
-  | "offline"
-  | "complete";
-
-export type InternalServiceDomain =
-  | "additive"
-  | "cnc"
-  | "cad"
-  | "scanning"
-  | "composites"
-  | "sheet_metal"
-  | "qa"
-  | "finishing"
-  | "assembly"
-  | "general";
-
-export interface InternalManufacturingOrganization {
+export type InternalManufacturingOrganization = {
   id: string;
   name: string;
   slug: string | null;
   plan: string | null;
-  organizationType: "customer" | "provider" | string | null;
+  organizationType: string | null;
   membershipRole: string;
-}
+};
 
-export interface InternalManufacturingResource {
+export type InternalManufacturingResource = {
   id: string;
   organizationId: string;
   name: string;
   resourceType: string;
-  serviceDomain: InternalServiceDomain | string;
-  currentStatus: InternalResourceStatus | string;
-  derivedStatus: InternalResourceStatus | string;
+  serviceDomain: string;
+  currentStatus: string;
+  derivedStatus: string;
+  effectiveStatus: string;
+  effectiveStatusSource: "manual_override" | "live" | "fallback";
+  liveStatus: string | null;
+  telemetryStatus: "fresh" | "stale" | "missing";
+  telemetryLastSeenAt: string | null;
+  manualOverrideStatus: string | null;
+  manualOverrideReason: string | null;
+  manualOverrideStartedAt: string | null;
+  manualOverrideExpiresAt: string | null;
+  manualOverrideExpired: boolean;
   statusSource: string;
   active: boolean;
   locationLabel: string | null;
@@ -44,24 +32,24 @@ export interface InternalManufacturingResource {
   capabilityCodes: string[];
   latestStatusAt: string | null;
   createdAt: string;
-}
+};
 
-export interface InternalManufacturingCapability {
+export type InternalManufacturingCapability = {
   id: string;
   organizationId: string;
-  serviceDomain: InternalServiceDomain | string;
+  serviceDomain: string;
   code: string;
   name: string;
   isActive: boolean;
   resourceCount: number;
   createdAt: string;
-}
+};
 
-export interface InternalManufacturingJob {
+export type InternalManufacturingJob = {
   id: string;
   organizationId: string;
   title: string;
-  serviceDomain: InternalServiceDomain | string;
+  serviceDomain: string;
   jobType: string;
   requiredQuantity: number;
   priority: string;
@@ -70,22 +58,22 @@ export interface InternalManufacturingJob {
   routingConfidence: number | null;
   dueAt: string | null;
   createdAt: string;
-}
+};
 
-export interface InternalManufacturingStatusEvent {
+export type InternalManufacturingStatusEvent = {
   id: string;
   organizationId: string;
   resourceId: string;
   resourceName: string;
   source: string;
-  status: InternalResourceStatus | string;
+  status: string;
   reasonCode: string | null;
   reasonDetail: string | null;
   effectiveAt: string;
   createdAt: string;
-}
+};
 
-export interface InternalManufacturingSummary {
+export type InternalManufacturingSummary = {
   resourceCount: number;
   activeResourceCount: number;
   capabilityCount: number;
@@ -93,9 +81,9 @@ export interface InternalManufacturingSummary {
   queuedOrInProgressJobCount: number;
   blockedResourceCount: number;
   overdueJobCount: number;
-}
+};
 
-export interface InternalManufacturingData {
+export type InternalManufacturingData = {
   organization: InternalManufacturingOrganization | null;
   resources: InternalManufacturingResource[];
   capabilities: InternalManufacturingCapability[];
@@ -103,4 +91,4 @@ export interface InternalManufacturingData {
   recentStatusEvents: InternalManufacturingStatusEvent[];
   summary: InternalManufacturingSummary;
   errors: string[];
-}
+};
