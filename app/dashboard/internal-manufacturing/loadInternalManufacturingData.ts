@@ -8,8 +8,6 @@ import type {
   InternalManufacturingStatusEvent,
   InternalManufacturingSummary,
 } from "./types";
-
-// Adjust this import if your Supabase server helper lives somewhere else.
 import { createClient } from "@/lib/supabase/server";
 
 type MembershipRow = {
@@ -35,6 +33,7 @@ type ResourceRow = {
   status_source: string;
   active: boolean;
   location_label: string | null;
+  metadata?: Record<string, unknown> | null;
   created_at: string;
 };
 
@@ -63,6 +62,7 @@ type StatusEventRow = {
   reason_detail: string | null;
   effective_at: string;
   created_at: string;
+  payload?: Record<string, unknown> | null;
 };
 
 type JobRow = {
@@ -99,6 +99,140 @@ const emptyState: InternalManufacturingData = {
   summary: emptySummary,
   errors: [],
 };
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function readString(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function normalizeStatus(value: string | null | undefined): string | null {
+  const raw = (value ?? "").trim().toLowerCase();
+  if (!raw) return null;
+
+  if (raw.includes("maintenance")) return "maintenance";
+  if (raw.includes("blocked")) return "blocked";
+  if (raw.includes("unreachable")) return "unreachable";
+  if (raw.includes("offline")) return "offline";
+  if (raw.includes("paused")) return "paused";
+  if (raw.includes("queue")) return "queued";
+  if (raw.includes("run") || raw.includes("print")) return "running";
+  if (raw.includes("complete")) return "complete";
+  if (raw.includes("idle")) return "idle";
+
+  return raw;
+}
+
+function getTelemetryLastSeenAt(
+  resourceMetadata: Record<string, unknown>,
+  latestStatusEvent: StatusEventRow | undefined,
+) {
+  const eventPayload = asRecord(latestStatusEvent?.payload);
+  const printer = asRecord(eventPayload.printer);
+  const printerStatus = asRecord(printer.printerStatus);
+
+  return (
+    readString(printerStatus.lastPingedAt) ??
+    readString(printer.lastPingedAt) ??
+    readString(eventPayload.last_pinged_at) ??
+    readString(resourceMetadata.telemetry_last_seen_at) ??
+    latestStatusEvent?.effective_at ??
+    null
+  );
+}
+
+function getManualOverride(resourceMetadata: Record<string, unknown>) {
+  const status = normalizeStatus(
+    readString(resourceMetadata.manual_override_status),
+  );
+  const reason = readString(resourceMetadata.manual_override_reason);
+  const startedAt = readString(resourceMetadata.manual_override_started_at);
+  const expiresAt = readString(resourceMetadata.manual_override_expires_at);
+
+  const now = Date.now();
+  const isExpired =
+    expiresAt != null && !Number.isNaN(new Date(expiresAt).getTime())
+      ? new Date(expiresAt).getTime() < now
+      : false;
+
+  return {
+    status,
+    reason,
+    startedAt,
+    expiresAt,
+    expired: isExpired,
+  };
+}
+
+function getLiveStatus(
+  latestStatusEvent: StatusEventRow | undefined,
+  resourceMetadata: Record<string, unknown>,
+) {
+  const eventPayload = asRecord(latestStatusEvent?.payload);
+  const printer = asRecord(eventPayload.printer);
+  const printerStatus = asRecord(printer.printerStatus);
+
+  return (
+    normalizeStatus(readString(eventPayload.live_status)) ??
+    normalizeStatus(readString(eventPayload.raw_status)) ??
+    normalizeStatus(readString(printer.rawStatus)) ??
+    normalizeStatus(readString(printerStatus.status)) ??
+    normalizeStatus(readString(resourceMetadata.live_status)) ??
+    normalizeStatus(latestStatusEvent?.status) ??
+    null
+  );
+}
+
+function getTelemetryStatus(lastSeenAt: string | null): "fresh" | "stale" | "missing" {
+  if (!lastSeenAt) return "missing";
+
+  const timestamp = new Date(lastSeenAt).getTime();
+  if (Number.isNaN(timestamp)) return "missing";
+
+  const ageMs = Date.now() - timestamp;
+  if (ageMs <= 5 * 60 * 1000) return "fresh";
+  return "stale";
+}
+
+function resolveEffectiveStatus(input: {
+  manualOverrideStatus: string | null;
+  manualOverrideExpired: boolean;
+  liveStatus: string | null;
+  telemetryStatus: "fresh" | "stale" | "missing";
+  fallbackStatus: string;
+}) {
+  if (input.manualOverrideStatus && !input.manualOverrideExpired) {
+    return {
+      effectiveStatus: input.manualOverrideStatus,
+      effectiveStatusSource: "manual_override" as const,
+    };
+  }
+
+  if (input.liveStatus && input.telemetryStatus === "fresh") {
+    return {
+      effectiveStatus: input.liveStatus,
+      effectiveStatusSource: "live" as const,
+    };
+  }
+
+  if (input.liveStatus && input.telemetryStatus === "stale") {
+    return {
+      effectiveStatus: "unreachable",
+      effectiveStatusSource: "live" as const,
+    };
+  }
+
+  return {
+    effectiveStatus: normalizeStatus(input.fallbackStatus) ?? "idle",
+    effectiveStatusSource: "fallback" as const,
+  };
+}
 
 export const loadInternalManufacturingData = cache(
   async (): Promise<InternalManufacturingData> => {
@@ -176,9 +310,10 @@ export const loadInternalManufacturingData = cache(
         } => Boolean(row.organization),
       );
 
-    const chosen = membershipWithOrg.find(
-      (row) => row.organization.organization_type === "customer",
-    ) ?? membershipWithOrg[0];
+    const chosen =
+      membershipWithOrg.find(
+        (row) => row.organization.organization_type === "customer",
+      ) ?? membershipWithOrg[0];
 
     if (!chosen) {
       return {
@@ -208,7 +343,7 @@ export const loadInternalManufacturingData = cache(
       supabase
         .from("internal_resources")
         .select(
-          "id, organization_id, name, resource_type, service_domain, current_status, status_source, active, location_label, created_at",
+          "id, organization_id, name, resource_type, service_domain, current_status, status_source, active, location_label, metadata, created_at",
         )
         .eq("organization_id", organizationId)
         .order("created_at", { ascending: false }),
@@ -228,11 +363,11 @@ export const loadInternalManufacturingData = cache(
       supabase
         .from("internal_resource_status_events")
         .select(
-          "id, organization_id, resource_id, source, status, reason_code, reason_detail, effective_at, created_at",
+          "id, organization_id, resource_id, source, status, reason_code, reason_detail, effective_at, created_at, payload",
         )
         .eq("organization_id", organizationId)
         .order("effective_at", { ascending: false })
-        .limit(20),
+        .limit(50),
 
       supabase
         .from("internal_jobs")
@@ -296,6 +431,19 @@ export const loadInternalManufacturingData = cache(
         .filter((value): value is string => Boolean(value));
 
       const latestStatus = latestStatusByResourceId.get(row.id);
+      const resourceMetadata = asRecord(row.metadata);
+      const manualOverride = getManualOverride(resourceMetadata);
+      const liveStatus = getLiveStatus(latestStatus, resourceMetadata);
+      const telemetryLastSeenAt = getTelemetryLastSeenAt(resourceMetadata, latestStatus);
+      const telemetryStatus = getTelemetryStatus(telemetryLastSeenAt);
+
+      const resolved = resolveEffectiveStatus({
+        manualOverrideStatus: manualOverride.status,
+        manualOverrideExpired: manualOverride.expired,
+        liveStatus,
+        telemetryStatus,
+        fallbackStatus: row.current_status,
+      });
 
       return {
         id: row.id,
@@ -305,6 +453,16 @@ export const loadInternalManufacturingData = cache(
         serviceDomain: row.service_domain,
         currentStatus: row.current_status,
         derivedStatus: latestStatus?.status ?? row.current_status,
+        effectiveStatus: resolved.effectiveStatus,
+        effectiveStatusSource: resolved.effectiveStatusSource,
+        liveStatus,
+        telemetryStatus,
+        telemetryLastSeenAt,
+        manualOverrideStatus: manualOverride.status,
+        manualOverrideReason: manualOverride.reason,
+        manualOverrideStartedAt: manualOverride.startedAt,
+        manualOverrideExpiresAt: manualOverride.expiresAt,
+        manualOverrideExpired: manualOverride.expired,
         statusSource: row.status_source,
         active: row.active,
         locationLabel: row.location_label,
@@ -361,10 +519,12 @@ export const loadInternalManufacturingData = cache(
       activeResourceCount: resources.filter((row) => row.active).length,
       capabilityCount: capabilities.length,
       jobCount: jobs.length,
-      queuedOrInProgressJobCount: jobs.filter((row) =>
-        row.status === "queued" || row.status === "in_progress"
+      queuedOrInProgressJobCount: jobs.filter(
+        (row) => row.status === "queued" || row.status === "in_progress",
       ).length,
-      blockedResourceCount: resources.filter((row) => row.derivedStatus === "blocked").length,
+      blockedResourceCount: resources.filter(
+        (row) => row.effectiveStatus === "blocked",
+      ).length,
       overdueJobCount: jobs.filter((row) => {
         if (!row.dueAt) return false;
         return new Date(row.dueAt).getTime() < now && row.status !== "completed";
