@@ -1,137 +1,100 @@
 import { NextResponse } from "next/server";
-import { createClient } from "../../../../lib/supabase/server";
+import { getDesignAppRequestContext } from "../../../../lib/design-app/request-auth";
+import { createDesignAppAdminClient } from "../../../../lib/design-app/admin";
 
+const DESIGN_UPLOAD_BUCKET =
+  process.env.NEXT_PUBLIC_SUPABASE_DESIGN_UPLOAD_BUCKET || "part-files";
+
+const ALLOWED_ROLES = new Set(["step"]);
+const ALLOWED_EXTENSIONS = new Set([".step", ".stp"]);
 const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024;
 
-const ALLOWED_EXTENSIONS_BY_ROLE: Record<string, string[]> = {
-  step: ["step", "stp"],
-  native_cad: ["f3d", "f3z", "sldprt", "sldasm", "ipt", "iam", "par", "asm"],
-  drawing_pdf: ["pdf"],
-  drawing_native: ["dwg", "dxf", "idw", "slddrw"],
-  preview_image: ["png", "jpg", "jpeg", "webp"],
-  manufacturing_doc: ["pdf", "doc", "docx", "xls", "xlsx", "csv", "txt"],
-  quality_doc: ["pdf", "doc", "docx", "xls", "xlsx", "csv", "txt"],
-  other: ["pdf", "png", "jpg", "jpeg", "csv", "txt", "zip"],
-};
-
-function sanitizeFileName(fileName: string) {
-  return fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
+function sanitizeFileName(name: string) {
+  return name.replace(/[^a-zA-Z0-9._-]/g, "_");
 }
 
-function getFileExtension(fileName: string) {
-  const parts = fileName.split(".");
-  if (parts.length < 2) return "";
-  return parts.pop()!.toLowerCase();
-}
-
-function asNullableString(value: FormDataEntryValue | null): string | null {
-  if (typeof value !== "string") return null;
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
+function getExtension(name: string) {
+  const lower = name.toLowerCase();
+  const idx = lower.lastIndexOf(".");
+  return idx >= 0 ? lower.slice(idx) : "";
 }
 
 export async function POST(request: Request) {
   try {
-    const supabase = await createClient();
+    const ctx = await getDesignAppRequestContext(request);
+    if ("error" in ctx) return ctx.error;
 
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
-    }
-
-    const { data: membership, error: membershipError } = await supabase
-      .from("organization_members")
-      .select("organization_id, role")
-      .eq("user_id", user.id)
-      .order("organization_id", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
-    if (membershipError) {
-      return NextResponse.json({ error: membershipError.message }, { status: 500 });
-    }
-
-    if (!membership?.organization_id) {
-      return NextResponse.json(
-        { error: "No organization membership found." },
-        { status: 403 },
-      );
-    }
-
-    if (!["admin", "engineer"].includes(membership.role)) {
-      return NextResponse.json(
-        { error: "Only engineers and admins can upload design files." },
-        { status: 403 },
-      );
-    }
+    const admin = createDesignAppAdminClient();
 
     const formData = await request.formData();
+    const role = String(formData.get("role") ?? "other").trim().toLowerCase();
+    const file = formData.get("file");
 
-    const role = asNullableString(formData.get("role")) ?? "other";
-    const fileEntry = formData.get("file");
-
-    if (!(fileEntry instanceof File)) {
-      return NextResponse.json(
-        { error: "A file is required." },
-        { status: 400 },
-      );
-    }
-
-    if (!fileEntry.name || fileEntry.size <= 0) {
-      return NextResponse.json(
-        { error: "Uploaded file is empty or invalid." },
-        { status: 400 },
-      );
-    }
-
-    if (fileEntry.size > MAX_FILE_SIZE_BYTES) {
+    if (!(file instanceof File)) {
       return NextResponse.json(
         {
-          error: `File is too large. Maximum allowed size is ${MAX_FILE_SIZE_BYTES} bytes.`,
+          ok: false,
+          error: "No file uploaded.",
         },
         { status: 400 },
       );
     }
 
-    const extension = getFileExtension(fileEntry.name);
-
-    if (!extension) {
-      return NextResponse.json(
-        { error: "File must have a valid extension." },
-        { status: 400 },
-      );
-    }
-
-    const allowedExtensions = ALLOWED_EXTENSIONS_BY_ROLE[role] ?? ALLOWED_EXTENSIONS_BY_ROLE.other;
-
-    if (!allowedExtensions.includes(extension)) {
+    if (!ALLOWED_ROLES.has(role)) {
       return NextResponse.json(
         {
-          error: `Invalid file type for role '${role}'. Allowed types: ${allowedExtensions
-            .map((ext) => `.${ext}`)
-            .join(", ")}.`,
+          ok: false,
+          error: "Unsupported file role.",
         },
         { status: 400 },
       );
     }
 
-    const safeFileName = sanitizeFileName(fileEntry.name);
-    const storagePath = `${user.id}/design-app/${Date.now()}-${safeFileName}`;
+    if (file.size <= 0 || file.size > MAX_FILE_SIZE_BYTES) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "File size is invalid or exceeds the maximum allowed size.",
+        },
+        { status: 400 },
+      );
+    }
 
-    const { error: uploadError } = await supabase.storage
-      .from("part-files")
-      .upload(storagePath, fileEntry, {
+    const extension = getExtension(file.name);
+    if (!ALLOWED_EXTENSIONS.has(extension)) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "Only STEP files are allowed for this upload.",
+        },
+        { status: 400 },
+      );
+    }
+
+    const safeName = sanitizeFileName(file.name || "upload.step");
+    const arrayBuffer = await file.arrayBuffer();
+    const fileBytes = new Uint8Array(arrayBuffer);
+
+    const storagePath = [
+      "design-app",
+      ctx.organizationId,
+      ctx.user.id,
+      `${Date.now()}-${safeName}`,
+    ].join("/");
+
+    const { error: uploadError } = await admin.storage
+      .from(DESIGN_UPLOAD_BUCKET)
+      .upload(storagePath, fileBytes, {
+        contentType: file.type || "application/octet-stream",
         upsert: false,
-        contentType: fileEntry.type || undefined,
       });
 
     if (uploadError) {
       return NextResponse.json(
-        { error: `Storage upload failed: ${uploadError.message}` },
+        {
+          ok: false,
+          error: uploadError.message,
+        },
         { status: 500 },
       );
     }
@@ -139,19 +102,22 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ok: true,
       file: {
-        role,
-        filename: fileEntry.name,
-        mime_type: fileEntry.type || null,
-        size_bytes: fileEntry.size,
+        filename: file.name,
+        mime_type: file.type || "application/octet-stream",
+        size_bytes: file.size,
         storage_path: storagePath,
-        file_type: extension,
+        role,
+        organization_id: ctx.organizationId,
+        uploaded_by_user_id: ctx.user.id,
+        bucket: DESIGN_UPLOAD_BUCKET,
       },
       message: "Design file uploaded successfully.",
     });
   } catch (error) {
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : "Unexpected upload error.",
+        ok: false,
+        error: error instanceof Error ? error.message : "Unexpected error.",
       },
       { status: 500 },
     );
