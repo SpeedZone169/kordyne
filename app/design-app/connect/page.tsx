@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
 
 type Status =
@@ -14,10 +14,10 @@ type Status =
 export default function DesignAppConnectPage() {
   const [status, setStatus] = useState<Status>("checking");
   const [message, setMessage] = useState("Checking browser session…");
+  const [code, setCode] = useState("");
+  const [codeReady, setCodeReady] = useState(false);
 
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const code = searchParams.get("code") ?? "";
 
   const supabase = useMemo(
     () =>
@@ -28,7 +28,13 @@ export default function DesignAppConnectPage() {
     [],
   );
 
-  async function approve() {
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setCode(params.get("code") ?? "");
+    setCodeReady(true);
+  }, []);
+
+  async function approve(currentCode: string) {
     setStatus("approving");
     setMessage("Approving Fusion connection…");
 
@@ -46,7 +52,7 @@ export default function DesignAppConnectPage() {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        code,
+        code: currentCode,
         accessToken: data.session.access_token,
       }),
     });
@@ -74,6 +80,8 @@ export default function DesignAppConnectPage() {
     let isMounted = true;
 
     async function run() {
+      if (!codeReady) return;
+
       if (!code) {
         if (!isMounted) return;
         setStatus("error");
@@ -86,7 +94,7 @@ export default function DesignAppConnectPage() {
       if (!isMounted) return;
 
       if (data.session?.access_token) {
-        void approve();
+        void approve(code);
       } else {
         setStatus("needs_login");
         setMessage("Log in to Kordyne in this browser, then click Continue.");
@@ -98,7 +106,7 @@ export default function DesignAppConnectPage() {
     return () => {
       isMounted = false;
     };
-  }, [code, supabase]);
+  }, [code, codeReady, supabase]);
 
   useEffect(() => {
     if (status !== "approved") return;
@@ -136,7 +144,7 @@ export default function DesignAppConnectPage() {
               </a>
               <button
                 type="button"
-                onClick={() => void approve()}
+                onClick={() => void approve(code)}
                 className="rounded-xl border px-4 py-2 text-sm font-medium"
               >
                 Continue after login
@@ -147,7 +155,7 @@ export default function DesignAppConnectPage() {
           {status === "error" ? (
             <button
               type="button"
-              onClick={() => void approve()}
+              onClick={() => void approve(code)}
               className="rounded-xl border px-4 py-2 text-sm font-medium"
             >
               Retry
@@ -158,7 +166,9 @@ export default function DesignAppConnectPage() {
         <div className="mt-6 rounded-2xl border bg-gray-50 p-4 text-sm text-gray-600">
           <p>
             Connection code:{" "}
-            <span className="font-mono font-semibold">{code || "—"}</span>
+            <span className="font-mono font-semibold">
+              {codeReady ? code || "—" : "…"}
+            </span>
           </p>
           <p className="mt-2">
             After approval, this page will attempt to close and Fusion will connect automatically.

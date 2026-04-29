@@ -50,6 +50,9 @@ function scoreItem(
     name?: string | null;
     part_number?: string | null;
     description?: string | null;
+    process_type?: string | null;
+    material?: string | null;
+    category?: string | null;
   },
 ) {
   const nq = normalize(q);
@@ -58,6 +61,9 @@ function scoreItem(
   const name = normalize(item.name);
   const partNumber = normalize(item.part_number);
   const description = normalize(item.description);
+  const processType = normalize(item.process_type);
+  const material = normalize(item.material);
+  const category = normalize(item.category);
 
   let score = 0;
 
@@ -70,6 +76,9 @@ function scoreItem(
   if (name.includes(nq)) score += 25;
   if (partNumber.includes(nq)) score += 25;
   if (description.includes(nq)) score += 10;
+  if (processType.includes(nq)) score += 8;
+  if (material.includes(nq)) score += 8;
+  if (category.includes(nq)) score += 6;
 
   return score;
 }
@@ -211,6 +220,9 @@ export async function POST(request: Request) {
           name: (part.name as string | null) ?? null,
           part_number: (part.part_number as string | null) ?? null,
           description: (part.description as string | null) ?? null,
+          process_type: (part.process_type as string | null) ?? null,
+          material: (part.material as string | null) ?? null,
+          category: (part.category as string | null) ?? null,
         });
 
         return {
@@ -219,6 +231,10 @@ export async function POST(request: Request) {
           name: part.name ?? null,
           part_number: part.part_number ?? null,
           description: part.description ?? null,
+          process_type: part.process_type ?? null,
+          material: part.material ?? null,
+          category: part.category ?? null,
+          revision: part.revision ?? null,
           revision_index: part.revision_index ?? null,
           status: part.status ?? null,
           created_at: part.created_at ?? null,
@@ -241,7 +257,7 @@ export async function POST(request: Request) {
       debug: {
         query: q,
         returned: items.length,
-        note: "Results are tolerant and still show broader library items even if the query has a typo.",
+        note: "Results stay broad and are re-ranked rather than disappearing on minor typos.",
       },
     });
   } catch (error) {
