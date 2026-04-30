@@ -1,23 +1,25 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
 
 type Status =
   | "checking"
   | "needs_login"
+  | "redirecting_to_login"
   | "approving"
   | "approved"
   | "error";
+
+function getRedirectKey(code: string) {
+  return `kordyne-design-app-login-redirect:${code}`;
+}
 
 export default function DesignAppConnectPage() {
   const [status, setStatus] = useState<Status>("checking");
   const [message, setMessage] = useState("Checking browser session…");
   const [code, setCode] = useState("");
   const [codeReady, setCodeReady] = useState(false);
-
-  const router = useRouter();
 
   const supabase = useMemo(
     () =>
@@ -42,7 +44,7 @@ export default function DesignAppConnectPage() {
 
     if (error || !data.session?.access_token) {
       setStatus("needs_login");
-      setMessage("Log in to Kordyne in this browser, then click Continue.");
+      setMessage("Please log in to Kordyne in this browser to continue.");
       return;
     }
 
@@ -68,6 +70,10 @@ export default function DesignAppConnectPage() {
       setMessage(payload.error ?? "Approval failed.");
       return;
     }
+
+    try {
+      sessionStorage.removeItem(getRedirectKey(currentCode));
+    } catch {}
 
     setStatus("approved");
     setMessage(
@@ -95,10 +101,30 @@ export default function DesignAppConnectPage() {
 
       if (data.session?.access_token) {
         void approve(code);
-      } else {
-        setStatus("needs_login");
-        setMessage("Log in to Kordyne in this browser, then click Continue.");
+        return;
       }
+
+      let alreadyRedirected = false;
+      try {
+        alreadyRedirected = sessionStorage.getItem(getRedirectKey(code)) === "1";
+      } catch {}
+
+      if (!alreadyRedirected) {
+        try {
+          sessionStorage.setItem(getRedirectKey(code), "1");
+        } catch {}
+
+        const returnTo = `${window.location.pathname}${window.location.search}`;
+        const loginUrl = `/login?next=${encodeURIComponent(returnTo)}`;
+
+        setStatus("redirecting_to_login");
+        setMessage("Redirecting to Kordyne login…");
+        window.location.assign(loginUrl);
+        return;
+      }
+
+      setStatus("needs_login");
+      setMessage("Log in to Kordyne in this browser, then continue.");
     }
 
     void run();
@@ -117,12 +143,19 @@ export default function DesignAppConnectPage() {
       } catch {}
 
       window.setTimeout(() => {
-        router.replace("/dashboard/design-connectors");
+        window.location.replace("/dashboard");
       }, 800);
     }, 1200);
 
     return () => window.clearTimeout(timer);
-  }, [status, router]);
+  }, [status]);
+
+  const loginHref =
+    typeof window !== "undefined"
+      ? `/login?next=${encodeURIComponent(
+          `${window.location.pathname}${window.location.search}`,
+        )}`
+      : "/login";
 
   return (
     <div className="mx-auto max-w-2xl space-y-6 p-6">
@@ -137,7 +170,7 @@ export default function DesignAppConnectPage() {
           {status === "needs_login" ? (
             <>
               <a
-                href="/login"
+                href={loginHref}
                 className="rounded-xl border border-gray-900 bg-gray-900 px-4 py-2 text-sm font-medium text-white"
               >
                 Open Kordyne Login
@@ -147,7 +180,7 @@ export default function DesignAppConnectPage() {
                 onClick={() => void approve(code)}
                 className="rounded-xl border px-4 py-2 text-sm font-medium"
               >
-                Continue after login
+                I already logged in
               </button>
             </>
           ) : null}
@@ -171,7 +204,7 @@ export default function DesignAppConnectPage() {
             </span>
           </p>
           <p className="mt-2">
-            After approval, this page will attempt to close and Fusion will connect automatically.
+            After approval, this page will try to close. If the browser blocks that, it will redirect to your dashboard.
           </p>
         </div>
       </div>
