@@ -2,6 +2,12 @@ import { NextResponse } from "next/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "../supabase/server";
 
+type DesignAppAccessOptions = {
+  providerKey?: string;
+  allowedRoles?: string[];
+  requireEntitlement?: boolean;
+};
+
 export function extractDesignAppToken(request: Request): string | null {
   const authHeader = request.headers.get("authorization");
   const directHeader = request.headers.get("x-kordyne-connection-token");
@@ -40,12 +46,17 @@ export function createTokenBoundClient(token: string) {
   });
 }
 
-export async function getDesignAppRequestContext(request: Request) {
+export async function getDesignAppRequestContext(
+  request: Request,
+  options: DesignAppAccessOptions = {},
+) {
+  const providerKey = options.providerKey ?? "fusion";
+  const requireEntitlement = options.requireEntitlement ?? true;
+  const defaultAllowedRoles = options.allowedRoles ?? ["admin", "engineer"];
+
   const token = extractDesignAppToken(request);
 
-  const supabase = token
-    ? createTokenBoundClient(token)
-    : await createClient();
+  const supabase = token ? createTokenBoundClient(token) : await createClient();
 
   const authResult = token
     ? await supabase.auth.getUser(token)
@@ -104,11 +115,90 @@ export async function getDesignAppRequestContext(request: Request) {
     };
   }
 
+  let entitlement:
+    | {
+        id: string;
+        organization_id: string;
+        provider_key: string;
+        is_enabled: boolean;
+        allowed_runtime_roles: string[] | null;
+        current_release_id: string | null;
+      }
+    | null = null;
+
+  if (requireEntitlement) {
+    const { data, error: entitlementError } = await supabase
+      .from("organization_connector_entitlements")
+      .select(
+        "id, organization_id, provider_key, is_enabled, allowed_runtime_roles, current_release_id",
+      )
+      .eq("organization_id", membership.organization_id)
+      .eq("provider_key", providerKey)
+      .maybeSingle();
+
+    if (entitlementError) {
+      return {
+        error: NextResponse.json(
+          {
+            ok: false,
+            error: entitlementError.message,
+          },
+          { status: 500 },
+        ),
+      };
+    }
+
+    entitlement = data;
+
+    if (!entitlement?.is_enabled) {
+      return {
+        error: NextResponse.json(
+          {
+            ok: false,
+            error: "Connector is not enabled for this organization.",
+          },
+          { status: 403 },
+        ),
+      };
+    }
+
+    const effectiveAllowedRoles =
+      Array.isArray(entitlement.allowed_runtime_roles) &&
+      entitlement.allowed_runtime_roles.length > 0
+        ? entitlement.allowed_runtime_roles
+        : defaultAllowedRoles;
+
+    if (!effectiveAllowedRoles.includes(membership.role)) {
+      return {
+        error: NextResponse.json(
+          {
+            ok: false,
+            error: "You do not have access to this connector.",
+          },
+          { status: 403 },
+        ),
+      };
+    }
+  } else if (!defaultAllowedRoles.includes(membership.role)) {
+    return {
+      error: NextResponse.json(
+        {
+          ok: false,
+          error: "You do not have access to this route.",
+        },
+        { status: 403 },
+      ),
+    };
+  }
+
   return {
     token,
     supabase,
     user,
     organizationId: membership.organization_id,
     role: membership.role,
+    membership,
+    entitlement,
+    providerKey,
   };
 }

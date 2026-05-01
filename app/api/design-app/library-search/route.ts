@@ -1,44 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
-import { createClient } from "../../../../lib/supabase/server";
-
-function extractToken(request: Request): string | null {
-  const authHeader = request.headers.get("authorization");
-  const directHeader = request.headers.get("x-kordyne-connection-token");
-
-  if (authHeader?.startsWith("Bearer ")) {
-    const token = authHeader.slice("Bearer ".length).trim();
-    return token.length > 0 ? token : null;
-  }
-
-  if (directHeader && directHeader.trim().length > 0) {
-    return directHeader.trim();
-  }
-
-  return null;
-}
-
-function createTokenBoundClient(token: string) {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (!url || !anonKey) {
-    throw new Error("Missing Supabase environment variables.");
-  }
-
-  return createSupabaseClient(url, anonKey, {
-    global: {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    },
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-      detectSessionInUrl: false,
-    },
-  });
-}
+import { getDesignAppRequestContext } from "../../../../lib/design-app/request-auth";
 
 function normalize(value: unknown) {
   return String(value ?? "").trim().toLowerCase();
@@ -83,71 +44,15 @@ function scoreItem(
   return score;
 }
 
-async function getOrgScopedClient(request: Request) {
-  const token = extractToken(request);
-  const supabase = token ? createTokenBoundClient(token) : await createClient();
-
-  const authResult = token
-    ? await supabase.auth.getUser(token)
-    : await supabase.auth.getUser();
-
-  const {
-    data: { user },
-    error: userError,
-  } = authResult;
-
-  if (userError || !user) {
-    return {
-      error: NextResponse.json(
-        {
-          ok: false,
-          error: userError?.message ?? "Unauthorized.",
-          debug: {
-            token_present: Boolean(token),
-            user_id: null,
-          },
-        },
-        { status: 401 },
-      ),
-    };
-  }
-
-  const { data: membership, error: membershipError } = await supabase
-    .from("organization_members")
-    .select("organization_id, role")
-    .eq("user_id", user.id)
-    .order("organization_id", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-
-  if (membershipError) {
-    return {
-      error: NextResponse.json(
-        { ok: false, error: membershipError.message },
-        { status: 500 },
-      ),
-    };
-  }
-
-  if (!membership?.organization_id) {
-    return {
-      error: NextResponse.json(
-        { ok: false, error: "No organization membership found." },
-        { status: 403 },
-      ),
-    };
-  }
-
-  return {
-    supabase,
-    organizationId: membership.organization_id,
-  };
-}
-
 export async function POST(request: Request) {
   try {
-    const scoped = await getOrgScopedClient(request);
-    if ("error" in scoped) return scoped.error;
+    const ctx = await getDesignAppRequestContext(request, {
+      providerKey: "fusion",
+      allowedRoles: ["admin", "engineer"],
+      requireEntitlement: true,
+    });
+
+    if ("error" in ctx) return ctx.error;
 
     const body = (await request.json().catch(() => ({}))) as {
       q?: string;
@@ -157,15 +62,18 @@ export async function POST(request: Request) {
     const q = (body.q ?? "").trim();
     const limit = Math.min(Math.max(body.limit ?? 100, 10), 200);
 
-    const { data: parts, error: partsError } = await scoped.supabase
+    const { data: parts, error: partsError } = await ctx.supabase
       .from("parts")
       .select("*")
-      .eq("organization_id", scoped.organizationId)
+      .eq("organization_id", ctx.organizationId)
       .order("updated_at", { ascending: false })
       .limit(limit * 3);
 
     if (partsError) {
-      return NextResponse.json({ ok: false, error: partsError.message }, { status: 500 });
+      return NextResponse.json(
+        { ok: false, error: partsError.message },
+        { status: 500 },
+      );
     }
 
     const grouped = new Map<string, Record<string, unknown>>();
@@ -198,7 +106,7 @@ export async function POST(request: Request) {
     const sourceLinksByFamily = new Map<string, Record<string, unknown>>();
 
     if (familyIds.length > 0) {
-      const { data: sourceLinks } = await scoped.supabase
+      const { data: sourceLinks } = await ctx.supabase
         .from("part_source_links")
         .select("*")
         .in("part_family_id", familyIds)
@@ -206,7 +114,9 @@ export async function POST(request: Request) {
         .order("created_at", { ascending: false });
 
       for (const link of sourceLinks ?? []) {
-        const familyId = String((link as Record<string, unknown>).part_family_id ?? "");
+        const familyId = String(
+          (link as Record<string, unknown>).part_family_id ?? "",
+        );
         if (familyId && !sourceLinksByFamily.has(familyId)) {
           sourceLinksByFamily.set(familyId, link as Record<string, unknown>);
         }
@@ -247,7 +157,9 @@ export async function POST(request: Request) {
         if ((b.search_score ?? 0) !== (a.search_score ?? 0)) {
           return (b.search_score ?? 0) - (a.search_score ?? 0);
         }
-        return String(b.updated_at ?? "").localeCompare(String(a.updated_at ?? ""));
+        return String(b.updated_at ?? "").localeCompare(
+          String(a.updated_at ?? ""),
+        );
       })
       .slice(0, limit);
 
