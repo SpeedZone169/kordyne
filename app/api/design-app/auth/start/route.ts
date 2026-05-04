@@ -4,9 +4,11 @@ import { createDesignAppAdminClient } from "../../../../../lib/design-app/admin"
 function generateLinkCode(length = 8) {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let result = "";
+
   for (let i = 0; i < length; i += 1) {
     result += alphabet[Math.floor(Math.random() * alphabet.length)];
   }
+
   return result;
 }
 
@@ -19,7 +21,12 @@ export async function POST(request: Request) {
       clientType?: string;
     };
 
-    const clientType = body.clientType === "fusion" ? "fusion" : "fusion";
+    const allowedClientTypes = new Set(["fusion", "inventor"]);
+    const requestedClientType = body.clientType?.trim().toLowerCase() || "fusion";
+
+    const clientType = allowedClientTypes.has(requestedClientType)
+      ? requestedClientType
+      : "fusion";
 
     let linkCode = generateLinkCode();
 
@@ -39,7 +46,10 @@ export async function POST(request: Request) {
         return NextResponse.json({
           ok: true,
           code: linkCode,
-          browser_url: `${origin}/design-app/connect?code=${encodeURIComponent(linkCode)}`,
+          client_type: clientType,
+          browser_url: `${origin}/design-app/connect?code=${encodeURIComponent(
+            linkCode,
+          )}`,
         });
       }
 
