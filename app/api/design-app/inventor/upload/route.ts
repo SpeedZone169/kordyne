@@ -5,9 +5,8 @@ import { createDesignAppAdminClient } from "../../../../../lib/design-app/admin"
 const DESIGN_UPLOAD_BUCKET =
   process.env.NEXT_PUBLIC_SUPABASE_DESIGN_UPLOAD_BUCKET || "part-files";
 
-const ALLOWED_ROLES = new Set(["step"]);
-const ALLOWED_EXTENSIONS = new Set([".step", ".stp"]);
-const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024;
+const ALLOWED_ROLES = new Set(["step", "native"]);
+const MAX_FILE_SIZE_BYTES = 250 * 1024 * 1024;
 
 function sanitizeFileName(name: string) {
   return name.replace(/[^a-zA-Z0-9._-]/g, "_");
@@ -17,6 +16,23 @@ function getExtension(name: string) {
   const lower = name.toLowerCase();
   const idx = lower.lastIndexOf(".");
   return idx >= 0 ? lower.slice(idx) : "";
+}
+
+function isAllowedExtensionForRole(role: string, extension: string) {
+  if (role === "step") {
+    return extension === ".step" || extension === ".stp";
+  }
+
+  if (role === "native") {
+    return extension === ".ipt" || extension === ".iam";
+  }
+
+  return false;
+}
+
+function defaultContentTypeForRole(role: string) {
+  if (role === "step") return "application/step";
+  return "application/octet-stream";
 }
 
 export async function POST(request: Request) {
@@ -58,14 +74,20 @@ export async function POST(request: Request) {
 
     const extension = getExtension(file.name);
 
-    if (!ALLOWED_EXTENSIONS.has(extension)) {
+    if (!isAllowedExtensionForRole(role, extension)) {
       return NextResponse.json(
-        { ok: false, error: "Only STEP files are allowed for this upload." },
+        {
+          ok: false,
+          error:
+            role === "native"
+              ? "Only IPT and IAM files are allowed for native Inventor upload."
+              : "Only STEP files are allowed for STEP upload.",
+        },
         { status: 400 },
       );
     }
 
-    const safeName = sanitizeFileName(file.name || "upload.step");
+    const safeName = sanitizeFileName(file.name || "upload");
     const arrayBuffer = await file.arrayBuffer();
     const fileBytes = new Uint8Array(arrayBuffer);
 
@@ -73,13 +95,13 @@ export async function POST(request: Request) {
       "design-app",
       ctx.organizationId,
       ctx.user.id,
-      `${Date.now()}-${safeName}`,
+      `${Date.now()}-${role}-${safeName}`,
     ].join("/");
 
     const { error: uploadError } = await admin.storage
       .from(DESIGN_UPLOAD_BUCKET)
       .upload(storagePath, fileBytes, {
-        contentType: file.type || "application/step",
+        contentType: file.type || defaultContentTypeForRole(role),
         upsert: false,
       });
 
@@ -94,7 +116,7 @@ export async function POST(request: Request) {
       ok: true,
       file: {
         filename: file.name,
-        mime_type: file.type || "application/step",
+        mime_type: file.type || defaultContentTypeForRole(role),
         size_bytes: file.size,
         storage_path: storagePath,
         role,
@@ -102,7 +124,10 @@ export async function POST(request: Request) {
         uploaded_by_user_id: ctx.user.id,
         bucket: DESIGN_UPLOAD_BUCKET,
       },
-      message: "Inventor STEP file uploaded successfully.",
+      message:
+        role === "native"
+          ? "Inventor native file uploaded successfully."
+          : "Inventor STEP file uploaded successfully.",
     });
   } catch (error) {
     return NextResponse.json(
