@@ -3,6 +3,7 @@ import { getDesignAppRequestContext } from "../../../../../lib/design-app/reques
 import { createDesignAppAdminClient } from "../../../../../lib/design-app/admin";
 
 type PublishInput = {
+  idempotency_key?: string | null;
   part_id?: string | null;
   external_document_id?: string | null;
   external_name?: string | null;
@@ -53,7 +54,29 @@ function inferAssetCategory(role: string) {
   return "other";
 }
 
+function isValidIdempotencyKey(value: string) {
+  return /^[a-zA-Z0-9._:-]{8,128}$/.test(value);
+}
+
 export async function POST(request: Request) {
+  const admin = createDesignAppAdminClient();
+  let idempotencyRowId: string | null = null;
+
+  async function failWithLock(error: string, status = 500) {
+    if (idempotencyRowId) {
+      await admin
+        .from("design_app_publish_idempotency_keys")
+        .update({
+          status: "failed",
+          error,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", idempotencyRowId);
+    }
+
+    return NextResponse.json({ ok: false, error }, { status });
+  }
+
   try {
     const ctx = await getDesignAppRequestContext(request, {
       providerKey: "inventor",
@@ -63,10 +86,21 @@ export async function POST(request: Request) {
 
     if ("error" in ctx) return ctx.error;
 
-    const admin = createDesignAppAdminClient();
     const input = (await request.json()) as PublishInput;
 
     const providerKey = "inventor";
+    const idempotencyKey = asString(input.idempotency_key);
+
+    if (!idempotencyKey || !isValidIdempotencyKey(idempotencyKey)) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "A valid idempotency_key is required.",
+        },
+        { status: 400 },
+      );
+    }
+
     const publishMode = asString(input.metadata?.publish_mode) || "new_family";
 
     const partName =
@@ -122,8 +156,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           ok: false,
-          error:
-            "Inventor connector is not configured for this organization.",
+          error: "Inventor connector is not configured for this organization.",
         },
         { status: 403 },
       );
@@ -161,16 +194,80 @@ export async function POST(request: Request) {
       }
     }
 
+    const { data: lockRow, error: lockError } = await admin
+      .from("design_app_publish_idempotency_keys")
+      .insert({
+        organization_id: ctx.organizationId,
+        provider_key: providerKey,
+        idempotency_key: idempotencyKey,
+        status: "processing",
+        created_by_user_id: ctx.user.id,
+      })
+      .select("id")
+      .single();
+
+    if (lockError) {
+      if (lockError.code === "23505") {
+        const { data: existingLock, error: existingLockError } = await admin
+          .from("design_app_publish_idempotency_keys")
+          .select("status, response, error")
+          .eq("organization_id", ctx.organizationId)
+          .eq("provider_key", providerKey)
+          .eq("idempotency_key", idempotencyKey)
+          .maybeSingle();
+
+        if (existingLockError) {
+          return NextResponse.json(
+            { ok: false, error: existingLockError.message },
+            { status: 500 },
+          );
+        }
+
+        if (existingLock?.status === "completed" && existingLock.response) {
+          return NextResponse.json({
+            ...(existingLock.response as Record<string, unknown>),
+            idempotent_replay: true,
+          });
+        }
+
+        if (existingLock?.status === "processing") {
+          return NextResponse.json(
+            {
+              ok: false,
+              error: "This publish is already processing.",
+              status: "processing",
+            },
+            { status: 409 },
+          );
+        }
+
+        return NextResponse.json(
+          {
+            ok: false,
+            error:
+              existingLock?.error ||
+              "This publish key was already used. Start a new publish attempt.",
+            status: "failed",
+          },
+          { status: 409 },
+        );
+      }
+
+      return NextResponse.json(
+        { ok: false, error: lockError.message },
+        { status: 500 },
+      );
+    }
+
+    idempotencyRowId = lockRow.id;
+
     let partId: string | null = null;
 
     if (publishMode === "new_revision") {
       const sourcePartId = asString(input.part_id);
 
       if (!sourcePartId) {
-        return NextResponse.json(
-          { ok: false, error: "part_id is required for new revision publish." },
-          { status: 400 },
-        );
+        return failWithLock("part_id is required for new revision publish.", 400);
       }
 
       const { data: sourcePart, error: sourcePartError } = await ctx.supabase
@@ -181,17 +278,11 @@ export async function POST(request: Request) {
         .maybeSingle();
 
       if (sourcePartError) {
-        return NextResponse.json(
-          { ok: false, error: sourcePartError.message },
-          { status: 500 },
-        );
+        return failWithLock(sourcePartError.message);
       }
 
       if (!sourcePart?.id) {
-        return NextResponse.json(
-          { ok: false, error: "Target part not found." },
-          { status: 404 },
-        );
+        return failWithLock("Target part not found.", 404);
       }
 
       const { data: newPartId, error: revisionError } = await ctx.supabase.rpc(
@@ -203,12 +294,8 @@ export async function POST(request: Request) {
       );
 
       if (revisionError || !newPartId) {
-        return NextResponse.json(
-          {
-            ok: false,
-            error: revisionError?.message ?? "Failed to create revision.",
-          },
-          { status: 500 },
+        return failWithLock(
+          revisionError?.message ?? "Failed to create revision.",
         );
       }
 
@@ -233,10 +320,7 @@ export async function POST(request: Request) {
         .eq("organization_id", ctx.organizationId);
 
       if (partUpdateError) {
-        return NextResponse.json(
-          { ok: false, error: partUpdateError.message },
-          { status: 500 },
-        );
+        return failWithLock(partUpdateError.message);
       }
     } else {
       const { data: newPartId, error: createPartError } = await ctx.supabase.rpc(
@@ -254,12 +338,8 @@ export async function POST(request: Request) {
       );
 
       if (createPartError || !newPartId) {
-        return NextResponse.json(
-          {
-            ok: false,
-            error: createPartError?.message ?? "Failed to create part.",
-          },
-          { status: 500 },
+        return failWithLock(
+          createPartError?.message ?? "Failed to create part.",
         );
       }
 
@@ -274,17 +354,11 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     if (createdPartError) {
-      return NextResponse.json(
-        { ok: false, error: createdPartError.message },
-        { status: 500 },
-      );
+      return failWithLock(createdPartError.message);
     }
 
     if (!createdPart?.id || !createdPart.part_family_id) {
-      return NextResponse.json(
-        { ok: false, error: "Created part could not be loaded." },
-        { status: 500 },
-      );
+      return failWithLock("Created part could not be loaded.");
     }
 
     for (const file of files) {
@@ -304,10 +378,7 @@ export async function POST(request: Request) {
         });
 
       if (partFileError) {
-        return NextResponse.json(
-          { ok: false, error: partFileError.message },
-          { status: 500 },
-        );
+        return failWithLock(partFileError.message);
       }
     }
 
@@ -316,6 +387,7 @@ export async function POST(request: Request) {
       publish_mode: publishMode,
       uploaded_file_count: files.length,
       uploaded_roles: files.map((file) => asString(file.role).toLowerCase()),
+      idempotency_key: idempotencyKey,
     };
 
     const { data: insertedSourceLink, error: sourceLinkError } = await admin
@@ -347,10 +419,7 @@ export async function POST(request: Request) {
       .single();
 
     if (sourceLinkError) {
-      return NextResponse.json(
-        { ok: false, error: sourceLinkError.message },
-        { status: 500 },
-      );
+      return failWithLock(sourceLinkError.message);
     }
 
     const syncSummary = {
@@ -359,6 +428,7 @@ export async function POST(request: Request) {
       part_family_id: createdPart.part_family_id,
       file_count: files.length,
       external_document_id: externalDocumentId,
+      idempotency_key: idempotencyKey,
     };
 
     const { data: insertedSyncRun, error: syncRunError } = await admin
@@ -382,13 +452,10 @@ export async function POST(request: Request) {
       .single();
 
     if (syncRunError) {
-      return NextResponse.json(
-        { ok: false, error: syncRunError.message },
-        { status: 500 },
-      );
+      return failWithLock(syncRunError.message);
     }
 
-    return NextResponse.json({
+    const responsePayload = {
       ok: true,
       sync_run_id: insertedSyncRun?.id ?? null,
       source_link_id: insertedSourceLink?.id ?? null,
@@ -399,13 +466,42 @@ export async function POST(request: Request) {
       revision: createdPart.revision,
       name: createdPart.name,
       status: createdPart.status,
+      idempotency_key: idempotencyKey,
       message: "Inventor publish completed successfully.",
-    });
+    };
+
+    await admin
+      .from("design_app_publish_idempotency_keys")
+      .update({
+        status: "completed",
+        part_id: createdPart.id,
+        part_family_id: createdPart.part_family_id,
+        response: responsePayload,
+        error: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", idempotencyRowId);
+
+    return NextResponse.json(responsePayload);
   } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Unexpected error.";
+
+    if (idempotencyRowId) {
+      await admin
+        .from("design_app_publish_idempotency_keys")
+        .update({
+          status: "failed",
+          error: message,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", idempotencyRowId);
+    }
+
     return NextResponse.json(
       {
         ok: false,
-        error: error instanceof Error ? error.message : "Unexpected error.",
+        error: message,
       },
       { status: 500 },
     );
