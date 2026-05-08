@@ -23,27 +23,26 @@ function scoreItem(
   const nq = normalize(q);
   if (!nq) return 0;
 
-  const name = normalize(item.name);
-  const partNumber = normalize(item.part_number);
-  const description = normalize(item.description);
-  const processType = normalize(item.process_type);
-  const material = normalize(item.material);
-  const category = normalize(item.category);
+  const fields = [
+    normalize(item.name),
+    normalize(item.part_number),
+    normalize(item.description),
+    normalize(item.process_type),
+    normalize(item.material),
+    normalize(item.category),
+  ];
 
   let score = 0;
 
-  if (name === nq) score += 100;
-  if (partNumber === nq) score += 100;
+  if (fields[0] === nq) score += 100;
+  if (fields[1] === nq) score += 100;
 
-  if (name.startsWith(nq)) score += 50;
-  if (partNumber.startsWith(nq)) score += 50;
+  if (fields[0].startsWith(nq)) score += 50;
+  if (fields[1].startsWith(nq)) score += 50;
 
-  if (name.includes(nq)) score += 25;
-  if (partNumber.includes(nq)) score += 25;
-  if (description.includes(nq)) score += 10;
-  if (processType.includes(nq)) score += 8;
-  if (material.includes(nq)) score += 8;
-  if (category.includes(nq)) score += 6;
+  for (const field of fields) {
+    if (field.includes(nq)) score += 10;
+  }
 
   return score;
 }
@@ -51,6 +50,24 @@ function scoreItem(
 function matchesFilter(value: unknown, filter: string) {
   if (!filter || filter === "all") return true;
   return normalize(value) === normalize(filter);
+}
+
+function toRevisionItem(part: Record<string, unknown>) {
+  return {
+    part_id: String(part.id ?? ""),
+    part_family_id: String(part.part_family_id ?? ""),
+    name: part.name ?? null,
+    part_number: part.part_number ?? null,
+    description: part.description ?? null,
+    process_type: part.process_type ?? null,
+    material: part.material ?? null,
+    category: part.category ?? null,
+    revision: part.revision ?? null,
+    revision_index: part.revision_index ?? null,
+    status: part.status ?? null,
+    created_at: part.created_at ?? null,
+    updated_at: part.updated_at ?? null,
+  };
 }
 
 export async function POST(request: Request) {
@@ -84,7 +101,7 @@ export async function POST(request: Request) {
       .select("*")
       .eq("organization_id", ctx.organizationId)
       .order("updated_at", { ascending: false })
-      .limit(limit * 5);
+      .limit(limit * 12);
 
     if (partsError) {
       return NextResponse.json(
@@ -93,38 +110,21 @@ export async function POST(request: Request) {
       );
     }
 
-    const grouped = new Map<string, Record<string, unknown>>();
+    const grouped = new Map<string, Record<string, unknown>[]>();
 
     for (const row of parts ?? []) {
-      const current = row as Record<string, unknown>;
-      const familyId = String(current.part_family_id ?? "");
+      const part = row as Record<string, unknown>;
+      const familyId = String(part.part_family_id ?? "");
       if (!familyId) continue;
 
-      const existing = grouped.get(familyId);
-      if (!existing) {
-        grouped.set(familyId, current);
-        continue;
+      if (!grouped.has(familyId)) {
+        grouped.set(familyId, []);
       }
 
-      const existingRevision = Number(existing.revision_index ?? -1);
-      const currentRevision = Number(current.revision_index ?? -1);
-
-      if (currentRevision > existingRevision) {
-        grouped.set(familyId, current);
-      }
+      grouped.get(familyId)?.push(part);
     }
 
-    const latestParts = Array.from(grouped.values()).filter((part) => {
-      return (
-        matchesFilter(part.status, statusFilter) &&
-        matchesFilter(part.category, categoryFilter) &&
-        matchesFilter(part.process_type, processFilter)
-      );
-    });
-
-    const familyIds = latestParts
-      .map((item) => String(item.part_family_id ?? ""))
-      .filter(Boolean);
+    const familyIds = Array.from(grouped.keys());
 
     const sourceLinksByFamily = new Map<string, Record<string, unknown>>();
 
@@ -147,35 +147,43 @@ export async function POST(request: Request) {
       }
     }
 
-    const items = latestParts
-      .map((part) => {
-        const familyId = String(part.part_family_id ?? "");
-        const score = scoreItem(q, {
-          name: (part.name as string | null) ?? null,
-          part_number: (part.part_number as string | null) ?? null,
-          description: (part.description as string | null) ?? null,
-          process_type: (part.process_type as string | null) ?? null,
-          material: (part.material as string | null) ?? null,
-          category: (part.category as string | null) ?? null,
-        });
+    const items = Array.from(grouped.entries())
+      .map(([familyId, familyParts]) => {
+        const revisions = familyParts
+          .sort((a, b) => Number(b.revision_index ?? -1) - Number(a.revision_index ?? -1))
+          .map(toRevisionItem);
+
+        const latest = revisions[0] ?? null;
+
+        const searchScore = Math.max(
+          ...familyParts.map((part) =>
+            scoreItem(q, {
+              name: (part.name as string | null) ?? null,
+              part_number: (part.part_number as string | null) ?? null,
+              description: (part.description as string | null) ?? null,
+              process_type: (part.process_type as string | null) ?? null,
+              material: (part.material as string | null) ?? null,
+              category: (part.category as string | null) ?? null,
+            }),
+          ),
+          0,
+        );
 
         return {
-          part_id: String(part.id ?? ""),
+          ...(latest ?? {}),
           part_family_id: familyId,
-          name: part.name ?? null,
-          part_number: part.part_number ?? null,
-          description: part.description ?? null,
-          process_type: part.process_type ?? null,
-          material: part.material ?? null,
-          category: part.category ?? null,
-          revision: part.revision ?? null,
-          revision_index: part.revision_index ?? null,
-          status: part.status ?? null,
-          created_at: part.created_at ?? null,
-          updated_at: part.updated_at ?? null,
           latest_source_link: sourceLinksByFamily.get(familyId) ?? null,
-          search_score: score,
+          search_score: searchScore,
+          revision_count: revisions.length,
+          revisions,
         };
+      })
+      .filter((item) => {
+        return (
+          matchesFilter(item.status, statusFilter) &&
+          matchesFilter(item.category, categoryFilter) &&
+          matchesFilter(item.process_type, processFilter)
+        );
       })
       .sort((a, b) => {
         if (q && (b.search_score ?? 0) !== (a.search_score ?? 0)) {
@@ -206,12 +214,7 @@ export async function POST(request: Request) {
       debug: {
         query: q,
         returned: items.length,
-        filters: {
-          status: statusFilter || "all",
-          category: categoryFilter || "all",
-          process_type: processFilter || "all",
-          sort,
-        },
+        note: "Items are grouped by part family and include all available revisions.",
       },
     });
   } catch (error) {
