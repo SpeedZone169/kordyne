@@ -1,12 +1,13 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { getDesignAppRequestContext } from "../../../../../lib/design-app/request-auth";
 import { createDesignAppAdminClient } from "../../../../../lib/design-app/admin";
 
 const DESIGN_UPLOAD_BUCKET =
   process.env.NEXT_PUBLIC_SUPABASE_DESIGN_UPLOAD_BUCKET || "part-files";
 
-const ALLOWED_ROLES = new Set(["step", "native"]);
-const MAX_FILE_SIZE_BYTES = 250 * 1024 * 1024;
+const ALLOWED_ROLES = new Set(["step", "native", "thumbnail"]);
+const MAX_DESIGN_FILE_SIZE_BYTES = 250 * 1024 * 1024;
+const MAX_THUMBNAIL_FILE_SIZE_BYTES = 15 * 1024 * 1024;
 
 function sanitizeFileName(name: string) {
   return name.replace(/[^a-zA-Z0-9._-]/g, "_");
@@ -27,12 +28,52 @@ function isAllowedExtensionForRole(role: string, extension: string) {
     return extension === ".ipt" || extension === ".iam";
   }
 
+  if (role === "thumbnail") {
+    return (
+      extension === ".png" ||
+      extension === ".jpg" ||
+      extension === ".jpeg" ||
+      extension === ".webp"
+    );
+  }
+
   return false;
 }
 
-function defaultContentTypeForRole(role: string) {
+function defaultContentTypeForRole(role: string, extension = "") {
   if (role === "step") return "application/step";
+
+  if (role === "thumbnail") {
+    if (extension === ".jpg" || extension === ".jpeg") return "image/jpeg";
+    if (extension === ".webp") return "image/webp";
+    return "image/png";
+  }
+
   return "application/octet-stream";
+}
+
+function maxFileSizeForRole(role: string) {
+  return role === "thumbnail"
+    ? MAX_THUMBNAIL_FILE_SIZE_BYTES
+    : MAX_DESIGN_FILE_SIZE_BYTES;
+}
+
+function uploadMessageForRole(role: string) {
+  if (role === "native") return "Inventor native file uploaded successfully.";
+  if (role === "thumbnail") return "Inventor preview thumbnail uploaded successfully.";
+  return "Inventor STEP file uploaded successfully.";
+}
+
+function invalidExtensionMessageForRole(role: string) {
+  if (role === "native") {
+    return "Only IPT and IAM files are allowed for native Inventor upload.";
+  }
+
+  if (role === "thumbnail") {
+    return "Only PNG, JPG, JPEG and WebP files are allowed for preview thumbnail upload.";
+  }
+
+  return "Only STEP files are allowed for STEP upload.";
 }
 
 export async function POST(request: Request) {
@@ -65,9 +106,17 @@ export async function POST(request: Request) {
       );
     }
 
-    if (file.size <= 0 || file.size > MAX_FILE_SIZE_BYTES) {
+    const maxSize = maxFileSizeForRole(role);
+
+    if (file.size <= 0 || file.size > maxSize) {
       return NextResponse.json(
-        { ok: false, error: "File size is invalid or exceeds the maximum allowed size." },
+        {
+          ok: false,
+          error:
+            role === "thumbnail"
+              ? "Thumbnail size is invalid or exceeds the 15 MB limit."
+              : "File size is invalid or exceeds the maximum allowed size.",
+        },
         { status: 400 },
       );
     }
@@ -78,10 +127,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           ok: false,
-          error:
-            role === "native"
-              ? "Only IPT and IAM files are allowed for native Inventor upload."
-              : "Only STEP files are allowed for STEP upload.",
+          error: invalidExtensionMessageForRole(role),
         },
         { status: 400 },
       );
@@ -98,10 +144,12 @@ export async function POST(request: Request) {
       `${Date.now()}-${role}-${safeName}`,
     ].join("/");
 
+    const contentType = file.type || defaultContentTypeForRole(role, extension);
+
     const { error: uploadError } = await admin.storage
       .from(DESIGN_UPLOAD_BUCKET)
       .upload(storagePath, fileBytes, {
-        contentType: file.type || defaultContentTypeForRole(role),
+        contentType,
         upsert: false,
       });
 
@@ -116,7 +164,7 @@ export async function POST(request: Request) {
       ok: true,
       file: {
         filename: file.name,
-        mime_type: file.type || defaultContentTypeForRole(role),
+        mime_type: contentType,
         size_bytes: file.size,
         storage_path: storagePath,
         role,
@@ -124,10 +172,7 @@ export async function POST(request: Request) {
         uploaded_by_user_id: ctx.user.id,
         bucket: DESIGN_UPLOAD_BUCKET,
       },
-      message:
-        role === "native"
-          ? "Inventor native file uploaded successfully."
-          : "Inventor STEP file uploaded successfully.",
+      message: uploadMessageForRole(role),
     });
   } catch (error) {
     return NextResponse.json(

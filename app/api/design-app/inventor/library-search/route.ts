@@ -1,5 +1,9 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { getDesignAppRequestContext } from "../../../../../lib/design-app/request-auth";
+import { createDesignAppAdminClient } from "../../../../../lib/design-app/admin";
+
+const DESIGN_UPLOAD_BUCKET =
+  process.env.NEXT_PUBLIC_SUPABASE_DESIGN_UPLOAD_BUCKET || "part-files";
 
 function normalize(value: unknown) {
   return String(value ?? "").trim().toLowerCase();
@@ -52,7 +56,25 @@ function matchesFilter(value: unknown, filter: string) {
   return normalize(value) === normalize(filter);
 }
 
-function toRevisionItem(part: Record<string, unknown>) {
+type ThumbnailInfo = {
+  thumbnail_file_id: string | null;
+  thumbnail_file_name: string | null;
+  thumbnail_storage_path: string | null;
+  thumbnail_url: string | null;
+};
+
+function emptyThumbnail(): ThumbnailInfo {
+  return {
+    thumbnail_file_id: null,
+    thumbnail_file_name: null,
+    thumbnail_storage_path: null,
+    thumbnail_url: null,
+  };
+}
+
+function toRevisionItem(part: Record<string, unknown>, thumbnail?: ThumbnailInfo) {
+  const thumbnailInfo = thumbnail ?? emptyThumbnail();
+
   return {
     part_id: String(part.id ?? ""),
     part_family_id: String(part.part_family_id ?? ""),
@@ -67,7 +89,91 @@ function toRevisionItem(part: Record<string, unknown>) {
     status: part.status ?? null,
     created_at: part.created_at ?? null,
     updated_at: part.updated_at ?? null,
+    thumbnail_file_id: thumbnailInfo.thumbnail_file_id,
+    thumbnail_file_name: thumbnailInfo.thumbnail_file_name,
+    thumbnail_storage_path: thumbnailInfo.thumbnail_storage_path,
+    thumbnail_url: thumbnailInfo.thumbnail_url,
+    thumbnail_signed_url: thumbnailInfo.thumbnail_url,
+    preview_url: thumbnailInfo.thumbnail_url,
+    image_url: thumbnailInfo.thumbnail_url,
   };
+}
+
+function isImageContentType(value: unknown) {
+  return normalize(value).startsWith("image/");
+}
+
+function isImageFileName(value: unknown) {
+  const name = normalize(value);
+  return (
+    name.endsWith(".png") ||
+    name.endsWith(".jpg") ||
+    name.endsWith(".jpeg") ||
+    name.endsWith(".webp")
+  );
+}
+
+async function loadThumbnailMap(
+  admin: ReturnType<typeof createDesignAppAdminClient>,
+  partIds: string[],
+) {
+  const thumbnailByPartId = new Map<string, ThumbnailInfo>();
+
+  if (partIds.length === 0) {
+    return thumbnailByPartId;
+  }
+
+  const { data: imageFiles, error: imageFilesError } = await admin
+    .from("part_files")
+    .select(
+      "id, part_id, file_name, file_type, storage_path, file_size_bytes, asset_category, created_at",
+    )
+    .in("part_id", partIds)
+    .order("created_at", { ascending: false });
+
+  if (imageFilesError) {
+    throw new Error(imageFilesError.message);
+  }
+
+  for (const file of imageFiles ?? []) {
+    const record = file as Record<string, unknown>;
+    const partId = String(record.part_id ?? "");
+
+    if (!partId || thumbnailByPartId.has(partId)) continue;
+
+    const assetCategory = normalize(record.asset_category);
+    const fileType = record.file_type;
+    const fileName = record.file_name;
+
+    if (
+      assetCategory !== "image" &&
+      !isImageContentType(fileType) &&
+      !isImageFileName(fileName)
+    ) {
+      continue;
+    }
+
+    const storagePath = asString(record.storage_path);
+    if (!storagePath) continue;
+
+    const { data: signed, error: signedError } = await admin.storage
+      .from(DESIGN_UPLOAD_BUCKET)
+      .createSignedUrl(storagePath, 10 * 60);
+
+    if (signedError || !signed?.signedUrl) {
+      // Do not fail the entire library search because one image could not be signed.
+      continue;
+    }
+
+    thumbnailByPartId.set(partId, {
+      thumbnail_file_id: String(record.id ?? "") || null,
+      thumbnail_file_name: asString(record.file_name) || null,
+      thumbnail_storage_path: storagePath,
+      thumbnail_url: signed.signedUrl,
+    });
+  }
+
+  return thumbnailByPartId;
 }
 
 export async function POST(request: Request) {
@@ -79,6 +185,8 @@ export async function POST(request: Request) {
     });
 
     if ("error" in ctx) return ctx.error;
+
+    const admin = createDesignAppAdminClient();
 
     const body = (await request.json().catch(() => ({}))) as {
       q?: string;
@@ -125,6 +233,13 @@ export async function POST(request: Request) {
     }
 
     const familyIds = Array.from(grouped.keys());
+    const partIds = Array.from(
+      new Set(
+        (parts ?? [])
+          .map((part) => String((part as Record<string, unknown>).id ?? ""))
+          .filter(Boolean),
+      ),
+    );
 
     const sourceLinksByFamily = new Map<string, Record<string, unknown>>();
 
@@ -147,13 +262,20 @@ export async function POST(request: Request) {
       }
     }
 
+    const thumbnailByPartId = await loadThumbnailMap(admin, partIds);
+
     const items = Array.from(grouped.entries())
       .map(([familyId, familyParts]) => {
-        const revisions = familyParts
-          .sort((a, b) => Number(b.revision_index ?? -1) - Number(a.revision_index ?? -1))
-          .map(toRevisionItem);
+        const sortedFamilyParts = familyParts.sort(
+          (a, b) => Number(b.revision_index ?? -1) - Number(a.revision_index ?? -1),
+        );
+
+        const revisions = sortedFamilyParts.map((part) =>
+          toRevisionItem(part, thumbnailByPartId.get(String(part.id ?? ""))),
+        );
 
         const latest = revisions[0] ?? null;
+        const familyThumbnail = revisions.find((revision) => revision.thumbnail_url);
 
         const searchScore = Math.max(
           ...familyParts.map((part) =>
@@ -175,6 +297,19 @@ export async function POST(request: Request) {
           latest_source_link: sourceLinksByFamily.get(familyId) ?? null,
           search_score: searchScore,
           revision_count: revisions.length,
+          thumbnail_file_id:
+            latest?.thumbnail_file_id ?? familyThumbnail?.thumbnail_file_id ?? null,
+          thumbnail_file_name:
+            latest?.thumbnail_file_name ?? familyThumbnail?.thumbnail_file_name ?? null,
+          thumbnail_storage_path:
+            latest?.thumbnail_storage_path ??
+            familyThumbnail?.thumbnail_storage_path ??
+            null,
+          thumbnail_url: latest?.thumbnail_url ?? familyThumbnail?.thumbnail_url ?? null,
+          thumbnail_signed_url:
+            latest?.thumbnail_url ?? familyThumbnail?.thumbnail_url ?? null,
+          preview_url: latest?.thumbnail_url ?? familyThumbnail?.thumbnail_url ?? null,
+          image_url: latest?.thumbnail_url ?? familyThumbnail?.thumbnail_url ?? null,
           revisions,
         };
       })
@@ -214,7 +349,8 @@ export async function POST(request: Request) {
       debug: {
         query: q,
         returned: items.length,
-        note: "Items are grouped by part family and include all available revisions.",
+        thumbnails_returned: items.filter((item) => item.thumbnail_url).length,
+        note: "Items are grouped by part family and include all available revisions with signed thumbnail URLs when available.",
       },
     });
   } catch (error) {

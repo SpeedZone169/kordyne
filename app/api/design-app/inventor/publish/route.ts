@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { getDesignAppRequestContext } from "../../../../../lib/design-app/request-auth";
 import { createDesignAppAdminClient } from "../../../../../lib/design-app/admin";
 
@@ -18,6 +18,8 @@ type PublishInput = {
     category?: string | null;
     status?: string | null;
     revision_note?: string | null;
+    thumbnail_storage_path?: string | null;
+    thumbnail_filename?: string | null;
   } | null;
   files?: Array<{
     role?: string | null;
@@ -52,7 +54,12 @@ function validateStoragePathPrefix(
 function inferAssetCategory(role: string) {
   if (role === "step") return "cad_3d";
   if (role === "native") return "cad_3d";
+  if (role === "thumbnail") return "image";
   return "other";
+}
+
+function isAllowedFileRole(role: string) {
+  return role === "step" || role === "native" || role === "thumbnail";
 }
 
 function isValidIdempotencyKey(value: string) {
@@ -129,7 +136,7 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!isAllowedRevisionScheme(revisionScheme)) {
+    if (publishMode === "new_family" && !isAllowedRevisionScheme(revisionScheme)) {
       return NextResponse.json(
         { ok: false, error: "Unsupported revision scheme." },
         { status: 400 },
@@ -187,9 +194,13 @@ export async function POST(request: Request) {
 
       const role = asString(file.role).toLowerCase();
 
-      if (role !== "step" && role !== "native") {
+      if (!isAllowedFileRole(role)) {
         return NextResponse.json(
-          { ok: false, error: "Only STEP and native Inventor files can be published from this flow." },
+          {
+            ok: false,
+            error:
+              "Only STEP, native Inventor and preview thumbnail files can be published from this flow.",
+          },
           { status: 400 },
         );
       }
@@ -362,24 +373,80 @@ export async function POST(request: Request) {
       return failWithLock("Created part could not be loaded.");
     }
 
+    let thumbnailFileId: string | null = null;
+    let thumbnailStoragePath: string | null = null;
+    let thumbnailFileName: string | null = null;
+
     for (const file of files) {
       const role = asString(file.role).toLowerCase();
+      const assetCategory = inferAssetCategory(role);
 
-      const { error: partFileError } = await admin
+      const { data: insertedPartFile, error: partFileError } = await admin
         .from("part_files")
         .insert({
           part_id: createdPart.id,
           user_id: ctx.user.id,
           file_name: asString(file.filename) || "Unnamed file",
           file_type: asString(file.mime_type) || "application/octet-stream",
-          asset_category: inferAssetCategory(role),
+          asset_category: assetCategory,
           storage_path: asString(file.storage_path),
           file_size_bytes:
             typeof file.size_bytes === "number" ? file.size_bytes : null,
-        });
+        })
+        .select("id, file_name, storage_path, asset_category")
+        .single();
 
       if (partFileError) {
         return failWithLock(partFileError.message);
+      }
+
+      if (role === "thumbnail" || assetCategory === "image") {
+        thumbnailFileId = String(insertedPartFile?.id ?? "") || thumbnailFileId;
+        thumbnailStoragePath =
+          asString(insertedPartFile?.storage_path) || asString(file.storage_path) || thumbnailStoragePath;
+        thumbnailFileName =
+          asString(insertedPartFile?.file_name) || asString(file.filename) || thumbnailFileName;
+      }
+    }
+
+    if (!thumbnailStoragePath) {
+      const metadataThumbnailStoragePath = asString(
+        input.metadata?.thumbnail_storage_path,
+      );
+      const metadataThumbnailFileName = asString(input.metadata?.thumbnail_filename);
+
+      if (
+        metadataThumbnailStoragePath &&
+        validateStoragePathPrefix(
+          metadataThumbnailStoragePath,
+          ctx.organizationId,
+          ctx.user.id,
+        )
+      ) {
+        const { data: insertedThumbnailFile, error: thumbnailPartFileError } =
+          await admin
+            .from("part_files")
+            .insert({
+              part_id: createdPart.id,
+              user_id: ctx.user.id,
+              file_name: metadataThumbnailFileName || "Inventor preview thumbnail.png",
+              file_type: "image/png",
+              asset_category: "image",
+              storage_path: metadataThumbnailStoragePath,
+              file_size_bytes: null,
+            })
+            .select("id, file_name, storage_path")
+            .single();
+
+        if (thumbnailPartFileError) {
+          return failWithLock(thumbnailPartFileError.message);
+        }
+
+        thumbnailFileId = String(insertedThumbnailFile?.id ?? "") || null;
+        thumbnailStoragePath =
+          asString(insertedThumbnailFile?.storage_path) || metadataThumbnailStoragePath;
+        thumbnailFileName =
+          asString(insertedThumbnailFile?.file_name) || metadataThumbnailFileName || null;
       }
     }
 
@@ -388,6 +455,9 @@ export async function POST(request: Request) {
       publish_mode: publishMode,
       uploaded_file_count: files.length,
       uploaded_roles: files.map((file) => asString(file.role).toLowerCase()),
+      thumbnail_file_id: thumbnailFileId,
+      thumbnail_storage_path: thumbnailStoragePath,
+      thumbnail_filename: thumbnailFileName,
       idempotency_key: idempotencyKey,
     };
 
@@ -429,6 +499,8 @@ export async function POST(request: Request) {
       part_family_id: createdPart.part_family_id,
       file_count: files.length,
       external_document_id: externalDocumentId,
+      thumbnail_file_id: thumbnailFileId,
+      has_thumbnail: Boolean(thumbnailStoragePath),
       idempotency_key: idempotencyKey,
     };
 
@@ -467,6 +539,8 @@ export async function POST(request: Request) {
       revision: createdPart.revision,
       name: createdPart.name,
       status: createdPart.status,
+      thumbnail_file_id: thumbnailFileId,
+      thumbnail_storage_path: thumbnailStoragePath,
       idempotency_key: idempotencyKey,
       message: "Inventor publish completed successfully.",
     };
