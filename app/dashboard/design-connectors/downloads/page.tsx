@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "../../../../lib/supabase/server";
 
@@ -9,8 +9,16 @@ const CONNECTORS: Array<{
   label: string;
   href?: string;
 }> = [
-  { key: "fusion", label: "Fusion", href: "/api/design-connectors/fusion/download" },
-  { key: "inventor", label: "Inventor" },
+  {
+    key: "fusion",
+    label: "Fusion",
+    href: "/api/design-connectors/fusion/download",
+  },
+  {
+    key: "inventor",
+    label: "Inventor",
+    href: "/api/design-connectors/inventor/download",
+  },
   { key: "solidworks", label: "SolidWorks" },
   { key: "onshape", label: "Onshape" },
 ];
@@ -93,7 +101,7 @@ export default async function DesignConnectorDownloadsPage() {
               Connector Downloads
             </h1>
             <p className="mt-1 text-sm text-gray-500">
-              Design connector packages
+              Download enabled design connectors for your organization.
             </p>
           </div>
 
@@ -121,11 +129,7 @@ export default async function DesignConnectorDownloadsPage() {
               ? entitlement.allowed_runtime_roles.join(", ")
               : "—";
 
-          const showDownload =
-            connector.key === "fusion" &&
-            canDownload &&
-            enabled &&
-            connector.href;
+          const showDownload = Boolean(canDownload && enabled && connector.href);
 
           const statusLabel = enabled
             ? "Enabled"
@@ -178,13 +182,13 @@ export default async function DesignConnectorDownloadsPage() {
                   >
                     Download
                   </a>
-                ) : connector.key === "fusion" ? (
+                ) : release ? (
                   <button
                     type="button"
                     disabled
                     className="inline-flex cursor-not-allowed rounded-xl border border-gray-200 bg-gray-100 px-4 py-2 text-sm font-medium text-gray-400"
                   >
-                    Download
+                    Download disabled
                   </button>
                 ) : (
                   <button
