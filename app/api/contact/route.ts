@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -101,7 +101,7 @@ export async function POST(req: Request) {
     const email = readString(body.email, 180).toLowerCase();
     const company = readString(body.company, 160);
     const teamSize = readString(body.teamSize, 80);
-    const process = readString(body.process, 120);
+    const manufacturingProcess = readString(body.process, 120);
     const message = readString(body.message, 3000);
 
     if (!name || !email || !message) {
@@ -139,7 +139,7 @@ export async function POST(req: Request) {
         <p><strong>Company:</strong> ${escapeHtml(company || "Not provided")}</p>
         <p><strong>Team size:</strong> ${escapeHtml(teamSize || "Not provided")}</p>
         <p><strong>Primary manufacturing interest:</strong> ${escapeHtml(
-          process || "Not provided"
+          manufacturingProcess || "Not provided"
         )}</p>
         <p><strong>Message:</strong></p>
         <p>${escapeHtml(message).replaceAll("\n", "<br />")}</p>
@@ -151,7 +151,7 @@ export async function POST(req: Request) {
         `Email: ${email}`,
         `Company: ${company || "Not provided"}`,
         `Team size: ${teamSize || "Not provided"}`,
-        `Primary manufacturing interest: ${process || "Not provided"}`,
+        `Primary manufacturing interest: ${manufacturingProcess || "Not provided"}`,
         "",
         "Message:",
         message,
@@ -168,3 +168,4 @@ export async function POST(req: Request) {
     );
   }
 }
+

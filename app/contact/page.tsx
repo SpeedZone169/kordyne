@@ -1,52 +1,74 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import Navbar from "../../components/Navbar";
 import Footer from "../../components/Footer";
+import TurnstileWidget from "../../components/TurnstileWidget";
+
+type ContactForm = {
+  name: string;
+  email: string;
+  company: string;
+  teamSize: string;
+  process: string;
+  message: string;
+};
+
+const emptyForm: ContactForm = {
+  name: "",
+  email: "",
+  company: "",
+  teamSize: "",
+  process: "",
+  message: "",
+};
 
 export default function ContactPage() {
-  const [form, setForm] = useState({
-    name: "",
-    email: "",
-    company: "",
-    teamSize: "",
-    process: "",
-    message: "",
-  });
-
+  const [form, setForm] = useState<ContactForm>(emptyForm);
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const [turnstileKey, setTurnstileKey] = useState(0);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("");
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setLoading(true);
     setStatus("");
 
-    const res = await fetch("/api/contact", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(form),
-    });
-
-    const data = await res.json();
-
-    if (data.success) {
-      setStatus("Thanks — your request has been sent.");
-      setForm({
-        name: "",
-        email: "",
-        company: "",
-        teamSize: "",
-        process: "",
-        message: "",
-      });
-    } else {
-      setStatus("Sorry — something went wrong.");
+    if (!turnstileToken) {
+      setStatus("Please complete the verification before sending.");
+      return;
     }
 
-    setLoading(false);
+    setLoading(true);
+
+    try {
+      const res = await fetch("/api/contact", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ...form,
+          turnstileToken,
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (res.ok && data?.success) {
+        setStatus("Thanks - your request has been sent.");
+        setForm(emptyForm);
+      } else {
+        setStatus(data?.error || "Sorry - something went wrong.");
+      }
+    } catch (error) {
+      console.error("Contact form submit error:", error);
+      setStatus("Sorry - something went wrong.");
+    } finally {
+      setLoading(false);
+      setTurnstileToken("");
+      setTurnstileKey((value) => value + 1);
+    }
   }
 
   function handleChange(
@@ -130,9 +152,9 @@ export default function ContactPage() {
                   className="w-full rounded-2xl border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-gray-900"
                 >
                   <option value="">Select</option>
-                  <option value="1-10">1–10</option>
-                  <option value="11-50">11–50</option>
-                  <option value="51-200">51–200</option>
+                  <option value="1-10">1-10</option>
+                  <option value="11-50">11-50</option>
+                  <option value="51-200">51-200</option>
                   <option value="200+">200+</option>
                 </select>
               </div>
@@ -171,10 +193,14 @@ export default function ContactPage() {
               />
             </div>
 
+            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+              <TurnstileWidget key={turnstileKey} onVerify={setTurnstileToken} />
+            </div>
+
             <button
               type="submit"
-              disabled={loading}
-              className="rounded-2xl bg-gray-900 px-6 py-3 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50"
+              disabled={loading || !turnstileToken}
+              className="rounded-2xl bg-gray-900 px-6 py-3 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {loading ? "Sending..." : "Send request"}
             </button>
