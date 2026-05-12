@@ -21,6 +21,7 @@ type ContactBody = {
   teamSize?: unknown;
   process?: unknown;
   message?: unknown;
+  turnstileToken?: unknown;
 };
 
 function readString(value: unknown, maxLength: number) {
@@ -77,6 +78,39 @@ function isRateLimited(ip: string) {
   return false;
 }
 
+async function verifyTurnstileToken(token: string, ip: string) {
+  const secretKey = process.env.TURNSTILE_SECRET_KEY;
+
+  if (!secretKey) {
+    console.error("TURNSTILE_SECRET_KEY is not configured");
+    return false;
+  }
+
+  const formData = new FormData();
+  formData.append("secret", secretKey);
+  formData.append("response", token);
+
+  if (ip !== "unknown") {
+    formData.append("remoteip", ip);
+  }
+
+  const result = await fetch(
+    "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+    {
+      method: "POST",
+      body: formData,
+    }
+  );
+
+  if (!result.ok) {
+    return false;
+  }
+
+  const data = (await result.json()) as { success?: boolean };
+
+  return data.success === true;
+}
+
 export async function POST(req: Request) {
   try {
     const ip = getClientIp(req);
@@ -103,6 +137,7 @@ export async function POST(req: Request) {
     const teamSize = readString(body.teamSize, 80);
     const manufacturingProcess = readString(body.process, 120);
     const message = readString(body.message, 3000);
+    const turnstileToken = readString(body.turnstileToken, 2048);
 
     if (!name || !email || !message) {
       return NextResponse.json(
@@ -114,6 +149,22 @@ export async function POST(req: Request) {
     if (!isValidEmail(email)) {
       return NextResponse.json(
         { success: false, error: "Invalid email address" },
+        { status: 400 }
+      );
+    }
+
+    if (!turnstileToken) {
+      return NextResponse.json(
+        { success: false, error: "Verification is required" },
+        { status: 400 }
+      );
+    }
+
+    const turnstileOk = await verifyTurnstileToken(turnstileToken, ip);
+
+    if (!turnstileOk) {
+      return NextResponse.json(
+        { success: false, error: "Verification failed. Please try again." },
         { status: 400 }
       );
     }
@@ -151,7 +202,9 @@ export async function POST(req: Request) {
         `Email: ${email}`,
         `Company: ${company || "Not provided"}`,
         `Team size: ${teamSize || "Not provided"}`,
-        `Primary manufacturing interest: ${manufacturingProcess || "Not provided"}`,
+        `Primary manufacturing interest: ${
+          manufacturingProcess || "Not provided"
+        }`,
         "",
         "Message:",
         message,
@@ -168,4 +221,3 @@ export async function POST(req: Request) {
     );
   }
 }
-
