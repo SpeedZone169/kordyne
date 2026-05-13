@@ -1,0 +1,5 @@
+﻿Contact: https://www.kordyne.com/contact
+Canonical: https://www.kordyne.com/.well-known/security.txt
+Policy: https://www.kordyne.com/contact
+Preferred-Languages: en, pl
+Expires: 2027-05-13T00:00:00Z
