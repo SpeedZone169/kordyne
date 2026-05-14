@@ -11,6 +11,13 @@ function maskToken(token: string | null) {
 }
 
 export async function GET(request: Request) {
+  if (
+    process.env.NODE_ENV === "production" &&
+    process.env.DESIGN_APP_DIAGNOSTICS_ENABLED !== "true"
+  ) {
+    return NextResponse.json({ error: "Not found." }, { status: 404 });
+  }
+
   const token = extractDesignAppToken(request);
 
   const debug: Record<string, unknown> = {

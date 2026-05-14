@@ -44,3 +44,7 @@ supabase/backups/
 supabase/migrations_local_backup/
 *.dump
 *.backup
+*.bak
+*_dump.txt
+*-dump.txt
+/kordyne-code-review-updated.zip

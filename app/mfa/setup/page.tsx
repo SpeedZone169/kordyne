@@ -1,4 +1,5 @@
 import Client from "./Client";
+import { getSafeRedirectPath } from "@/lib/auth/redirects";
 
 type PageProps = {
   searchParams?: Promise<{
@@ -8,7 +9,7 @@ type PageProps = {
 
 export default async function MfaSetupPage({ searchParams }: PageProps) {
   const resolvedSearchParams = searchParams ? await searchParams : {};
-  const nextPath = resolvedSearchParams.next || "/";
+  const nextPath = getSafeRedirectPath(resolvedSearchParams.next, "/dashboard");
 
   return <Client nextPath={nextPath} />;
 }

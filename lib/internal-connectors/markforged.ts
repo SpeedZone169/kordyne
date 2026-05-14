@@ -1,4 +1,5 @@
 import { decryptConnectorSecret } from "@/lib/internal-connectors/crypto";
+import { assertSafeServerFetchUrl } from "@/lib/security/server-fetch-url";
 import type {
   ConnectorSyncResult,
   InternalConnectorCredentialProfileSecretRecord,
@@ -45,13 +46,7 @@ function readPath(root: unknown, path: string[]) {
 
 function resolveBaseUrl(connection?: InternalResourceConnection): string {
   const raw = readString(connection?.base_url) ?? DEFAULT_BASE_URL;
-  const url = new URL(raw);
-
-  if (url.protocol !== "https:" && url.protocol !== "http:") {
-    throw new Error("Markforged base_url must be http or https.");
-  }
-
-  return url.origin;
+  return assertSafeServerFetchUrl(raw, "Markforged base_url");
 }
 
 function requireMarkforgedCredentials(

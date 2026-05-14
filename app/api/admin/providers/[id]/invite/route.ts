@@ -2,6 +2,16 @@ import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { hasVerifiedMfaSession } from "@/lib/auth/mfa";
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
 
 function getSiteUrl(req: Request) {
   return (
@@ -57,6 +67,13 @@ export async function POST(
       );
     }
 
+    if (!(await hasVerifiedMfaSession())) {
+      return NextResponse.json(
+        { error: "Multi-factor verification is required for this action." },
+        { status: 403 }
+      );
+    }
+
     const adminSupabase = createAdminClient();
 
     const { data: providerOrg, error: providerOrgError } = await adminSupabase
@@ -69,20 +86,6 @@ export async function POST(
       return NextResponse.json(
         { error: "Provider organization not found." },
         { status: 404 }
-      );
-    }
-
-    const { count: pendingInviteCount, error: pendingInviteCountError } =
-      await adminSupabase
-        .from("organization_invites")
-        .select("*", { count: "exact", head: true })
-        .eq("organization_id", providerOrgId)
-        .eq("status", "pending");
-
-    if (pendingInviteCountError) {
-      return NextResponse.json(
-        { error: "Unable to check pending invites." },
-        { status: 500 }
       );
     }
 
@@ -145,6 +148,10 @@ export async function POST(
     const resend = new Resend(process.env.RESEND_API_KEY);
 
     const introLine = fullName ? `Hello ${fullName},` : "Hello,";
+    const safeIntroLine = escapeHtml(introLine);
+    const safeProviderName = escapeHtml(providerOrg.name);
+    const safeInviteUrl = escapeHtml(inviteUrl);
+    const safeProviderInfoUrl = escapeHtml(providerInfoUrl);
 
     const { error: emailError } = await resend.emails.send({
       from: process.env.RESEND_FROM_EMAIL || "Kordyne <noreply@kordyne.com>",
@@ -163,9 +170,9 @@ export async function POST(
       html: `
         <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111827;">
           <h2 style="margin-bottom: 16px;">You're invited to join Kordyne</h2>
-          <p>${introLine}</p>
+          <p>${safeIntroLine}</p>
           <p>
-            You've been invited to join <strong>${providerOrg.name}</strong>
+            You've been invited to join <strong>${safeProviderName}</strong>
             as an <strong>admin</strong>.
           </p>
           <p>
@@ -174,7 +181,7 @@ export async function POST(
           </p>
           <p style="margin: 24px 0;">
             <a
-              href="${inviteUrl}"
+              href="${safeInviteUrl}"
               style="display: inline-block; background: #111827; color: #ffffff; text-decoration: none; padding: 12px 18px; border-radius: 9999px;"
             >
               Accept invite
@@ -182,10 +189,10 @@ export async function POST(
           </p>
           <p>
             Learn more here:
-            <a href="${providerInfoUrl}">${providerInfoUrl}</a>
+            <a href="${safeProviderInfoUrl}">${safeProviderInfoUrl}</a>
           </p>
           <p>If the button does not work, use this link:</p>
-          <p><a href="${inviteUrl}">${inviteUrl}</a></p>
+          <p><a href="${safeInviteUrl}">${safeInviteUrl}</a></p>
         </div>
       `,
     });

@@ -100,9 +100,6 @@ export async function POST(request: Request) {
   const uniqueRelationshipIds = [
     ...new Set(providerSelections.map((p) => p.providerRelationshipId)),
   ];
-  const uniqueProviderOrgIds = [
-    ...new Set(providerSelections.map((p) => p.providerOrgId)),
-  ];
 
   if (uniqueRelationshipIds.length !== providerSelections.length) {
     return NextResponse.json(

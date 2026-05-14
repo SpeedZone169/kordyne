@@ -1,6 +1,17 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
+export async function hasVerifiedMfaSession() {
+  const supabase = await createClient();
+
+  const aalResult = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+  if (aalResult.error) {
+    throw new Error(aalResult.error.message);
+  }
+
+  return aalResult.data.currentLevel === "aal2";
+}
+
 export async function enforceMfaOrRedirect(nextPath: string) {
   const supabase = await createClient();
 

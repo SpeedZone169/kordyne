@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import {
   absoluteUrl,
   getOrgNotificationRecipients,
@@ -41,6 +42,18 @@ function toPositiveNumber(value: unknown): number | null {
 
 function roundMoney(value: number) {
   return Math.round(value * 100) / 100;
+}
+
+function hasUnsafeStoragePathSegments(path: string) {
+  return (
+    path.startsWith("/") ||
+    path.includes("\\") ||
+    path.split("/").some((segment) => !segment || segment === "." || segment === "..")
+  );
+}
+
+function getStorageFileName(path: string) {
+  return path.split("/").pop() ?? "";
 }
 
 export async function POST(
@@ -173,6 +186,49 @@ export async function POST(
       { error: "Invoices can only be created for awarded packages." },
       { status: 400 },
     );
+  }
+
+  if (invoiceSource === "provider_uploaded" && uploadedFilePath) {
+    const expectedPrefix = `${pkg.provider_org_id}/${pkg.id}/`;
+    const uploadedFileNameFromPath = getStorageFileName(uploadedFilePath);
+
+    if (
+      hasUnsafeStoragePathSegments(uploadedFilePath) ||
+      !uploadedFilePath.startsWith(expectedPrefix) ||
+      !uploadedFileNameFromPath.toLowerCase().endsWith(".pdf")
+    ) {
+      return NextResponse.json(
+        { error: "Uploaded invoice file path is invalid." },
+        { status: 400 },
+      );
+    }
+
+    const admin = createAdminClient();
+    const { data: invoiceObjects, error: invoiceObjectError } =
+      await admin.storage
+        .from("provider-invoices")
+        .list(`${pkg.provider_org_id}/${pkg.id}`, {
+          limit: 100,
+          search: uploadedFileNameFromPath,
+        });
+
+    if (invoiceObjectError) {
+      return NextResponse.json(
+        { error: invoiceObjectError.message || "Unable to verify invoice upload." },
+        { status: 400 },
+      );
+    }
+
+    const uploadedObject = invoiceObjects?.find(
+      (object) => object.name === uploadedFileNameFromPath,
+    );
+
+    if (!uploadedObject) {
+      return NextResponse.json(
+        { error: "Uploaded invoice file was not found in storage." },
+        { status: 400 },
+      );
+    }
   }
 
   const { data: latestAcceptedQuote, error: quoteError } = await supabase

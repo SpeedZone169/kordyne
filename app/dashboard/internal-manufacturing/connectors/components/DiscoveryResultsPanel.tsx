@@ -11,6 +11,10 @@ import {
 } from "./discoveryHelpers";
 import type { DiscoveredMachine, ProviderUiPreset } from "./connectorUi";
 import { formatLabel, getStatusBadgeClasses } from "./connectorUi";
+import type {
+  InternalConnectorProviderKey,
+  InternalConnectorResource,
+} from "../types";
 
 export default function DiscoveryResultsPanel({
   discoveredMachines,
@@ -38,8 +42,8 @@ export default function DiscoveryResultsPanel({
   setExternalResourceId: (value: string) => void;
   setDisplayName: (value: string) => void;
   setStructuredMetadata: (value: Record<string, unknown>) => void;
-  resource: any;
-  providerKey: any;
+  resource: InternalConnectorResource | null;
+  providerKey: InternalConnectorProviderKey;
   preset: ProviderUiPreset;
   credentialProfileId: string;
   bulkCreating: null | "resources" | "resources_capabilities" | "resources_connectors" | "full";

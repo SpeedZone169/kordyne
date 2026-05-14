@@ -59,7 +59,7 @@ function getPreferredContentType(
   if (extension === "jpg" || extension === "jpeg") return "image/jpeg";
   if (extension === "webp") return "image/webp";
   if (extension === "gif") return "image/gif";
-  if (extension === "svg") return "image/svg+xml";
+  if (extension === "svg") return "application/octet-stream";
   if (extension === "bmp") return "image/bmp";
   if (extension === "stl") return "model/stl";
   if (extension === "step" || extension === "stp") return "application/step";
@@ -69,6 +69,10 @@ function getPreferredContentType(
   }
 
   return "application/octet-stream";
+}
+
+function forceDownloadForFile(fileName: string) {
+  return getFileExtension(fileName) === "svg";
 }
 
 function buildContentDisposition(
@@ -93,7 +97,8 @@ export async function GET(
 ) {
   const { fileId } = await params;
   const url = new URL(request.url);
-  const mode = url.searchParams.get("mode") === "download" ? "download" : "inline";
+  const requestedMode =
+    url.searchParams.get("mode") === "download" ? "download" : "inline";
 
   const supabase = await createClient();
   const admin = createAdminClient();
@@ -203,6 +208,7 @@ export async function GET(
   }
 
   const contentType = getPreferredContentType(file.file_name, file.file_type);
+  const mode = forceDownloadForFile(file.file_name) ? "download" : requestedMode;
 
   return new Response(fileBlob.stream(), {
     status: 200,
@@ -211,6 +217,7 @@ export async function GET(
       "Content-Disposition": buildContentDisposition(mode, file.file_name),
       "Content-Length": String(fileBlob.size),
       "Cache-Control": "private, no-store, max-age=0",
+      "Content-Security-Policy": "default-src 'none'; sandbox",
       "X-Content-Type-Options": "nosniff",
     },
   });

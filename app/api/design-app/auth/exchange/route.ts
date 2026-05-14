@@ -1,18 +1,41 @@
 import { NextResponse } from "next/server";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { createDesignAppAdminClient } from "../../../../../lib/design-app/admin";
 import { decryptHandoffToken } from "../../../../../lib/design-app/handoff-crypto";
+
+export const runtime = "nodejs";
+
+function hashVerifier(verifier: string) {
+  return createHash("sha256").update(verifier).digest("base64url");
+}
+
+function verifierMatches(providedVerifier: string, storedHash: string | null) {
+  if (!storedHash) return false;
+
+  const provided = Buffer.from(hashVerifier(providedVerifier));
+  const stored = Buffer.from(storedHash);
+
+  return provided.length === stored.length && timingSafeEqual(provided, stored);
+}
 
 export async function POST(request: Request) {
   try {
     const body = (await request.json()) as {
       code?: string;
+      clientVerifier?: string;
+      client_verifier?: string;
+      verifier?: string;
     };
 
     const code = body.code?.trim();
+    const clientVerifier =
+      body.clientVerifier?.trim() ||
+      body.client_verifier?.trim() ||
+      body.verifier?.trim();
 
-    if (!code) {
+    if (!code || !clientVerifier) {
       return NextResponse.json(
-        { ok: false, error: "code is required." },
+        { ok: false, error: "code and clientVerifier are required." },
         { status: 400 },
       );
     }
@@ -22,7 +45,7 @@ export async function POST(request: Request) {
     const { data: link, error: linkError } = await admin
       .from("design_app_login_links")
       .select(
-        "id, status, expires_at, encrypted_access_token, approved_by_user_id, organization_id, role",
+        "id, status, expires_at, encrypted_access_token, approved_by_user_id, organization_id, role, client_verifier_hash",
       )
       .eq("link_code", code)
       .maybeSingle();
@@ -38,6 +61,17 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { ok: false, error: "Link code not found." },
         { status: 404 },
+      );
+    }
+
+    if (!verifierMatches(clientVerifier, link.client_verifier_hash)) {
+      return NextResponse.json(
+        {
+          ok: false,
+          status: "invalid",
+          error: "Invalid browser-login verifier.",
+        },
+        { status: 403 },
       );
     }
 
@@ -80,19 +114,26 @@ export async function POST(request: Request) {
 
     const accessToken = decryptHandoffToken(link.encrypted_access_token);
 
-    const { error: consumeError } = await admin
+    const { data: consumedLink, error: consumeError } = await admin
       .from("design_app_login_links")
       .update({
         status: "consumed",
         consumed_at: new Date().toISOString(),
         encrypted_access_token: null,
       })
-      .eq("id", link.id);
+      .eq("id", link.id)
+      .eq("status", "approved")
+      .select("id")
+      .maybeSingle();
 
-    if (consumeError) {
+    if (consumeError || !consumedLink) {
       return NextResponse.json(
-        { ok: false, error: consumeError.message },
-        { status: 500 },
+        {
+          ok: false,
+          status: "consumed",
+          error: consumeError?.message || "Link code was already used.",
+        },
+        { status: consumeError ? 500 : 409 },
       );
     }
 

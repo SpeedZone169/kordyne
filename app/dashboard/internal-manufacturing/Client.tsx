@@ -244,27 +244,27 @@ export default function Client({ data }: ClientProps) {
 
   return (
     <div className="space-y-8">
-      <section className="rounded-[32px] border border-zinc-200 bg-white p-8 shadow-sm">
+      <section className="kordyne-dark-panel rounded-[18px] p-6 lg:p-7">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <div className="text-sm font-semibold uppercase tracking-[0.22em] text-slate-400">
+            <div className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-300">
               Internal Manufacturing
             </div>
-            <h1 className="mt-3 text-4xl font-semibold tracking-tight text-[#0b1633]">
+            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-white lg:text-4xl">
               Factory workspace
             </h1>
-            <p className="mt-4 max-w-3xl text-[16px] leading-8 text-slate-600">
+            <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-300">
               Monitor internal resources, capabilities, recent status changes, and
               routing-ready jobs before sending work out to external vendors.
             </p>
           </div>
 
           <div className="flex flex-col items-stretch gap-3 lg:items-end">
-            <div className="rounded-[24px] border border-zinc-200 bg-[#fcfcfb] px-5 py-4">
-              <div className="text-sm font-semibold text-[#0b1633]">
+            <div className="rounded-[14px] border border-white/10 bg-white/[0.05] px-5 py-4">
+              <div className="text-sm font-semibold text-white">
                 {organization?.name ?? "No organization"}
               </div>
-              <div className="mt-2 text-sm text-slate-500">
+              <div className="mt-2 text-sm text-slate-400">
                 {(organization?.organizationType ?? "unknown").replaceAll("_", " ")} ·
                 role {organization?.membershipRole ?? "—"} · plan{" "}
                 {organization?.plan ?? "—"}
@@ -274,7 +274,7 @@ export default function Client({ data }: ClientProps) {
             {canManage ? (
               <Link
                 href="/dashboard/internal-manufacturing/setup"
-                className="inline-flex items-center justify-center rounded-full bg-[#0b1633] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#13224a]"
+                className="inline-flex items-center justify-center rounded-full bg-[#1c5d8f] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#276fa8]"
               >
                 Manage Resources & Capabilities
               </Link>
@@ -283,18 +283,20 @@ export default function Client({ data }: ClientProps) {
           </div>
         </div>
 
-        <Link
-  href="/dashboard/internal-manufacturing/schedule"
-  className="inline-flex items-center justify-center rounded-full border border-zinc-200 bg-[#fcfcfb] px-5 py-3 text-sm font-semibold text-[#0b1633] transition hover:bg-zinc-50"
->
-  Open schedule
-</Link>
-<Link
-  href="/dashboard/internal-manufacturing/connectors"
-  className="inline-flex items-center justify-center rounded-full border border-zinc-200 bg-[#fcfcfb] px-5 py-3 text-sm font-semibold text-[#0b1633] transition hover:bg-zinc-50"
->
-  Manage connectors
-</Link>
+        <div className="mt-6 flex flex-wrap gap-3">
+          <Link
+            href="/dashboard/internal-manufacturing/schedule"
+            className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/[0.06] px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.1]"
+          >
+            Open schedule
+          </Link>
+          <Link
+            href="/dashboard/internal-manufacturing/connectors"
+            className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/[0.06] px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.1]"
+          >
+            Manage connectors
+          </Link>
+        </div>
         {errors.length > 0 ? (
           <div className="mt-6 rounded-[24px] border border-amber-200 bg-amber-50 p-5">
             <div className="text-sm font-semibold text-amber-800">

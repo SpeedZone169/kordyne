@@ -29,31 +29,6 @@ type PendingInviteRow = {
   created_at: string;
 };
 
-function formatDate(dateString: string | null) {
-  if (!dateString) return "-";
-
-  const date = new Date(dateString);
-
-  return new Intl.DateTimeFormat("en-IE", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(date);
-}
-
-function getRoleBadgeClass(role: string | null) {
-  switch (role) {
-    case "admin":
-      return "bg-gray-900 text-white";
-    case "engineer":
-      return "bg-blue-100 text-blue-800";
-    case "viewer":
-      return "bg-gray-100 text-gray-700";
-    default:
-      return "bg-gray-100 text-gray-700";
-  }
-}
-
 export default async function OrganizationPage() {
   const supabase = await createClient();
 

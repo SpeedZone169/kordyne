@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import TurnstileWidget from "@/components/TurnstileWidget";
 
 type PortalMode = "customer" | "provider" | "admin";
 
@@ -45,6 +46,8 @@ export default function Client({ nextPath, portal }: Props) {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const [turnstileKey, setTurnstileKey] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -149,13 +152,29 @@ export default function Client({ nextPath, portal }: Props) {
     setError(null);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
+      if (!turnstileToken) {
+        throw new Error("Please complete the security check.");
+      }
+
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: email.trim(),
+          password,
+          turnstileToken,
+        }),
       });
 
-      if (error) {
-        throw error;
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(payload.error || "Invalid email or password.");
       }
 
       const destination = await resolvePostLoginDestination();
@@ -164,6 +183,8 @@ export default function Client({ nextPath, portal }: Props) {
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to sign in.");
+      setTurnstileToken("");
+      setTurnstileKey((value) => value + 1);
     } finally {
       setSubmitting(false);
     }
@@ -232,10 +253,14 @@ export default function Client({ nextPath, portal }: Props) {
             </div>
           ) : null}
 
+          <div className="rounded-[18px] border border-zinc-200 bg-[#f7f8fa] p-4">
+            <TurnstileWidget key={turnstileKey} onVerify={setTurnstileToken} />
+          </div>
+
           <div className="flex flex-wrap gap-3 pt-2">
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || !turnstileToken}
               className="rounded-full bg-slate-950 px-5 py-3 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {submitting ? "Signing in..." : "Sign in"}

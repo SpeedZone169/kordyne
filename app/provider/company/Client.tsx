@@ -162,6 +162,12 @@ const canEdit =
         throw new Error(profileUpsertError.message);
       }
 
+      const { data: publicLogo } = supabase.storage
+        .from("provider-assets")
+        .getPublicUrl(filePath);
+
+      setLogoPath(filePath);
+      setLogoPreviewUrl(publicLogo.publicUrl);
       setProfileSuccess("Logo uploaded and profile updated.");
       router.refresh();
     } catch (error) {

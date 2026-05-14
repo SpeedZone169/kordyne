@@ -1,15 +1,19 @@
 import { NextResponse } from "next/server";
+import { createHash, randomBytes } from "node:crypto";
 import { createDesignAppAdminClient } from "../../../../../lib/design-app/admin";
 
-function generateLinkCode(length = 8) {
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let result = "";
+export const runtime = "nodejs";
 
-  for (let i = 0; i < length; i += 1) {
-    result += alphabet[Math.floor(Math.random() * alphabet.length)];
-  }
+function generateLinkCode() {
+  return randomBytes(18).toString("base64url").toUpperCase();
+}
 
-  return result;
+function generateClientVerifier() {
+  return randomBytes(32).toString("base64url");
+}
+
+function hashVerifier(verifier: string) {
+  return createHash("sha256").update(verifier).digest("base64url");
 }
 
 export async function POST(request: Request) {
@@ -29,6 +33,8 @@ export async function POST(request: Request) {
       : "fusion";
 
     let linkCode = generateLinkCode();
+    const clientVerifier = generateClientVerifier();
+    const clientVerifierHash = hashVerifier(clientVerifier);
 
     for (let attempt = 0; attempt < 5; attempt += 1) {
       const { data, error } = await admin
@@ -36,6 +42,7 @@ export async function POST(request: Request) {
         .insert({
           client_type: clientType,
           link_code: linkCode,
+          client_verifier_hash: clientVerifierHash,
           status: "pending",
           expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
         })
@@ -46,6 +53,7 @@ export async function POST(request: Request) {
         return NextResponse.json({
           ok: true,
           code: linkCode,
+          client_verifier: clientVerifier,
           client_type: clientType,
           browser_url: `${origin}/design-app/connect?code=${encodeURIComponent(
             linkCode,

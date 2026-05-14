@@ -118,9 +118,16 @@ export async function POST(request: Request) {
       );
     }
 
+    if (link.status !== "pending") {
+      return NextResponse.json(
+        { ok: false, error: "Link code has already been approved." },
+        { status: 409 },
+      );
+    }
+
     const encryptedAccessToken = encryptHandoffToken(accessToken);
 
-    const { error: updateError } = await admin
+    const { data: approvedLink, error: updateError } = await admin
       .from("design_app_login_links")
       .update({
         status: "approved",
@@ -130,12 +137,18 @@ export async function POST(request: Request) {
         approved_at: new Date().toISOString(),
         encrypted_access_token: encryptedAccessToken,
       })
-      .eq("id", link.id);
+      .eq("id", link.id)
+      .eq("status", "pending")
+      .select("id")
+      .maybeSingle();
 
-    if (updateError) {
+    if (updateError || !approvedLink) {
       return NextResponse.json(
-        { ok: false, error: updateError.message },
-        { status: 500 },
+        {
+          ok: false,
+          error: updateError?.message || "Link code has already been approved.",
+        },
+        { status: updateError ? 500 : 409 },
       );
     }
 

@@ -196,7 +196,8 @@ export async function loadInternalResourceConnectionsData(): Promise<InternalRes
 
   const resourceIds = resourceRows.map((row) => row.id);
 
-  let latestStatusEventsByResourceId = new Map<string, InternalConnectorLatestStatusEvent>();
+  const latestStatusEventsByResourceId =
+    new Map<string, InternalConnectorLatestStatusEvent>();
 
   if (resourceIds.length > 0) {
     const statusEventsResult = await supabase

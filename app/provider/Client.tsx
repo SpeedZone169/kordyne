@@ -105,28 +105,28 @@ export default function Client({ data }: Props) {
 
   return (
     <div className="space-y-8">
-      <section className="rounded-[34px] border border-zinc-200 bg-white p-8 shadow-sm">
+      <section className="kordyne-dark-panel rounded-[18px] p-6 lg:p-7">
         <div className="grid gap-6 xl:grid-cols-[1.4fr_0.9fr]">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-300">
               Provider home
             </p>
-            <h2 className="mt-3 text-4xl font-semibold tracking-tight text-slate-950 lg:text-5xl">
+            <h2 className="mt-3 text-3xl font-semibold tracking-tight text-white lg:text-4xl">
               {data.organization?.name || "Provider workspace"}
             </h2>
-            <p className="mt-4 max-w-3xl text-base leading-7 text-slate-600">
+            <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-300">
               Manage requests, maintain a client-ready company profile, structure your
               capabilities, and prepare your schedule foundation in one premium workspace.
             </p>
 
             <div className="mt-6 flex flex-wrap gap-3">
-              <span className="rounded-full border border-zinc-200 bg-[#f5f5f3] px-3 py-1 text-xs font-medium text-slate-700">
+              <span className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs font-medium text-slate-200">
                 Role: {data.organization?.memberRole || "member"}
               </span>
-              <span className="rounded-full border border-zinc-200 bg-[#f5f5f3] px-3 py-1 text-xs font-medium text-slate-700">
+              <span className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs font-medium text-slate-200">
                 Readiness: {readinessLabel}
               </span>
-              <span className="rounded-full border border-zinc-200 bg-[#f5f5f3] px-3 py-1 text-xs font-medium text-slate-700">
+              <span className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs font-medium text-slate-200">
                 Active capability families: {activeFamilies}
               </span>
             </div>
@@ -134,47 +134,47 @@ export default function Client({ data }: Props) {
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
                 href="/provider/requests"
-                className="rounded-full bg-slate-950 px-5 py-2.5 text-sm font-medium text-white transition hover:opacity-90"
+                className="rounded-full bg-[#2f9e8f] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#38b5a5]"
               >
                 Open inbox
               </Link>
               <Link
                 href="/provider/company"
-                className="rounded-full border border-zinc-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-900 transition hover:bg-zinc-50"
+                className="rounded-full border border-white/10 bg-white/[0.06] px-5 py-2.5 text-sm font-medium text-white transition hover:bg-white/[0.1]"
               >
                 Update company profile
               </Link>
               <Link
                 href="/provider/capabilities"
-                className="rounded-full border border-zinc-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-900 transition hover:bg-zinc-50"
+                className="rounded-full border border-white/10 bg-white/[0.06] px-5 py-2.5 text-sm font-medium text-white transition hover:bg-white/[0.1]"
               >
                 Manage capabilities
               </Link>
               <Link
                 href="/provider/schedule"
-                className="rounded-full border border-zinc-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-900 transition hover:bg-zinc-50"
+                className="rounded-full border border-white/10 bg-white/[0.06] px-5 py-2.5 text-sm font-medium text-white transition hover:bg-white/[0.1]"
               >
                 Open schedule
               </Link>
             </div>
           </div>
 
-          <div className="rounded-[28px] border border-zinc-200 bg-[#fafaf9] p-6">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
+          <div className="rounded-[16px] border border-white/10 bg-white/[0.05] p-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
               Readiness score
             </p>
-            <p className="mt-3 text-4xl font-semibold tracking-tight text-slate-950">
+            <p className="mt-3 text-4xl font-semibold tracking-tight text-white">
               {data.stats.profileCompletionPercent}%
             </p>
 
-            <div className="mt-5 h-3 overflow-hidden rounded-full bg-zinc-200">
+            <div className="mt-5 h-3 overflow-hidden rounded-full bg-white/10">
               <div
-                className="h-full rounded-full bg-slate-950"
+                className="h-full rounded-full bg-[#2f9e8f]"
                 style={{ width: `${data.stats.profileCompletionPercent}%` }}
               />
             </div>
 
-            <p className="mt-4 text-sm leading-6 text-slate-600">
+            <p className="mt-4 text-sm leading-6 text-slate-400">
               Complete your company profile and capability register so your quotes and
               provider identity look premium to customers.
             </p>
@@ -184,7 +184,7 @@ export default function Client({ data }: Props) {
                 data.stats.missingItems.map((item) => (
                   <div
                     key={item}
-                    className="rounded-[18px] border border-zinc-200 bg-white px-4 py-3 text-sm text-slate-700"
+                    className="rounded-[12px] border border-white/10 bg-[#07111d] px-4 py-3 text-sm text-slate-300"
                   >
                     {item}
                   </div>

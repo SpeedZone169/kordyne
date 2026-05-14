@@ -2,6 +2,16 @@ import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { hasVerifiedMfaSession } from "@/lib/auth/mfa";
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
 
 function getSiteUrl(req: Request) {
   return (
@@ -53,6 +63,13 @@ export async function POST(
     if (profileError || !profile || profile.platform_role !== "platform_owner") {
       return NextResponse.json(
         { error: "Only the platform owner can send this invite." },
+        { status: 403 }
+      );
+    }
+
+    if (!(await hasVerifiedMfaSession())) {
+      return NextResponse.json(
+        { error: "Multi-factor verification is required for this action." },
         { status: 403 }
       );
     }
@@ -167,6 +184,10 @@ export async function POST(
     const introLine = fullName
       ? `Hello ${fullName},`
       : "Hello,";
+    const safeIntroLine = escapeHtml(introLine);
+    const safeOrganizationName = escapeHtml(organization.name);
+    const safeInviteUrl = escapeHtml(inviteUrl);
+    const safeSiteUrl = escapeHtml(getSiteUrl(req));
 
     const { error: emailError } = await resend.emails.send({
       from: process.env.RESEND_FROM_EMAIL || "Kordyne <noreply@kordyne.com>",
@@ -185,9 +206,9 @@ export async function POST(
       html: `
         <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111827;">
           <h2 style="margin-bottom: 16px;">You're invited to join Kordyne</h2>
-          <p>${introLine}</p>
+          <p>${safeIntroLine}</p>
           <p>
-            You've been invited to join <strong>${organization.name}</strong>
+            You've been invited to join <strong>${safeOrganizationName}</strong>
             as an <strong>admin</strong>.
           </p>
           <p>
@@ -195,7 +216,7 @@ export async function POST(
           </p>
           <p style="margin: 24px 0;">
             <a
-              href="${inviteUrl}"
+              href="${safeInviteUrl}"
               style="display: inline-block; background: #111827; color: #ffffff; text-decoration: none; padding: 12px 18px; border-radius: 9999px;"
             >
               Accept invite
@@ -203,10 +224,10 @@ export async function POST(
           </p>
           <p>
             You can also learn more here:
-            <a href="${getSiteUrl(req)}">${getSiteUrl(req)}</a>
+            <a href="${safeSiteUrl}">${safeSiteUrl}</a>
           </p>
           <p>If the button does not work, use this link:</p>
-          <p><a href="${inviteUrl}">${inviteUrl}</a></p>
+          <p><a href="${safeInviteUrl}">${safeInviteUrl}</a></p>
         </div>
       `,
     });

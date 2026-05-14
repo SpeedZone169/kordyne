@@ -35,8 +35,9 @@ async function verifyTurnstile(turnstileToken: string, ip?: string) {
 export async function POST(req: Request) {
   try {
     const { email, password, turnstileToken } = await req.json();
+    const normalizedEmail = String(email || "").trim().toLowerCase();
 
-    if (!email || !password || !turnstileToken) {
+    if (!normalizedEmail || !password || !turnstileToken) {
       return NextResponse.json(
         { error: "Missing required fields." },
         { status: 400 }
@@ -58,7 +59,7 @@ export async function POST(req: Request) {
     const supabase = await createClient();
 
     const { error } = await supabase.auth.signInWithPassword({
-      email,
+      email: normalizedEmail,
       password,
     });
 

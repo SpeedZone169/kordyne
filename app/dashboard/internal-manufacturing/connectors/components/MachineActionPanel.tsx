@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import type { InternalManufacturingCapability } from "../../types";
 import type {
   FormlabsDiscoveredPrinter,
   InternalConnectorCredentialProfile,
@@ -57,7 +56,6 @@ export default function MachineActionPanel({
   existingConnection,
   resources,
   credentialProfiles,
-  capabilities,
   selectedResourceId,
   onSelectedResourceChange,
   defaultOrganizationId,
@@ -68,7 +66,6 @@ export default function MachineActionPanel({
   existingConnection: InternalResourceConnection | null;
   resources: InternalConnectorResource[];
   credentialProfiles: InternalConnectorCredentialProfile[];
-  capabilities: InternalManufacturingCapability[];
   selectedResourceId: string | null;
   onSelectedResourceChange: (resourceId: string) => void;
   defaultOrganizationId: string | null;

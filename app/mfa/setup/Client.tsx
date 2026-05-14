@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -207,9 +208,12 @@ export default function Client({ nextPath }: Props) {
 
         {qrCodeSvg ? (
           <div className="mt-8 flex justify-center rounded-[24px] border border-zinc-200 bg-[#fafaf9] p-6">
-            <img
+            <Image
               src={qrCodeSvg}
               alt="MFA QR code"
+              width={224}
+              height={224}
+              unoptimized
               className="h-56 w-56 rounded-[20px] border border-zinc-200 bg-white p-3"
             />
           </div>

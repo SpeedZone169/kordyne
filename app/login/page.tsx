@@ -1,4 +1,5 @@
 import Client from "./Client";
+import { getSafeRedirectPath } from "@/lib/auth/redirects";
 
 type PortalMode = "customer" | "provider" | "admin";
 
@@ -19,13 +20,13 @@ export default async function LoginPage({ searchParams }: PageProps) {
         ? "provider"
         : "customer";
 
-  const nextPath =
-    resolvedSearchParams.next ||
-    (portal === "admin"
+  const fallback =
+    portal === "admin"
       ? "/admin"
       : portal === "provider"
         ? "/provider"
-        : "/dashboard");
+        : "/dashboard";
+  const nextPath = getSafeRedirectPath(resolvedSearchParams.next, fallback);
 
   return <Client nextPath={nextPath} portal={portal} />;
 }

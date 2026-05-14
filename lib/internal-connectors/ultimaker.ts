@@ -1,4 +1,5 @@
 import { decryptConnectorSecret } from "@/lib/internal-connectors/crypto";
+import { assertSafeServerFetchUrl } from "@/lib/security/server-fetch-url";
 import type {
   ConnectorSyncResult,
   InternalConnectorCredentialProfileSecretRecord,
@@ -15,18 +16,10 @@ function asRecord(value: unknown): Record<string, unknown> {
     : {};
 }
 
-function asArray(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : [];
-}
-
 function readString(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
-}
-
-function readNumber(value: unknown): number | null {
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 function readPath(root: unknown, path: string[]) {
@@ -45,13 +38,7 @@ function readPath(root: unknown, path: string[]) {
 
 function resolveBaseUrl(connection?: InternalResourceConnection): string {
   const raw = readString(connection?.base_url) ?? DEFAULT_BASE_URL;
-  const url = new URL(raw);
-
-  if (url.protocol !== "https:" && url.protocol !== "http:") {
-    throw new Error("Ultimaker base_url must be http or https.");
-  }
-
-  return url.origin;
+  return assertSafeServerFetchUrl(raw, "Ultimaker base_url");
 }
 
 function requireUltimakerAccessToken(

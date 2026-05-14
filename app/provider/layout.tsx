@@ -1,10 +1,17 @@
 import type { ReactNode } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { requireProviderUser } from "@/lib/auth/provider-access";
 import { enforceMfaOrRedirect } from "@/lib/auth/mfa";
 import ProviderTopNav from "@/components/providers/ProviderTopNav";
 import ProviderLogoutButton from "@/components/providers/ProviderLogoutButton";
+
+const providerNavItems = [
+  { href: "/provider", label: "Home" },
+  { href: "/provider/requests", label: "Requests" },
+  { href: "/provider/schedule", label: "Schedule" },
+  { href: "/provider/capabilities", label: "Capabilities" },
+  { href: "/provider/company", label: "Company" },
+];
 
 function getProviderMemberRole(value: unknown): string | null {
   if (!value || typeof value !== "object") return null;
@@ -44,58 +51,82 @@ export default async function ProviderLayout({
   }
 
   return (
-    <div className="min-h-screen bg-[#f5f5f3] text-slate-950">
-      <header className="sticky top-0 z-40 border-b border-zinc-200 bg-[#f5f5f3]/95 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-6 px-6 py-6 lg:px-10">
-          <Link href="/provider" className="flex shrink-0 items-center">
-            <Image
-              src="/kordyne-logo.svg"
-              alt="Kordyne"
-              width={260}
-              height={64}
-              priority
-              className="h-11 w-auto object-contain"
-            />
-          </Link>
+    <div className="min-h-screen bg-[#eef3f7] text-slate-950">
+      <div className="grid min-h-screen lg:grid-cols-[252px_minmax(0,1fr)]">
+        <aside className="hidden border-r border-white/10 bg-[#081321] text-white lg:block">
+          <div className="sticky top-0 flex h-screen flex-col px-4 py-5">
+            <Link href="/provider" className="flex items-center gap-3 px-2">
+              <span className="flex h-11 w-11 items-center justify-center rounded-[12px] bg-[#196c72] text-sm font-bold">
+                K
+              </span>
+              <span>
+                <span className="block text-[15px] font-semibold uppercase tracking-[0.18em]">
+                  Kordyne
+                </span>
+                <span className="block text-xs text-slate-400">
+                  Provider Ops
+                </span>
+              </span>
+            </Link>
 
-          <div className="hidden min-w-0 flex-1 justify-center lg:flex">
-            <ProviderTopNav />
+            <nav className="mt-8 space-y-1">
+              {providerNavItems.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="block rounded-[10px] px-3 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-white/[0.06] hover:text-white"
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
+
+            <div className="mt-auto space-y-3 rounded-[14px] border border-white/10 bg-white/[0.04] p-4">
+              <Link
+                href="/dashboard/account"
+                className="block rounded-[10px] border border-white/10 bg-white/[0.05] px-3 py-2.5 text-sm font-medium text-white transition hover:bg-white/[0.08]"
+              >
+                Account
+              </Link>
+              <ProviderLogoutButton />
+            </div>
           </div>
+        </aside>
 
-          <div className="flex shrink-0 items-center gap-3">
-            <Link
-              href="/dashboard/account"
-              className="rounded-full border border-zinc-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-900 transition hover:bg-zinc-50"
-            >
-              Account
-            </Link>
-            <ProviderLogoutButton />
-          </div>
+        <div className="min-w-0">
+          <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-[#eef3f7]/90 backdrop-blur">
+            <div className="flex min-h-16 items-center justify-between gap-4 px-4 lg:px-7 2xl:px-9">
+              <Link href="/provider" className="font-semibold text-slate-950 lg:hidden">
+                Kordyne Provider
+              </Link>
+
+              <div className="hidden min-w-0 flex-1 lg:block">
+                <ProviderTopNav />
+              </div>
+
+              <div className="flex shrink-0 items-center gap-3">
+                <Link
+                  href="/dashboard/account"
+                  className="hidden rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-900 transition hover:bg-slate-50 sm:inline-flex"
+                >
+                  Account
+                </Link>
+                <div className="lg:hidden">
+                  <ProviderLogoutButton />
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t border-slate-200 px-4 py-3 lg:hidden">
+              <ProviderTopNav />
+            </div>
+          </header>
+
+          <main className="w-full px-4 py-5 lg:px-7 lg:py-7 2xl:px-9">
+            {children}
+          </main>
         </div>
-
-        <div className="border-t border-zinc-200 px-6 py-3 lg:hidden">
-          <ProviderTopNav />
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-7xl px-6 py-8 lg:px-10">{children}</main>
-
-      <footer className="mt-12 border-t border-zinc-200 bg-white">
-        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-6 py-6 text-sm text-slate-600 lg:flex-row lg:items-center lg:justify-between lg:px-10">
-          <p>Kordyne Provider Portal</p>
-          <div className="flex flex-wrap gap-4">
-            <Link href="/privacy" className="hover:text-slate-900">
-              Privacy
-            </Link>
-            <Link href="/terms" className="hover:text-slate-900">
-              Terms
-            </Link>
-            <Link href="/contact" className="hover:text-slate-900">
-              Contact
-            </Link>
-          </div>
-        </div>
-      </footer>
+      </div>
     </div>
   );
 }

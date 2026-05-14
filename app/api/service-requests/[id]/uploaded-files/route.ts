@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import {
+  MAX_REQUEST_UPLOAD_FILES,
+  MAX_REQUEST_UPLOAD_TOTAL_BYTES,
+  validateRequestUploadFile,
+} from "@/lib/security/uploads";
 
 export const runtime = "nodejs";
 
@@ -83,6 +88,28 @@ export async function POST(req: Request, context: RouteContext) {
 
     if (files.length === 0) {
       return NextResponse.json({ error: "No files received." }, { status: 400 });
+    }
+
+    if (files.length > MAX_REQUEST_UPLOAD_FILES) {
+      return NextResponse.json(
+        { error: `Upload up to ${MAX_REQUEST_UPLOAD_FILES} files at a time.` },
+        { status: 400 }
+      );
+    }
+
+    const totalUploadBytes = files.reduce((sum, file) => sum + file.size, 0);
+    if (totalUploadBytes > MAX_REQUEST_UPLOAD_TOTAL_BYTES) {
+      return NextResponse.json(
+        { error: "Total upload size is too large. Upload less than 160 MB at a time." },
+        { status: 400 }
+      );
+    }
+
+    for (const file of files) {
+      const validationError = validateRequestUploadFile(file);
+      if (validationError) {
+        return NextResponse.json({ error: validationError }, { status: 400 });
+      }
     }
 
     const rawCategories = formData.get("assetCategories");

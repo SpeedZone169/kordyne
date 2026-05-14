@@ -119,45 +119,6 @@ async function createProviderOrganizationAndLink(formData: FormData) {
   revalidatePath("/admin/organizations");
 }
 
-async function linkExistingProvider(formData: FormData) {
-  "use server";
-
-  const { userId } = await requirePlatformOwner();
-
-  const customerOrgId = String(formData.get("customerOrgId") ?? "");
-  const providerOrgId = String(formData.get("providerOrgId") ?? "");
-  const providerCode = String(formData.get("providerCode") ?? "").trim();
-
-  if (!customerOrgId || !providerOrgId) {
-    throw new Error(
-      "Customer organization and provider organization are required."
-    );
-  }
-
-  if (customerOrgId === providerOrgId) {
-    throw new Error("Customer and provider organization cannot be the same.");
-  }
-
-  const supabase = createAdminClient();
-
-  const { error } = await supabase
-    .from("provider_relationships")
-    .insert({
-      customer_org_id: customerOrgId,
-      provider_org_id: providerOrgId,
-      relationship_status: "invited",
-      trust_status: "pending_review",
-      provider_code: providerCode || null,
-      created_by_user_id: userId,
-    });
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  revalidatePath("/admin/providers");
-}
-
 async function sendProviderAdminInvite(formData: FormData) {
   "use server";
 

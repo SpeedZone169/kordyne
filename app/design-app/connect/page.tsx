@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createBrowserClient } from "@supabase/ssr";
 
 type Status =
@@ -31,12 +31,16 @@ export default function DesignAppConnectPage() {
   );
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    setCode(params.get("code") ?? "");
-    setCodeReady(true);
+    const timer = window.setTimeout(() => {
+      const params = new URLSearchParams(window.location.search);
+      setCode(params.get("code") ?? "");
+      setCodeReady(true);
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, []);
 
-  async function approve(currentCode: string) {
+  const approve = useCallback(async function approve(currentCode: string) {
     setStatus("approving");
     setMessage("Approving Fusion connection…");
 
@@ -80,7 +84,7 @@ export default function DesignAppConnectPage() {
       payload.message ??
         "Connection approved. Returning control to Fusion.",
     );
-  }
+  }, [supabase]);
 
   useEffect(() => {
     let isMounted = true;
@@ -132,7 +136,7 @@ export default function DesignAppConnectPage() {
     return () => {
       isMounted = false;
     };
-  }, [code, codeReady, supabase]);
+  }, [approve, code, codeReady, supabase]);
 
   useEffect(() => {
     if (status !== "approved") return;
@@ -200,7 +204,7 @@ export default function DesignAppConnectPage() {
           <p>
             Connection code:{" "}
             <span className="font-mono font-semibold">
-              {codeReady ? code || "—" : "…"}
+              {code || "-"}
             </span>
           </p>
           <p className="mt-2">

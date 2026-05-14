@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { enforceMfaOrRedirect } from "@/lib/auth/mfa";
 
 export type PlatformRole =
   | "platform_owner"
@@ -63,6 +64,8 @@ export async function requirePlatformOwner() {
   if (!profile || profile.platform_role !== "platform_owner") {
     redirect("/dashboard");
   }
+
+  await enforceMfaOrRedirect("/admin");
 
   return {
     userId,

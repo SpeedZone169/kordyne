@@ -40,6 +40,8 @@ export class FusionDesignConnectorAdapter implements DesignConnectorAdapter {
   async discoverScopes(
     _profile: DesignConnectorProfileRecord,
   ): Promise<DesignDiscoveredScope[]> {
+    void _profile;
+
     return [];
   }
 
@@ -51,6 +53,9 @@ export class FusionDesignConnectorAdapter implements DesignConnectorAdapter {
       query?: string | null;
     },
   ): Promise<DesignDiscoveredItem[]> {
+    void _profile;
+    void _input;
+
     return [];
   }
 
@@ -62,6 +67,8 @@ export class FusionDesignConnectorAdapter implements DesignConnectorAdapter {
       external_version_id?: string | null;
     },
   ): Promise<DesignItemMetadata | null> {
+    void _profile;
+
     return {
       external_name: null,
       external_url: null,
@@ -81,6 +88,9 @@ export class FusionDesignConnectorAdapter implements DesignConnectorAdapter {
       external_item_id?: string | null;
     },
   ): Promise<DesignVersionRecord[]> {
+    void _profile;
+    void _input;
+
     return [];
   }
 
@@ -88,6 +98,8 @@ export class FusionDesignConnectorAdapter implements DesignConnectorAdapter {
     _profile: DesignConnectorProfileRecord,
     input: DesignAppPublishInput,
   ): Promise<DesignPublishResult> {
+    void _profile;
+
     return {
       ok: true,
       provider_key: this.providerKey,
@@ -113,6 +125,8 @@ export class FusionDesignConnectorAdapter implements DesignConnectorAdapter {
     _profile: DesignConnectorProfileRecord,
     input: DesignAppCompareInput,
   ): Promise<DesignCompareResult> {
+    void _profile;
+
     return {
       ok: true,
       provider_key: this.providerKey,

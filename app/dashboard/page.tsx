@@ -21,13 +21,13 @@ type OrganizationRow = {
 function getRoleBadgeClass(role: string | null) {
   switch (role) {
     case "admin":
-      return "bg-gray-900 text-white";
+      return "bg-[#14395d] text-white";
     case "engineer":
-      return "bg-blue-100 text-blue-800";
+      return "bg-sky-100 text-sky-800";
     case "viewer":
-      return "bg-gray-100 text-gray-700";
+      return "bg-slate-100 text-slate-700";
     default:
-      return "bg-gray-100 text-gray-700";
+      return "bg-slate-100 text-slate-700";
   }
 }
 
@@ -48,16 +48,23 @@ function SnapshotCard({
   label,
   value,
   helper,
+  accent,
 }: {
   label: string;
   value: string;
   helper: string;
+  accent: string;
 }) {
   return (
-    <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
-      <p className="text-sm font-medium text-gray-500">{label}</p>
-      <p className="mt-3 text-3xl font-bold text-gray-900">{value}</p>
-      <p className="mt-2 text-sm text-gray-600">{helper}</p>
+    <div className="kordyne-panel rounded-[16px] p-5">
+      <div className={`h-1.5 w-12 rounded-full ${accent}`} />
+      <p className="mt-5 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+        {label}
+      </p>
+      <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">
+        {value}
+      </p>
+      <p className="mt-2 text-sm leading-6 text-slate-600">{helper}</p>
     </div>
   );
 }
@@ -76,18 +83,18 @@ function ActionCard({
   return (
     <Link
       href={href}
-      className={`block rounded-3xl border p-6 shadow-sm transition ${
+      className={`block rounded-[16px] border p-5 shadow-sm transition ${
         primary
-          ? "border-gray-900 bg-gray-900 text-white hover:opacity-95"
-          : "border-gray-200 bg-white text-gray-900 hover:bg-gray-50"
+          ? "border-[#123a66] bg-[#0b1626] text-white hover:bg-[#10233a]"
+          : "border-slate-200 bg-white text-slate-900 hover:border-slate-300 hover:bg-slate-50"
       }`}
     >
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-lg font-semibold">{title}</h2>
+          <h2 className="text-base font-semibold">{title}</h2>
           <p
-            className={`mt-2 text-sm ${
-              primary ? "text-gray-200" : "text-gray-600"
+            className={`mt-2 text-sm leading-6 ${
+              primary ? "text-slate-300" : "text-slate-600"
             }`}
           >
             {description}
@@ -95,13 +102,13 @@ function ActionCard({
         </div>
 
         <span
-          className={`inline-flex h-9 w-9 items-center justify-center rounded-full border text-lg ${
+          className={`inline-flex h-9 w-9 items-center justify-center rounded-[10px] border text-sm ${
             primary
               ? "border-white/20 text-white"
-              : "border-gray-300 text-gray-700"
+              : "border-slate-200 text-slate-700"
           }`}
         >
-          →
+          -&gt;
         </span>
       </div>
     </Link>
@@ -163,56 +170,76 @@ export default async function DashboardPage() {
 
   const partRows = (parts as PartRow[] | null) ?? [];
   const familyCount = new Set(
-    partRows.map((part) => part.part_family_id).filter(Boolean)
+    partRows.map((part) => part.part_family_id).filter(Boolean),
   ).size;
   const revisionCount = partRows.length;
 
   return (
-    <div className="space-y-10">
-      <section className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm lg:p-8">
-        <div className="flex flex-col gap-4">
+    <div className="space-y-6">
+      <section className="kordyne-dark-panel overflow-hidden rounded-[18px]">
+        <div className="grid gap-8 p-6 lg:grid-cols-[minmax(0,1.2fr)_420px] lg:p-7">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-gray-500">
-              Workspace
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-300">
+              Customer workspace
             </p>
 
-            <h1 className="mt-2 text-4xl font-bold text-gray-900">Dashboard</h1>
+            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-white lg:text-4xl">
+              Manufacturing command center
+            </h1>
 
-            <p className="mt-4 max-w-4xl text-gray-600">
-              Welcome to your Kordyne workspace. This is your high-level view
-              across part families, revision-controlled records, service
-              requests, and bidirectional design connector workflows.
+            <p className="mt-4 max-w-4xl text-sm leading-7 text-slate-300">
+              Part control, service requests, quotes, invoices, and connector activity
+              are organized as one operational workspace.
             </p>
 
-            <p className="mt-2 text-sm text-gray-500">
-              Signed in as {user.email}
-            </p>
-
-            <div className="mt-6 flex flex-wrap items-center gap-3">
+            <div className="mt-6 flex flex-wrap items-center gap-2">
               <span
-                className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${getRoleBadgeClass(
-                  orgRole
+                className={`inline-flex rounded-full px-3 py-1.5 text-xs font-semibold ${getRoleBadgeClass(
+                  orgRole,
                 )}`}
               >
                 {orgRole || "unknown"}
               </span>
 
               {typedOrganization?.name ? (
-                <span className="inline-flex rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">
+                <span className="inline-flex rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs font-medium text-slate-200">
                   {typedOrganization.name}
                 </span>
               ) : null}
 
               {typedOrganization?.plan ? (
-                <span className="inline-flex rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">
+                <span className="inline-flex rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs font-medium text-slate-200">
                   Plan {typedOrganization.plan}
                 </span>
               ) : null}
             </div>
 
-            <p className="mt-3 text-sm text-gray-600">
+            <p className="mt-4 max-w-3xl text-sm leading-6 text-slate-400">
               {getRoleDescription(orgRole)}
             </p>
+          </div>
+
+          <div className="rounded-[16px] border border-white/10 bg-white/[0.05] p-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+              Signed in
+            </p>
+            <p className="mt-2 truncate text-sm font-medium text-white">
+              {user.email}
+            </p>
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <div className="rounded-[12px] border border-white/10 bg-[#07111d] p-4">
+                <p className="text-xs text-slate-500">Families</p>
+                <p className="mt-2 text-2xl font-semibold text-white">
+                  {familyCount}
+                </p>
+              </div>
+              <div className="rounded-[12px] border border-white/10 bg-[#07111d] p-4">
+                <p className="text-xs text-slate-500">Requests</p>
+                <p className="mt-2 text-2xl font-semibold text-white">
+                  {serviceRequestCount ?? 0}
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -220,39 +247,39 @@ export default async function DashboardPage() {
       <section className="grid gap-4 lg:grid-cols-2 xl:grid-cols-5">
         <ActionCard
           title="Open Parts Vault"
-          description="Browse your family-based parts library, revisions, and attached vault files."
+          description="Browse part families, revision history, and attached vault files."
           href="/dashboard/parts"
           primary
         />
         <ActionCard
           title="Service Requests"
-          description="Manage manufacturing, CAD, and optimization requests as their own operational workspace."
+          description="Manage manufacturing, CAD, and optimization workflows."
           href="/dashboard/requests"
         />
         <ActionCard
           title="Design Connectors"
-          description="Manage Fusion, SolidWorks, Inventor, and Onshape connector setup, publishing, and pull flows."
+          description="Manage connector setup, publishing, and pull flows."
           href="/dashboard/design-connectors"
         />
         <ActionCard
-          title="View Organization"
-          description="Manage members, roles, invitations, and organization settings."
+          title="Organization"
+          description="Manage members, roles, invitations, and settings."
           href="/dashboard/organization"
         />
         <ActionCard
-          title="Operational Insights"
-          description="Review request activity, queue health, turnaround, and quoted value on a dedicated page."
+          title="Insights"
+          description="Review queue health, turnaround, and quoted value."
           href="/dashboard/insights"
         />
       </section>
 
       <section>
-        <div className="mb-5">
-          <h2 className="text-2xl font-semibold text-gray-900">
+        <div className="mb-4">
+          <h2 className="text-xl font-semibold tracking-tight text-slate-950">
             Workspace snapshot
           </h2>
-          <p className="mt-2 text-sm text-gray-600">
-            A quick view of your current organization workspace.
+          <p className="mt-1 text-sm text-slate-600">
+            Current operational scale for this organization.
           </p>
         </div>
 
@@ -261,21 +288,25 @@ export default async function DashboardPage() {
             label="Part families"
             value={familyCount.toString()}
             helper="Logical parts grouped across revision history."
+            accent="bg-[#1c5d8f]"
           />
           <SnapshotCard
             label="Revisions"
             value={revisionCount.toString()}
-            helper="Total revision-controlled records stored in the vault."
+            helper="Revision-controlled records stored in the vault."
+            accent="bg-[#24936e]"
           />
           <SnapshotCard
-            label="Service requests"
+            label="Requests"
             value={(serviceRequestCount ?? 0).toString()}
-            helper="Operational requests across engineering and manufacturing workflows."
+            helper="Engineering and manufacturing work packages."
+            accent="bg-[#d18b24]"
           />
           <SnapshotCard
             label="Members"
             value={(memberCount ?? 0).toString()}
             helper="Organization users with workspace access."
+            accent="bg-[#6f58c9]"
           />
         </div>
       </section>

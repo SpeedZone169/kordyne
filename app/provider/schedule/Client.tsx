@@ -382,7 +382,10 @@ function getRiskBadgeClasses(risk: ScheduleRecommendation["riskLevel"]) {
 
 export default function Client({ data }: Props) {
   const extendedData = data as ExtendedScheduleData;
-  const recommendationsByPackageId = extendedData.recommendationsByPackageId ?? {};
+  const recommendationsByPackageId = useMemo(
+    () => extendedData.recommendationsByPackageId ?? {},
+    [extendedData.recommendationsByPackageId],
+  );
   const unscheduledAwards =
     extendedData.unscheduledAwards as ExtendedUnscheduledAward[];
 

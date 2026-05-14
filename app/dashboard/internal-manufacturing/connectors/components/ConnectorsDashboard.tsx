@@ -1,10 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { InternalResourceConnectionsData } from "../types";
-import type { InternalManufacturingCapability } from "../../types";
 import MachineActionPanel from "./MachineActionPanel";
 import CredentialProfilesPanel from "./CredentialProfilesPanel";
 import {
@@ -18,7 +17,6 @@ import MachineTable from "./MachineTable";
 
 type Props = {
   data: InternalResourceConnectionsData;
-  capabilities?: InternalManufacturingCapability[];
 };
 
 function getDefaultOrganizationId(
@@ -91,10 +89,7 @@ function Field({
   );
 }
 
-export default function ConnectorsDashboard({
-  data,
-  capabilities = [],
-}: Props) {
+export default function ConnectorsDashboard({ data }: Props) {
   const router = useRouter();
 
   const connectionsByResourceId = useMemo(() => {
@@ -107,7 +102,7 @@ export default function ConnectorsDashboard({
     }
 
     return map;
-  }, [data.connections]);
+  }, [data]);
 
   const machines = useMemo(
     () =>
@@ -130,20 +125,16 @@ export default function ConnectorsDashboard({
   const [search, setSearch] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
 
-  useEffect(() => {
-    if (
-      selectedResourceId &&
-      machines.some((machine) => machine.resource.id === selectedResourceId)
-    ) {
-      return;
-    }
+  const defaultSelectedResourceId =
+    machines.find((machine) => machine.connection)?.resource.id ??
+    machines[0]?.resource.id ??
+    null;
 
-    setSelectedResourceId(
-      machines.find((machine) => machine.connection)?.resource.id ??
-        machines[0]?.resource.id ??
-        null,
-    );
-  }, [machines, selectedResourceId]);
+  const selectedResourceIdForView =
+    selectedResourceId &&
+    machines.some((machine) => machine.resource.id === selectedResourceId)
+      ? selectedResourceId
+      : defaultSelectedResourceId;
 
   const filteredMachines = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
@@ -181,8 +172,10 @@ export default function ConnectorsDashboard({
   }, [activeCategory, activeProvider, activeStatus, machines, search]);
 
   const selectedMachine =
-    filteredMachines.find((machine) => machine.resource.id === selectedResourceId) ??
-    machines.find((machine) => machine.resource.id === selectedResourceId) ??
+    filteredMachines.find(
+      (machine) => machine.resource.id === selectedResourceIdForView,
+    ) ??
+    machines.find((machine) => machine.resource.id === selectedResourceIdForView) ??
     null;
 
   const providers = useMemo(
@@ -454,13 +447,13 @@ export default function ConnectorsDashboard({
               ) : viewMode === "grid" ? (
                 <MachineGrid
                   filteredMachines={filteredMachines}
-                  selectedResourceId={selectedResourceId}
+                  selectedResourceId={selectedResourceIdForView}
                   setSelectedResourceId={setSelectedResourceId}
                 />
               ) : (
                 <MachineTable
                   filteredMachines={filteredMachines}
-                  selectedResourceId={selectedResourceId}
+                  selectedResourceId={selectedResourceIdForView}
                   setSelectedResourceId={setSelectedResourceId}
                 />
               )}
@@ -488,16 +481,21 @@ export default function ConnectorsDashboard({
                     existingConnection={selectedConnection}
                     resources={data.resources}
                     credentialProfiles={data.credentialProfiles}
-                    capabilities={capabilities}
-                    selectedResourceId={selectedResourceId}
+                    selectedResourceId={selectedResourceIdForView}
                     onSelectedResourceChange={setSelectedResourceId}
-                    defaultOrganizationId={getDefaultOrganizationId(data, selectedResourceId)}
+                    defaultOrganizationId={getDefaultOrganizationId(
+                      data,
+                      selectedResourceIdForView,
+                    )}
                     onSaved={() => router.refresh()}
                     onDeleted={() => router.refresh()}
                   />
 
                   <CredentialProfilesPanel
-                    organizationId={getDefaultOrganizationId(data, selectedResourceId)}
+                    organizationId={getDefaultOrganizationId(
+                      data,
+                      selectedResourceIdForView,
+                    )}
                     profiles={data.credentialProfiles}
                     onSaved={() => router.refresh()}
                   />

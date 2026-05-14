@@ -1,4 +1,5 @@
 import { decryptConnectorSecret } from "@/lib/internal-connectors/crypto";
+import { assertSafeServerFetchUrl } from "@/lib/security/server-fetch-url";
 import type {
   ConnectorSyncResult,
   InternalConnectorCredentialProfileSecretRecord,
@@ -25,10 +26,6 @@ function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
-}
-
-function asArray(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : [];
 }
 
 function readString(value: unknown): string | null {
@@ -94,13 +91,7 @@ function resolveBaseUrl(
     );
   }
 
-  const url = new URL(raw);
-
-  if (url.protocol !== "https:" && url.protocol !== "http:") {
-    throw new Error("Stratasys base_url must be http or https.");
-  }
-
-  return url.origin;
+  return assertSafeServerFetchUrl(raw, "Stratasys base_url");
 }
 
 function requireStratasysCredentials(
