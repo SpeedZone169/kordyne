@@ -1,16 +1,17 @@
 import Link from "next/link";
 import Navbar from "../../components/Navbar";
 import Footer from "../../components/Footer";
+import { WorkflowShowcase } from "@/components/MarketingShowcase";
 
 function Eyebrow({ children }: { children: React.ReactNode }) {
   return (
-    <p className="text-sm font-semibold uppercase tracking-[0.22em] text-gray-500">
+    <p className="text-xs font-black uppercase text-[#e08a49]">
       {children}
     </p>
   );
 }
 
-function CardBlock({
+function EnterpriseCard({
   title,
   body,
 }: {
@@ -18,173 +19,140 @@ function CardBlock({
   body: string;
 }) {
   return (
-    <div className="rounded-[28px] border border-gray-200 bg-white p-6 shadow-sm sm:p-7">
-      <h3 className="text-xl font-semibold tracking-tight text-gray-950">
-        {title}
-      </h3>
-      <p className="mt-3 text-sm leading-7 text-gray-600 sm:text-[15px]">
-        {body}
-      </p>
-    </div>
-  );
-}
-
-function HighlightCard({
-  eyebrow,
-  title,
-  body,
-}: {
-  eyebrow: string;
-  title: string;
-  body: string;
-}) {
-  return (
-    <div className="rounded-[32px] border border-gray-200 bg-white p-7 shadow-sm sm:p-8">
-      <Eyebrow>{eyebrow}</Eyebrow>
-      <h2 className="mt-3 text-2xl font-semibold tracking-tight text-gray-950 sm:text-3xl">
-        {title}
-      </h2>
-      <p className="mt-4 text-base leading-8 text-gray-600">{body}</p>
-    </div>
+    <article className="rounded-[8px] border border-slate-200 bg-white p-5 shadow-sm">
+      <h3 className="text-lg font-black text-slate-950">{title}</h3>
+      <p className="mt-3 text-sm leading-7 text-slate-600">{body}</p>
+    </article>
   );
 }
 
 export default function EnterprisePage() {
   return (
-    <main className="min-h-screen bg-gray-50 text-gray-900">
+    <main className="min-h-screen bg-[#f5f7fa] text-slate-900">
       <Navbar />
 
-      <section className="mx-auto max-w-7xl px-5 py-14 sm:px-6 sm:py-16 lg:px-8 lg:py-20">
-        <div className="max-w-5xl">
-          <Eyebrow>Enterprise</Eyebrow>
-
-          <h1 className="mt-4 max-w-5xl text-4xl font-semibold tracking-tight text-gray-950 sm:text-5xl lg:text-6xl lg:leading-[1.04]">
-            Built for hardware teams that need control, traceability, and secure
-            manufacturing collaboration.
-          </h1>
-
-          <p className="mt-6 max-w-3xl text-lg leading-8 text-gray-600 sm:text-xl sm:leading-9">
-            Kordyne is designed for organizations managing high-value part data,
-            revision-sensitive workflows, and external manufacturing
-            coordination. It gives teams a structured system for part storage,
-            controlled file sharing, and manufacturing requests across advanced
-            production routes.
-          </p>
-
-          <div className="mt-8 flex flex-col gap-3 sm:mt-10 sm:flex-row sm:flex-wrap">
-            <Link
-              href="/contact"
-              className="inline-flex items-center justify-center rounded-full bg-gray-950 px-6 py-3.5 text-sm font-medium text-white transition hover:bg-gray-800"
-            >
-              Talk to Kordyne
-            </Link>
-
-            <Link
-              href="/platform"
-              className="inline-flex items-center justify-center rounded-full border border-gray-300 bg-white px-6 py-3.5 text-sm font-medium text-gray-900 transition hover:bg-gray-100"
-            >
-              View Platform
-            </Link>
+      <section className="bg-[#101823] text-white">
+        <div className="mx-auto grid max-w-7xl gap-10 px-5 py-16 sm:px-6 lg:grid-cols-[0.92fr_1.08fr] lg:px-8 lg:py-20">
+          <div className="self-center">
+            <Eyebrow>Enterprise</Eyebrow>
+            <h1 className="mt-4 text-5xl font-black leading-tight text-white sm:text-6xl">
+              Controlled part collaboration for teams that cannot afford
+              ambiguous handoffs.
+            </h1>
+            <p className="mt-6 text-lg leading-8 text-slate-300">
+              Kordyne is built for organizations managing high-value part IP,
+              revision-sensitive production, external manufacturers, and audit
+              expectations across the manufacturing lifecycle.
+            </p>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <Link
+                href="/contact"
+                className="rounded-[8px] bg-[#e08a49] px-5 py-3 text-sm font-black text-white transition hover:bg-[#c97539]"
+              >
+                Talk to Kordyne
+              </Link>
+              <Link
+                href="/platform"
+                className="rounded-[8px] border border-white/18 bg-white/10 px-5 py-3 text-sm font-black text-white transition hover:bg-white/15"
+              >
+                View Platform
+              </Link>
+            </div>
           </div>
+
+          <WorkflowShowcase variant="enterprise" compact />
         </div>
+      </section>
 
-        <div className="mt-12 grid gap-6 lg:grid-cols-2">
-          <HighlightCard
-            eyebrow="Organization model"
-            title="Company-controlled workspaces, not scattered user files."
-            body="Kordyne is built around organization workspaces with role-based access, team visibility, and shared ownership of part data. That means hardware teams can manage advanced parts inside one structured environment instead of relying on disconnected folders, inboxes, and personal file chains."
-          />
-
-          <HighlightCard
-            eyebrow="Revision confidence"
-            title="Keep manufacturing tied to the exact revision being reviewed."
-            body="Kordyne links requests to the exact part revision and lets teams control which files move with that request. This reduces ambiguity, supports cleaner handoffs, and helps prevent the wrong revision or wrong file set from being shared externally."
-          />
-        </div>
-
-        <div className="mt-16 sm:mt-20">
-          <div className="max-w-3xl">
-            <Eyebrow>Enterprise priorities</Eyebrow>
-            <h2 className="mt-3 text-3xl font-semibold tracking-tight text-gray-950 sm:text-4xl lg:text-5xl">
-              Designed for secure collaboration across engineering and
-              manufacturing.
+      <section className="mx-auto max-w-7xl px-5 py-16 sm:px-6 lg:px-8 lg:py-20">
+        <div className="grid gap-10 lg:grid-cols-[0.85fr_1.15fr]">
+          <div>
+            <Eyebrow>Governance model</Eyebrow>
+            <h2 className="mt-4 text-4xl font-black leading-tight text-slate-950">
+              Keep the full vault protected while work moves across companies.
             </h2>
-            <p className="mt-5 text-lg leading-8 text-gray-600 sm:text-xl sm:leading-9">
-              Enterprise teams do not just need storage. They need structure,
-              governance, and a clear system for how part data moves from design
-              to sourcing and production.
+            <p className="mt-5 text-lg leading-8 text-slate-600">
+              Enterprise workflows need more than upload and share. Kordyne is
+              designed to separate full vault access from scoped request,
+              project, provider, and viewer collaboration.
             </p>
           </div>
 
-          <div className="mt-10 grid gap-6 md:grid-cols-2">
-            <CardBlock
-              title="Role-based team access"
-              body="Give admins, engineers, and viewers the right level of access to parts, files, requests, and organization settings."
+          <div className="grid gap-4 md:grid-cols-2">
+            <EnterpriseCard
+              title="Role-based access"
+              body="Admins, engineers, viewers, providers, and external participants can be kept in the right context."
             />
-
-            <CardBlock
-              title="Controlled file exposure"
-              body="Share only the files relevant to a specific request instead of exposing the full part record by default."
+            <EnterpriseCard
+              title="Scoped external review"
+              body="A consultant can be tagged into a part or request thread without gaining broad vault visibility."
             />
-
-            <CardBlock
-              title="Revision-aware workflows"
-              body="Maintain a clear history of what changed, which revision is current, and which revision was used for a given request."
+            <EnterpriseCard
+              title="Revision evidence"
+              body="Requests, files, comments, and provider responses remain linked to the exact revision under discussion."
             />
-
-            <CardBlock
-              title="Manufacturing coordination"
-              body="Structure requests for manufacturing, CAD creation, and optimization in a way that is easier to manage internally and cleaner to hand off externally."
+            <EnterpriseCard
+              title="Project networks"
+              body="Two customers, multiple providers, and specialist reviewers can work together around one controlled project."
             />
           </div>
         </div>
+      </section>
 
-        <div className="mt-16 grid gap-6 lg:mt-20 lg:grid-cols-2">
-          <HighlightCard
-            eyebrow="IP-sensitive workflows"
-            title="Better control before data leaves your workspace."
-            body="For advanced parts, file control is not a minor feature. It is a core requirement. Kordyne is being shaped to help teams prepare, limit, and track what gets shared with external providers so collaboration is more deliberate and easier to govern."
-          />
-
-          <HighlightCard
-            eyebrow="Trusted provider direction"
-            title="A foundation for cleaner supplier and manufacturing collaboration."
-            body="The long-term enterprise direction is not just quoting software. It is trusted manufacturing collaboration infrastructure: structured requests, revision traceability, controlled document exchange, and better coordination across internal teams and external providers."
-          />
+      <section className="bg-white py-16 lg:py-20">
+        <div className="mx-auto max-w-7xl px-5 sm:px-6 lg:px-8">
+          <div className="grid gap-4 lg:grid-cols-3">
+            <EnterpriseCard
+              title="Audit-ready records"
+              body="The system can preserve who shared which files, which revision was used, what was discussed, and how providers responded."
+            />
+            <EnterpriseCard
+              title="Internal and external routing"
+              body="Compare internal machine availability against external provider workflows before deciding where work should go."
+            />
+            <EnterpriseCard
+              title="Sensitive file boundaries"
+              body="Provider and viewer experiences are built around selected packages rather than uncontrolled folder access."
+            />
+          </div>
         </div>
+      </section>
 
-        <div className="mt-16 sm:mt-20">
-          <div className="rounded-[36px] border border-gray-200 bg-white p-7 shadow-[0_12px_40px_rgba(15,23,42,0.06)] sm:p-10 lg:p-14">
-            <div className="max-w-4xl">
+      <section className="mx-auto max-w-7xl px-5 py-16 sm:px-6 lg:px-8 lg:py-20">
+        <div className="rounded-[8px] border border-slate-200 bg-white p-6 shadow-sm lg:p-9">
+          <div className="grid gap-8 lg:grid-cols-[1fr_0.82fr] lg:items-center">
+            <div>
               <Eyebrow>Enterprise direction</Eyebrow>
-
-              <h2 className="mt-3 text-3xl font-semibold tracking-tight text-gray-950 sm:text-4xl lg:text-5xl lg:leading-tight">
-                Kordyne is being built as digital infrastructure for advanced
-                part collaboration.
+              <h2 className="mt-4 text-4xl font-black leading-tight text-slate-950">
+                The long-term aim is trusted manufacturing infrastructure, not
+                another shared drive.
               </h2>
-
-              <p className="mt-5 text-lg leading-8 text-gray-600 sm:text-xl sm:leading-9">
-                The goal is to give organizations one secure layer for part
-                data, revision history, manufacturing requests, and trusted
-                external collaboration. That makes Kordyne relevant not only as
-                internal software, but as infrastructure for cross-company
-                manufacturing workflows.
+              <p className="mt-5 text-lg leading-8 text-slate-600">
+                Kordyne can become the place where part vaults, project
+                libraries, machine connectors, requests, quotes, comments, and
+                returned files stay connected for the life of the program.
               </p>
+            </div>
 
-              <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-                <Link
-                  href="/contact"
-                  className="inline-flex items-center justify-center rounded-full bg-gray-950 px-6 py-3.5 text-sm font-medium text-white transition hover:bg-gray-800"
-                >
-                  Contact Kordyne
-                </Link>
-
-                <Link
-                  href="/platform"
-                  className="inline-flex items-center justify-center rounded-full border border-gray-300 bg-white px-6 py-3.5 text-sm font-medium text-gray-900 transition hover:bg-gray-100"
-                >
-                  Explore the Platform
-                </Link>
+            <div className="rounded-[8px] border border-slate-200 bg-[#f5f7fa] p-5">
+              <p className="text-xs font-black uppercase text-slate-500">
+                Enterprise signals
+              </p>
+              <div className="mt-4 space-y-3">
+                {[
+                  "Part and revision ownership",
+                  "Controlled provider packages",
+                  "External viewer boundaries",
+                  "Manufacturing request traceability",
+                  "Machine and scheduling context",
+                ].map((item) => (
+                  <div
+                    key={item}
+                    className="rounded-[8px] border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-800"
+                  >
+                    {item}
+                  </div>
+                ))}
               </div>
             </div>
           </div>

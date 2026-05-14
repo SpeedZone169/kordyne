@@ -65,9 +65,9 @@ export default async function ProviderLayout({
       <header className="sticky top-0 z-50 border-b border-black/10 bg-[#1c2430] text-white shadow-[0_10px_30px_rgba(2,8,23,0.18)]">
         <div className="flex min-h-[72px] items-center gap-4 px-4 lg:px-6">
           <Link
-            href="/provider"
+            href="/"
             className="flex min-w-[174px] items-center rounded-[10px] bg-white/95 px-3 py-2 shadow-sm transition hover:bg-white"
-            aria-label="Kordyne provider dashboard"
+            aria-label="Kordyne home"
           >
             <Image
               src="/kordyne-logo.svg"

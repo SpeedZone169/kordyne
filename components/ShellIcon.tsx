@@ -7,7 +7,7 @@ type ShellIconProps = {
     | "network"
     | "insights"
     | "manufacturing"
-    | "printer"
+    | "machine"
     | "calendar"
     | "plug"
     | "settings"
@@ -91,13 +91,15 @@ export default function ShellIcon({ name, className = "h-5 w-5" }: ShellIconProp
           <path d="M17 15h1" />
         </svg>
       );
-    case "printer":
+    case "machine":
       return (
         <svg {...commonProps} className={className}>
-          <path d="M7 8V4.5h10V8" />
-          <path d="M7 17H5.75A1.75 1.75 0 0 1 4 15.25v-5.5A1.75 1.75 0 0 1 5.75 8h12.5A1.75 1.75 0 0 1 20 9.75v5.5A1.75 1.75 0 0 1 18.25 17H17" />
-          <path d="M7.5 14.5h9v5h-9z" />
-          <path d="M17 11h.01" />
+          <path d="M4.5 18.5h15" />
+          <path d="M6 18.5V8l4.5 3V8l4.5 3V5.5h3v13" />
+          <path d="M8 15h2" />
+          <path d="M13 15h2" />
+          <path d="M17 15h1" />
+          <path d="M15 5.5h3" />
         </svg>
       );
     case "calendar":

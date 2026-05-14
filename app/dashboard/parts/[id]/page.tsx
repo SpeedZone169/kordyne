@@ -801,7 +801,7 @@ export default async function PartDetailPage({ params }: PageProps) {
             Manufacturing Requests
           </h2>
           <p className="mt-2 text-sm text-slate-600">
-            Send this revision to internal printers, external vendors, or
+            Send this revision to internal machines, external vendors, or
             CAD/optimization workflows from one controlled request panel.
           </p>
           </div>

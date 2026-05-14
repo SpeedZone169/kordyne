@@ -125,3 +125,76 @@ textarea {
   background: #0b1626;
   box-shadow: 0 24px 64px rgba(2, 8, 23, 0.24);
 }
+
+.kordyne-grid-bg {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.055) 1px, transparent 1px);
+  background-size: 42px 42px;
+  mask-image: linear-gradient(to bottom, black, transparent 92%);
+}
+
+.kordyne-scan-line {
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgba(47, 128, 183, 0.18),
+    transparent
+  );
+  animation: kordyne-scan 5.6s ease-in-out infinite;
+}
+
+.kordyne-animate-in {
+  animation: kordyne-rise 680ms ease both;
+}
+
+.kordyne-part-plate {
+  animation: kordyne-float 5.8s ease-in-out infinite;
+}
+
+.kordyne-callout {
+  animation: kordyne-float 6.6s ease-in-out infinite;
+}
+
+@keyframes kordyne-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes kordyne-scan {
+  0%,
+  100% {
+    transform: translateY(-80%);
+  }
+
+  50% {
+    transform: translateY(360%);
+  }
+}
+
+@keyframes kordyne-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-7px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kordyne-animate-in,
+  .kordyne-part-plate,
+  .kordyne-callout,
+  .kordyne-scan-line {
+    animation: none;
+  }
+}

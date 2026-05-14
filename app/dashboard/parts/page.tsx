@@ -689,9 +689,9 @@ export default async function PartsPage({ searchParams }: PartsPageProps) {
                 href="/dashboard/internal-manufacturing/connectors"
                 className="rounded-[10px] border border-slate-200 bg-slate-50 p-3 text-sm font-bold text-slate-900 transition hover:border-[#d98042] hover:bg-white"
               >
-                Printer connectors
+                Machine connectors
                 <span className="mt-1 block text-xs font-medium text-slate-500">
-                  Connect internal machines and scheduling data.
+                  Connect printers, CNC cells, and internal machine data.
                 </span>
               </Link>
             </div>

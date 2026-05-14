@@ -24,7 +24,7 @@ const railNavItems = [
   { href: "/dashboard/collaboration", label: "Network", icon: "network" },
   { href: "/dashboard/insights", label: "Insights", icon: "insights" },
   { href: "/dashboard/internal-manufacturing", label: "Internal manufacturing", icon: "manufacturing" },
-  { href: "/dashboard/internal-manufacturing/connectors", label: "Printer connectors", icon: "printer" },
+  { href: "/dashboard/internal-manufacturing/connectors", label: "Machine connectors", icon: "machine" },
   { href: "/dashboard/internal-manufacturing/schedule", label: "Internal scheduling", icon: "calendar" },
   { href: "/dashboard/design-connectors", label: "CAD connectors", icon: "plug" },
 ] as const;
@@ -45,9 +45,9 @@ export default async function DashboardLayout({
       <header className="sticky top-0 z-50 border-b border-black/10 bg-[#1c2430] text-white shadow-[0_10px_30px_rgba(2,8,23,0.18)]">
         <div className="flex min-h-[72px] items-center gap-4 px-4 lg:px-6">
           <Link
-            href="/dashboard"
+            href="/"
             className="flex min-w-[174px] items-center rounded-[10px] bg-white/95 px-3 py-2 shadow-sm transition hover:bg-white"
-            aria-label="Kordyne dashboard"
+            aria-label="Kordyne home"
           >
             <Image
               src="/kordyne-logo.svg"
@@ -87,6 +87,7 @@ export default async function DashboardLayout({
             >
               <ShellIcon name="settings" className="h-5 w-5" />
             </Link>
+            <LogoutButton variant="header" />
           </div>
         </div>
 
