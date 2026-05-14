@@ -13,7 +13,7 @@ type Props = {
 };
 
 function formatDate(value: string | null) {
-  if (!value) return "—";
+  if (!value) return "-";
   return new Date(value).toLocaleDateString();
 }
 

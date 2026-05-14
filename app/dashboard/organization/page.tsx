@@ -1,7 +1,5 @@
 import { redirect } from "next/navigation";
 import { createClient } from "../../../lib/supabase/server";
-import Navbar from "../../../components/Navbar";
-import Footer from "../../../components/Footer";
 import OrganizationSettingsForm from "./OrganizationSettingsForm";
 import OrganizationInviteForm from "./OrganizationInviteForm";
 import PendingInvitesList from "./PendingInvitesList";
@@ -66,10 +64,7 @@ export default async function OrganizationPage() {
   const pendingInvites = (pendingInvitesData || []) as PendingInviteRow[];
 
   return (
-    <main className="min-h-screen bg-white text-gray-900">
-      <Navbar />
-
-      <section className="mx-auto max-w-6xl px-6 py-20">
+    <section className="mx-auto max-w-6xl">
         <div>
           <h1 className="text-4xl font-bold">Organization</h1>
           <p className="mt-4 text-gray-600">
@@ -220,9 +215,6 @@ export default async function OrganizationPage() {
             
           </>
         ) : null}
-      </section>
-
-      <Footer />
-    </main>
+    </section>
   );
 }

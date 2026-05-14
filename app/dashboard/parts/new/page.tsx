@@ -3,8 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "../../../../lib/supabase/client";
-import Navbar from "../../../../components/Navbar";
-import Footer from "../../../../components/Footer";
 import {
   PART_CATEGORY_OPTIONS,
   PROCESS_TYPE_OPTIONS,
@@ -163,10 +161,7 @@ export default function NewPartPage() {
   }
 
   return (
-    <main className="min-h-screen bg-white text-gray-900">
-      <Navbar />
-
-      <section className="mx-auto max-w-3xl px-6 py-20">
+    <section className="mx-auto max-w-3xl">
         <h1 className="text-4xl font-bold">Create New Part</h1>
         <p className="mt-4 text-gray-600">
           Add a new part record to your vault. A new part family will be created
@@ -326,9 +321,6 @@ export default function NewPartPage() {
 
           {error ? <p className="text-sm text-red-600">{error}</p> : null}
         </form>
-      </section>
-
-      <Footer />
-    </main>
+    </section>
   );
 }

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import AddCapabilityForm from "../AddCapabilityForm";
 import AddResourceForm from "../AddResourceForm";
 import MapCapabilityForm from "../MapCapabilityForm";
@@ -20,6 +21,11 @@ function SetupStat(props: { label: string; value: number; hint: string }) {
 
 export default async function InternalManufacturingSetupPage() {
   const data = await loadInternalManufacturingData();
+
+  if (data.errors.includes("Unauthorized.")) {
+    redirect("/login");
+  }
+
   const { organization, resources, capabilities, errors } = data;
 
   const canManage =

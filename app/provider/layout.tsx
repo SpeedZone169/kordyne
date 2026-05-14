@@ -1,17 +1,27 @@
 import type { ReactNode } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { requireProviderUser } from "@/lib/auth/provider-access";
 import { enforceMfaOrRedirect } from "@/lib/auth/mfa";
-import ProviderTopNav from "@/components/providers/ProviderTopNav";
+import ShellIcon from "@/components/ShellIcon";
 import ProviderLogoutButton from "@/components/providers/ProviderLogoutButton";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const providerNavItems = [
-  { href: "/provider", label: "Home" },
+  { href: "/provider", label: "Dashboard" },
   { href: "/provider/requests", label: "Requests" },
   { href: "/provider/schedule", label: "Schedule" },
   { href: "/provider/capabilities", label: "Capabilities" },
   { href: "/provider/company", label: "Company" },
 ];
+
+const providerRailItems = [
+  { href: "/provider", label: "Dashboard", icon: "dashboard" },
+  { href: "/provider/requests", label: "Requests", icon: "requests" },
+  { href: "/provider/schedule", label: "Schedule", icon: "calendar" },
+  { href: "/provider/capabilities", label: "Capabilities", icon: "manufacturing" },
+  { href: "/provider/company", label: "Company", icon: "settings" },
+] as const;
 
 function getProviderMemberRole(value: unknown): string | null {
   if (!value || typeof value !== "object") return null;
@@ -51,81 +61,87 @@ export default async function ProviderLayout({
   }
 
   return (
-    <div className="min-h-screen bg-[#eef3f7] text-slate-950">
-      <div className="grid min-h-screen lg:grid-cols-[252px_minmax(0,1fr)]">
-        <aside className="hidden border-r border-white/10 bg-[#081321] text-white lg:block">
-          <div className="sticky top-0 flex h-screen flex-col px-4 py-5">
-            <Link href="/provider" className="flex items-center gap-3 px-2">
-              <span className="flex h-11 w-11 items-center justify-center rounded-[12px] bg-[#196c72] text-sm font-bold">
-                K
-              </span>
-              <span>
-                <span className="block text-[15px] font-semibold uppercase tracking-[0.18em]">
-                  Kordyne
-                </span>
-                <span className="block text-xs text-slate-400">
-                  Provider Ops
-                </span>
-              </span>
-            </Link>
+    <div className="min-h-screen bg-[var(--shell-bg)] text-[var(--foreground)]">
+      <header className="sticky top-0 z-50 border-b border-black/10 bg-[#1c2430] text-white shadow-[0_10px_30px_rgba(2,8,23,0.18)]">
+        <div className="flex min-h-[72px] items-center gap-4 px-4 lg:px-6">
+          <Link
+            href="/provider"
+            className="flex min-w-[174px] items-center rounded-[10px] bg-white/95 px-3 py-2 shadow-sm transition hover:bg-white"
+            aria-label="Kordyne provider dashboard"
+          >
+            <Image
+              src="/kordyne-logo.svg"
+              alt="Kordyne"
+              width={172}
+              height={44}
+              priority
+              className="h-10 w-auto object-contain"
+            />
+          </Link>
 
-            <nav className="mt-8 space-y-1">
-              {providerNavItems.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className="block rounded-[10px] px-3 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-white/[0.06] hover:text-white"
-                >
-                  {item.label}
-                </Link>
-              ))}
-            </nav>
-
-            <div className="mt-auto space-y-3 rounded-[14px] border border-white/10 bg-white/[0.04] p-4">
+          <nav className="hidden min-w-0 flex-1 items-center gap-1 overflow-x-auto md:flex">
+            {providerNavItems.map((item) => (
               <Link
-                href="/dashboard/account"
-                className="block rounded-[10px] border border-white/10 bg-white/[0.05] px-3 py-2.5 text-sm font-medium text-white transition hover:bg-white/[0.08]"
+                key={item.href}
+                href={item.href}
+                className="whitespace-nowrap border-b-2 border-transparent px-4 py-6 text-sm font-semibold text-slate-300 transition hover:border-[#5fd0d3] hover:text-white"
               >
-                Account
+                {item.label}
               </Link>
+            ))}
+          </nav>
+
+          <div className="ml-auto flex shrink-0 items-center gap-2">
+            <ThemeToggle />
+            <Link
+              href="/dashboard/account"
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/10 text-sm font-bold text-white transition hover:bg-white/15"
+              aria-label="Open account profile"
+            >
+              <ShellIcon name="account" className="h-5 w-5" />
+            </Link>
+          </div>
+        </div>
+
+        <div className="border-t border-white/10 px-4 py-3 md:hidden">
+          <nav className="flex gap-2 overflow-x-auto">
+            {providerNavItems.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="whitespace-nowrap rounded-full border border-white/10 bg-white/[0.06] px-3 py-2 text-xs font-semibold text-slate-200"
+              >
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+        </div>
+      </header>
+
+      <div className="grid min-h-[calc(100vh-72px)] lg:grid-cols-[64px_minmax(0,1fr)]">
+        <aside className="hidden border-r border-[var(--shell-border)] bg-[var(--shell-surface)] lg:block">
+          <div className="sticky top-[72px] flex h-[calc(100vh-72px)] flex-col items-center gap-3 py-4">
+            {providerRailItems.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="flex h-10 w-10 items-center justify-center rounded-[12px] border border-transparent text-xs font-bold text-slate-500 transition hover:border-slate-200 hover:bg-slate-100 hover:text-slate-950"
+                aria-label={item.label}
+                title={item.label}
+              >
+                <ShellIcon name={item.icon} className="h-5 w-5" />
+              </Link>
+            ))}
+
+            <div className="mt-auto px-2">
               <ProviderLogoutButton />
             </div>
           </div>
         </aside>
 
-        <div className="min-w-0">
-          <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-[#eef3f7]/90 backdrop-blur">
-            <div className="flex min-h-16 items-center justify-between gap-4 px-4 lg:px-7 2xl:px-9">
-              <Link href="/provider" className="font-semibold text-slate-950 lg:hidden">
-                Kordyne Provider
-              </Link>
-
-              <div className="hidden min-w-0 flex-1 lg:block">
-                <ProviderTopNav />
-              </div>
-
-              <div className="flex shrink-0 items-center gap-3">
-                <Link
-                  href="/dashboard/account"
-                  className="hidden rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-900 transition hover:bg-slate-50 sm:inline-flex"
-                >
-                  Account
-                </Link>
-                <div className="lg:hidden">
-                  <ProviderLogoutButton />
-                </div>
-              </div>
-            </div>
-
-            <div className="border-t border-slate-200 px-4 py-3 lg:hidden">
-              <ProviderTopNav />
-            </div>
-          </header>
-
-          <main className="w-full px-4 py-5 lg:px-7 lg:py-7 2xl:px-9">
-            {children}
-          </main>
-        </div>
+        <main className="min-w-0 px-4 py-5 lg:px-6 lg:py-6 2xl:px-8">
+          {children}
+        </main>
       </div>
     </div>
   );

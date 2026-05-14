@@ -220,6 +220,25 @@ function getAssetCategoryLabel(value: string | null) {
   return FILE_CATEGORY_LABELS[value] || "Other";
 }
 
+function getPreviewKind(fileName: string, fileType: string | null) {
+  const extension = fileName.split(".").pop()?.toLowerCase() ?? "";
+  const mime = (fileType || "").toLowerCase();
+
+  if (mime.startsWith("image/") || ["png", "jpg", "jpeg", "webp", "gif"].includes(extension)) {
+    return "image";
+  }
+
+  if (mime === "application/pdf" || extension === "pdf") {
+    return "pdf";
+  }
+
+  if (["stl", "step", "stp"].includes(extension)) {
+    return "cad";
+  }
+
+  return "file";
+}
+
 function getRoundModeLabel(value: string | null) {
   if (!value) return "—";
   if (value === "competitive_quote") return "Competitive quote";
@@ -577,6 +596,25 @@ export default async function RequestDetailPage({
   );
 
   const latestRoundStatusKey = latestRound?.status as keyof typeof providerRoundStatusTones;
+  const collaborationPreview =
+    attachments[0]
+      ? {
+          name: attachments[0].file.file_name,
+          fileType: attachments[0].file.file_type,
+          signedUrl: attachments[0].signedUrl,
+          source: "Vault file",
+        }
+      : uploadedAttachments[0]
+        ? {
+            name: uploadedAttachments[0].file_name,
+            fileType: uploadedAttachments[0].file_type,
+            signedUrl: uploadedAttachments[0].signedUrl,
+            source: "Request upload",
+          }
+        : null;
+  const collaborationPreviewKind = collaborationPreview
+    ? getPreviewKind(collaborationPreview.name, collaborationPreview.fileType)
+    : "file";
 
   return (
     <div className="space-y-6">
@@ -666,6 +704,178 @@ export default async function RequestDetailPage({
 </div>
         </div>
       </div>
+
+      <section className="grid gap-5 xl:grid-cols-[430px_minmax(0,1fr)]">
+        <div className="rounded-[12px] border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-200 px-5 py-4">
+            <p className="text-sm font-black uppercase tracking-[0.12em] text-slate-800">
+              External partner
+            </p>
+          </div>
+
+          <div className="p-5">
+            <div className="flex items-start gap-4">
+              <div className="flex h-20 w-24 shrink-0 items-center justify-center rounded-[10px] border border-slate-200 bg-[linear-gradient(135deg,#eef2f7,#ffffff)] text-xs font-black text-slate-500">
+                PART
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-xl font-black tracking-tight text-slate-950">
+                  {part?.name || typedRequest.requested_item_name || typedRequest.title || "Manufacturing request"}
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  {part?.part_number ? `${part.part_number} · ` : ""}
+                  {part?.revision ? `Rev ${part.revision}` : "Request workspace"}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 grid grid-cols-[1fr_140px] border-y border-slate-200 bg-slate-50 px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-slate-500">
+              <div>Name</div>
+              <div>Status</div>
+            </div>
+
+            <div className="mt-3 space-y-3">
+              <Link
+                href={`/dashboard/requests/${typedRequest.id}`}
+                className="grid grid-cols-[1fr_140px] items-center rounded-[10px] border-l-4 border-[#1f6fb2] bg-white p-3 shadow-sm"
+              >
+                <div>
+                  <p className="font-black text-slate-950">
+                    Internal request
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Queue for internal manufacturing
+                  </p>
+                </div>
+                <span className="rounded-[8px] bg-sky-100 px-3 py-2 text-xs font-bold text-sky-800">
+                  {typedRequest.status.replaceAll("_", " ")}
+                </span>
+              </Link>
+
+              {latestRoundPackages.length > 0 ? (
+                latestRoundPackages.map((pkg) => (
+                  <Link
+                    key={pkg.id}
+                    href={`/dashboard/collaboration?packageId=${pkg.id}`}
+                    className="grid grid-cols-[1fr_140px] items-center rounded-[10px] border-l-4 border-[#d98042] bg-white p-3 shadow-sm transition hover:bg-slate-50"
+                  >
+                    <div>
+                      <p className="font-black text-slate-950">
+                        {providerOrgMap.get(pkg.provider_org_id) ||
+                          `Provider ${pkg.provider_org_id.slice(0, 8)}`}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        External provider thread
+                      </p>
+                    </div>
+                    <span
+                      className={`rounded-[8px] px-3 py-2 text-xs font-bold ${toneClasses(
+                        providerPackageStatusTones[
+                          pkg.package_status as keyof typeof providerPackageStatusTones
+                        ],
+                      )}`}
+                    >
+                      {pkg.package_status.replaceAll("_", " ")}
+                    </span>
+                  </Link>
+                ))
+              ) : (
+                <div className="rounded-[10px] border border-dashed border-slate-300 p-4 text-sm text-slate-500">
+                  Route this request to providers to create external collaboration lanes.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-[12px] border border-slate-200 bg-white shadow-sm">
+          <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+            <p className="text-sm font-black uppercase tracking-[0.12em] text-slate-800">
+              Collaboration
+            </p>
+            <Link
+              href={
+                latestRoundPackages[0]
+                  ? `/dashboard/collaboration?packageId=${latestRoundPackages[0].id}`
+                  : "/dashboard/collaboration"
+              }
+              className="rounded-[8px] border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 transition hover:bg-slate-50"
+            >
+              Open thread
+            </Link>
+          </div>
+
+          <div className="grid min-h-[520px] gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+            <div className="relative overflow-hidden rounded-[12px] border border-slate-200 bg-[radial-gradient(circle_at_top,#f8fafc,#eef3f7)]">
+              <div className="absolute left-4 top-4 z-10 flex gap-2">
+                {["Zoom", "Link", "Copy", "Pin", "Mark"].map((label) => (
+                  <span
+                    key={label}
+                    className="rounded-[8px] border border-slate-200 bg-white/90 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500"
+                  >
+                    {label}
+                  </span>
+                ))}
+              </div>
+
+              <div className="flex min-h-[520px] items-center justify-center p-8">
+                {collaborationPreview?.signedUrl &&
+                collaborationPreviewKind === "image" ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={collaborationPreview.signedUrl}
+                    alt=""
+                    className="max-h-[430px] max-w-full rounded-[12px] border border-slate-200 bg-white object-contain shadow-sm"
+                  />
+                ) : collaborationPreview?.signedUrl &&
+                  collaborationPreviewKind === "pdf" ? (
+                  <iframe
+                    src={collaborationPreview.signedUrl}
+                    title={collaborationPreview.name}
+                    className="h-[430px] w-full rounded-[12px] border border-slate-200 bg-white"
+                  />
+                ) : (
+                  <div className="relative h-64 w-80">
+                    <div className="absolute left-12 top-20 h-28 w-56 rotate-[-12deg] rounded-[22px] bg-slate-500 shadow-[0_24px_50px_rgba(15,23,42,0.24)]" />
+                    <div className="absolute left-24 top-10 h-32 w-32 rounded-full border-[18px] border-slate-300 bg-slate-100 shadow-inner" />
+                    <div className="absolute left-10 top-20 h-8 w-8 rounded-full bg-slate-300" />
+                    <div className="absolute right-8 top-32 h-8 w-8 rounded-full bg-slate-300" />
+                    <div className="absolute right-16 top-12 rounded-full border border-[#d98042] bg-white px-2 py-1 text-xs font-black text-[#9a5626]">
+                      A
+                    </div>
+                    <div className="absolute left-6 top-32 rounded-full border border-sky-300 bg-white px-2 py-1 text-xs font-black text-sky-700">
+                      B
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex flex-col justify-end">
+              <div className="rounded-[12px] border border-sky-200 bg-sky-50 p-4 shadow-sm">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">
+                    MK
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-black text-slate-950">
+                      Collaboration note
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-slate-700">
+                      Use this space for tolerance questions, production results, annotated screenshots, and provider clarifications without exposing the full vault.
+                    </p>
+                    <input
+                      disabled
+                      placeholder="Write @email a comment..."
+                      className="mt-3 w-full rounded-[8px] border border-sky-200 bg-white px-3 py-2 text-sm text-slate-500"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">

@@ -4,8 +4,6 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "../../../../../lib/supabase/client";
-import Navbar from "../../../../../components/Navbar";
-import Footer from "../../../../../components/Footer";
 import {
   PART_CATEGORY_OPTIONS,
   PROCESS_TYPE_OPTIONS,
@@ -213,10 +211,7 @@ export default function EditPartPage({ params }: EditPartPageProps) {
 
   if (partNotFound) {
     return (
-      <main className="min-h-screen bg-white text-gray-900">
-        <Navbar />
-
-        <section className="mx-auto max-w-3xl px-6 py-20">
+      <section className="mx-auto max-w-3xl">
           <h1 className="text-4xl font-bold">Part not found</h1>
           <p className="mt-4 text-gray-600">
             We could not find this part in your vault.
@@ -230,18 +225,12 @@ export default function EditPartPage({ params }: EditPartPageProps) {
               Back to Parts Vault
             </Link>
           </div>
-        </section>
-
-        <Footer />
-      </main>
+      </section>
     );
   }
 
   return (
-    <main className="min-h-screen bg-white text-gray-900">
-      <Navbar />
-
-      <section className="mx-auto max-w-3xl px-6 py-20">
+    <section className="mx-auto max-w-3xl">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-4xl font-bold">Edit Part</h1>
@@ -406,9 +395,6 @@ export default function EditPartPage({ params }: EditPartPageProps) {
           {success ? <p className="text-sm text-green-700">{success}</p> : null}
           {error ? <p className="text-sm text-red-600">{error}</p> : null}
         </form>
-      </section>
-
-      <Footer />
-    </main>
+    </section>
   );
 }

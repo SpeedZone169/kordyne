@@ -114,6 +114,56 @@ function getFileExtension(fileName: string) {
   return fileName.split(".").pop()?.toLowerCase() ?? "";
 }
 
+function OpenWithMenu({ file }: { file: PreviewFile }) {
+  const fileExtension = getFileExtension(file.fileName).toUpperCase() || "FILE";
+
+  return (
+    <details className="relative">
+      <summary className="inline-flex cursor-pointer list-none rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-900 transition hover:bg-slate-50">
+        Open with
+      </summary>
+      <div className="absolute right-0 z-20 mt-2 w-72 rounded-[14px] border border-slate-200 bg-white p-2 shadow-xl">
+        {file.downloadUrl ? (
+          <a
+            href={file.downloadUrl}
+            className="block rounded-[10px] px-3 py-2 text-sm font-bold text-slate-900 transition hover:bg-slate-50"
+          >
+            Download for desktop
+            <span className="block text-xs font-medium text-slate-500">
+              Uses your OS file association for {fileExtension}.
+            </span>
+          </a>
+        ) : null}
+
+        {["Inventor", "Fusion", "SolidWorks"].map((appName) => (
+          <button
+            key={appName}
+            type="button"
+            disabled
+            className="mt-1 block w-full rounded-[10px] px-3 py-2 text-left text-sm font-bold text-slate-400"
+          >
+            {appName}
+            <span className="block text-xs font-medium text-slate-500">
+              Requires a Kordyne desktop connector or registered URL protocol.
+            </span>
+          </button>
+        ))}
+
+        <button
+          type="button"
+          disabled
+          className="mt-1 block w-full rounded-[10px] px-3 py-2 text-left text-sm font-bold text-slate-400"
+        >
+          Onshape
+          <span className="block text-xs font-medium text-slate-500">
+            Can be enabled as a secure web handoff in a later connector pass.
+          </span>
+        </button>
+      </div>
+    </details>
+  );
+}
+
 export default function PartFilesViewer({ files }: Props) {
   const groupedFiles = useMemo(() => buildGroupedFiles(files), [files]);
 
@@ -140,8 +190,8 @@ export default function PartFilesViewer({ files }: Props) {
   const isStepSelected = selectedExtension === "step" || selectedExtension === "stp";
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
-      <div className="rounded-[28px] border border-slate-200 bg-slate-50/70 p-4">
+    <div className="grid gap-5 xl:grid-cols-[300px_minmax(0,1fr)]">
+      <div className="rounded-[12px] border border-slate-200 bg-slate-50/70 p-3">
         <div className="mb-4 flex items-center justify-between gap-4 px-2">
           <div>
             <h3 className="text-lg font-semibold text-slate-950">File rail</h3>
@@ -186,7 +236,7 @@ export default function PartFilesViewer({ files }: Props) {
                         key={file.id}
                         type="button"
                         onClick={() => setSelectedFileId(file.id)}
-                        className={`w-full rounded-[22px] border p-4 text-left transition ${
+                        className={`w-full rounded-[12px] border p-3 text-left transition ${
                           isSelected
                             ? "border-slate-900 bg-white shadow-sm"
                             : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
@@ -225,7 +275,7 @@ export default function PartFilesViewer({ files }: Props) {
                             </div>
 
                             <div className="mt-3 text-xs text-slate-500">
-                              {file.fileType || "unknown"} ·{" "}
+                              {file.fileType || "unknown"} -{" "}
                               {formatBytes(file.fileSizeBytes)}
                             </div>
 
@@ -249,7 +299,7 @@ export default function PartFilesViewer({ files }: Props) {
         </div>
       </div>
 
-      <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="rounded-[12px] border border-slate-200 bg-white p-4 shadow-sm">
         {selectedFile ? (
           <div className="flex h-full flex-col">
             <div className="flex flex-col gap-4 border-b border-slate-200 pb-5 lg:flex-row lg:items-start lg:justify-between">
@@ -281,13 +331,15 @@ export default function PartFilesViewer({ files }: Props) {
                 </div>
 
                 <p className="mt-2 text-sm text-slate-600">
-                  {selectedFile.fileType || "unknown"} ·{" "}
-                  {formatBytes(selectedFile.fileSizeBytes)} ·{" "}
+                  {selectedFile.fileType || "unknown"} -{" "}
+                  {formatBytes(selectedFile.fileSizeBytes)} -{" "}
                   {getCategoryLabel(selectedFile.assetCategory)}
                 </p>
               </div>
 
               <div className="flex flex-wrap gap-3">
+                <OpenWithMenu file={selectedFile} />
+
                 {selectedFile.previewUrl ? (
                   <a
                     href={selectedFile.previewUrl}

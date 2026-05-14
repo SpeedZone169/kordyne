@@ -1,25 +1,33 @@
 import type { ReactNode } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getProviderContext, isProviderOnlyUser } from "@/lib/auth/provider-access";
+import ShellIcon from "@/components/ShellIcon";
+import ThemeToggle from "@/components/ThemeToggle";
 import LogoutButton from "./LogoutButton";
 
 const primaryNavItems = [
-  { href: "/dashboard", label: "Overview" },
-  { href: "/dashboard/parts", label: "Parts" },
+  { href: "/dashboard", label: "Dashboard" },
+  { href: "/dashboard/parts", label: "Part Vault" },
+  { href: "/dashboard/projects", label: "Projects" },
   { href: "/dashboard/requests", label: "Requests" },
   { href: "/dashboard/insights", label: "Insights" },
+  { href: "/dashboard/collaboration", label: "Network" },
 ];
 
-const operationsNavItems = [
-  { href: "/dashboard/internal-manufacturing", label: "Internal Manufacturing" },
-  { href: "/dashboard/design-connectors", label: "Design Connectors" },
-];
-
-const adminNavItems = [
-  { href: "/dashboard/organization", label: "Organization" },
-  { href: "/dashboard/account", label: "Account" },
-];
+const railNavItems = [
+  { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
+  { href: "/dashboard/parts", label: "Part Vault", icon: "vault" },
+  { href: "/dashboard/projects", label: "Projects", icon: "projects" },
+  { href: "/dashboard/requests", label: "Requests", icon: "requests" },
+  { href: "/dashboard/collaboration", label: "Network", icon: "network" },
+  { href: "/dashboard/insights", label: "Insights", icon: "insights" },
+  { href: "/dashboard/internal-manufacturing", label: "Internal manufacturing", icon: "manufacturing" },
+  { href: "/dashboard/internal-manufacturing/connectors", label: "Printer connectors", icon: "printer" },
+  { href: "/dashboard/internal-manufacturing/schedule", label: "Internal scheduling", icon: "calendar" },
+  { href: "/dashboard/design-connectors", label: "CAD connectors", icon: "plug" },
+] as const;
 
 export default async function DashboardLayout({
   children,
@@ -33,131 +41,94 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="min-h-screen bg-[#eef3f7] text-slate-950">
-      <div className="grid min-h-screen lg:grid-cols-[252px_minmax(0,1fr)]">
-        <aside className="hidden border-r border-white/10 bg-[#081321] text-white lg:block">
-          <div className="sticky top-0 flex h-screen flex-col px-4 py-5">
-            <Link href="/dashboard" className="flex items-center gap-3 px-2">
-              <span className="flex h-11 w-11 items-center justify-center rounded-[12px] bg-[#1c5d8f] text-sm font-bold">
-                K
-              </span>
-              <span>
-                <span className="block text-[15px] font-semibold uppercase tracking-[0.18em]">
-                  Kordyne
-                </span>
-                <span className="block text-xs text-slate-400">
-                  Manufacturing OS
-                </span>
-              </span>
+    <div className="min-h-screen bg-[var(--shell-bg)] text-[var(--foreground)]">
+      <header className="sticky top-0 z-50 border-b border-black/10 bg-[#1c2430] text-white shadow-[0_10px_30px_rgba(2,8,23,0.18)]">
+        <div className="flex min-h-[72px] items-center gap-4 px-4 lg:px-6">
+          <Link
+            href="/dashboard"
+            className="flex min-w-[174px] items-center rounded-[10px] bg-white/95 px-3 py-2 shadow-sm transition hover:bg-white"
+            aria-label="Kordyne dashboard"
+          >
+            <Image
+              src="/kordyne-logo.svg"
+              alt="Kordyne"
+              width={172}
+              height={44}
+              priority
+              className="h-10 w-auto object-contain"
+            />
+          </Link>
+
+          <nav className="hidden min-w-0 flex-1 items-center gap-1 overflow-x-auto md:flex">
+            {primaryNavItems.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="whitespace-nowrap border-b-2 border-transparent px-4 py-6 text-sm font-semibold text-slate-300 transition hover:border-[#e08a49] hover:text-white"
+              >
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+
+          <div className="ml-auto flex shrink-0 items-center gap-2">
+            <ThemeToggle />
+            <Link
+              href="/dashboard/account"
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/10 text-sm font-bold text-white transition hover:bg-white/15"
+              aria-label="Open account profile"
+            >
+              <ShellIcon name="account" className="h-5 w-5" />
             </Link>
+            <Link
+              href="/dashboard/organization"
+              className="hidden h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/10 text-sm font-bold text-white transition hover:bg-white/15 sm:flex"
+              aria-label="Open settings"
+            >
+              <ShellIcon name="settings" className="h-5 w-5" />
+            </Link>
+          </div>
+        </div>
 
-            <nav className="mt-8 space-y-6">
-              <div>
-                <p className="px-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
-                  Workspace
-                </p>
-                <div className="mt-3 space-y-1">
-                  {primaryNavItems.map((item) => (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className="block rounded-[10px] px-3 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-white/[0.06] hover:text-white"
-                    >
-                      {item.label}
-                    </Link>
-                  ))}
-                </div>
-              </div>
+        <div className="border-t border-white/10 px-4 py-3 md:hidden">
+          <nav className="flex gap-2 overflow-x-auto">
+            {primaryNavItems.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="whitespace-nowrap rounded-full border border-white/10 bg-white/[0.06] px-3 py-2 text-xs font-semibold text-slate-200"
+              >
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+        </div>
+      </header>
 
-              <div>
-                <p className="px-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
-                  Operations
-                </p>
-                <div className="mt-3 space-y-1">
-                  {operationsNavItems.map((item) => (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className="block rounded-[10px] px-3 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-white/[0.06] hover:text-white"
-                    >
-                      {item.label}
-                    </Link>
-                  ))}
-                </div>
-              </div>
+      <div className="grid min-h-[calc(100vh-72px)] lg:grid-cols-[64px_minmax(0,1fr)]">
+        <aside className="hidden border-r border-[var(--shell-border)] bg-[var(--shell-surface)] lg:block">
+          <div className="sticky top-[72px] flex h-[calc(100vh-72px)] flex-col items-center gap-3 py-4">
+            {railNavItems.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="flex h-10 w-10 items-center justify-center rounded-[12px] border border-transparent text-xs font-bold text-slate-500 transition hover:border-slate-200 hover:bg-slate-100 hover:text-slate-950"
+                aria-label={item.label}
+                title={item.label}
+              >
+                <ShellIcon name={item.icon} className="h-5 w-5" />
+              </Link>
+            ))}
 
-              <div>
-                <p className="px-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
-                  Admin
-                </p>
-                <div className="mt-3 space-y-1">
-                  {adminNavItems.map((item) => (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className="block rounded-[10px] px-3 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-white/[0.06] hover:text-white"
-                    >
-                      {item.label}
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            </nav>
-
-            <div className="mt-auto rounded-[14px] border border-white/10 bg-white/[0.04] p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                Secure Session
-              </p>
-              <div className="mt-3">
-                <LogoutButton />
-              </div>
+            <div className="mt-auto px-2">
+              <LogoutButton />
             </div>
           </div>
         </aside>
 
-        <div className="min-w-0">
-          <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-[#eef3f7]/90 backdrop-blur">
-            <div className="flex min-h-16 items-center justify-between gap-4 px-4 lg:px-7 2xl:px-9">
-              <Link href="/dashboard" className="font-semibold text-slate-950 lg:hidden">
-                Kordyne
-              </Link>
-
-              <nav className="hidden min-w-0 flex-1 items-center gap-2 overflow-x-auto lg:flex">
-                {[...primaryNavItems, ...operationsNavItems, ...adminNavItems].map((item) => (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className="whitespace-nowrap rounded-full px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-white hover:text-slate-950"
-                  >
-                    {item.label}
-                  </Link>
-                ))}
-              </nav>
-
-              <div className="lg:hidden">
-                <LogoutButton />
-              </div>
-            </div>
-
-            <div className="border-t border-slate-200 px-4 py-3 lg:hidden">
-              <nav className="flex gap-2 overflow-x-auto">
-                {[...primaryNavItems, ...operationsNavItems, ...adminNavItems].map((item) => (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className="whitespace-nowrap rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700"
-                  >
-                    {item.label}
-                  </Link>
-                ))}
-              </nav>
-            </div>
-          </header>
-
-          <main className="w-full px-4 py-5 lg:px-7 lg:py-7 2xl:px-9">
-            {children}
-          </main>
-        </div>
+        <main className="min-w-0 px-4 py-5 lg:px-6 lg:py-6 2xl:px-8">
+          {children}
+        </main>
       </div>
     </div>
   );

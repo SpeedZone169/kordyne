@@ -2,6 +2,7 @@
 
 import { createClient } from "../../lib/supabase/client";
 import { useRouter } from "next/navigation";
+import ShellIcon from "@/components/ShellIcon";
 
 export default function LogoutButton() {
   const router = useRouter();
@@ -16,9 +17,11 @@ export default function LogoutButton() {
   return (
     <button
       onClick={handleLogout}
-      className="rounded-2xl border border-gray-300 px-5 py-3 text-sm font-medium hover:bg-gray-50"
+      className="flex h-10 w-10 items-center justify-center rounded-[12px] border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50"
+      title="Log out"
+      aria-label="Log out"
     >
-      Log out
+      <ShellIcon name="logout" className="h-5 w-5" />
     </button>
   );
 }

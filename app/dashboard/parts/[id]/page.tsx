@@ -8,6 +8,7 @@ import ServiceRequestActions from "./ServiceRequestActions";
 import ServiceRequestHistory from "./ServiceRequestHistory";
 import CreateRevisionButton from "./CreateRevisionButton";
 import PartFilesViewer from "./PartFilesViewer";
+import PartCollaborationPanel from "./PartCollaborationPanel";
 import { getPartCategoryLabel, getProcessTypeLabel } from "@/lib/parts";
 
 type PageProps = {
@@ -96,6 +97,16 @@ type FamilySourceFile = {
     status: string | null;
     isCurrent: boolean;
   };
+};
+
+type PartCollaborationMessageRow = {
+  id: string;
+  part_id: string;
+  revision_part_id: string | null;
+  sender_user_id: string | null;
+  sender_org_id: string;
+  message_body: string;
+  created_at: string;
 };
 
 function groupFilesByCategory(files: PartFileWithUrls[]) {
@@ -341,67 +352,138 @@ export default async function PartDetailPage({ params }: PageProps) {
     (file) => file.previewKind !== "other",
   ).length;
 
+  const { data: collaborationMessagesRaw } = await supabase
+    .from("part_collaboration_messages")
+    .select(
+      "id, part_id, revision_part_id, sender_user_id, sender_org_id, message_body, created_at",
+    )
+    .eq("part_id", part.id)
+    .order("created_at", { ascending: false })
+    .limit(12);
+
+  const collaborationMessages =
+    (collaborationMessagesRaw as PartCollaborationMessageRow[] | null) ?? [];
+
+  const collaborationSenderIds = Array.from(
+    new Set(
+      collaborationMessages
+        .map((message) => message.sender_user_id)
+        .filter((value): value is string => Boolean(value)),
+    ),
+  );
+
+  const { data: collaborationSenderProfiles } =
+    collaborationSenderIds.length > 0
+      ? await supabase
+          .from("profiles")
+          .select("user_id, full_name, email")
+          .in("user_id", collaborationSenderIds)
+      : { data: [] as ProfileRow[] };
+
+  const collaborationProfileMap = new Map(profileMap);
+
+  for (const profile of (collaborationSenderProfiles as ProfileRow[] | null) ?? []) {
+    collaborationProfileMap.set(profile.user_id, profile);
+  }
+
+  const collaborationThreadMessages = collaborationMessages.map((message) => {
+    const senderProfile = message.sender_user_id
+      ? collaborationProfileMap.get(message.sender_user_id)
+      : null;
+
+    return {
+      id: message.id,
+      messageBody: message.message_body,
+      createdAt: message.created_at,
+      senderName: getDisplayName(senderProfile),
+      senderEmail: senderProfile?.email ?? null,
+    };
+  });
+
+  const viewerFiles = filesWithUrls.map((file) => ({
+    id: file.id,
+    fileName: file.file_name,
+    fileType: file.file_type,
+    fileSizeBytes: file.file_size_bytes,
+    assetCategory: file.asset_category,
+    createdAt: file.created_at,
+    uploaderName: file.uploaderName,
+    previewUrl: file.previewUrl,
+    downloadUrl: file.downloadUrl,
+    previewKind: file.previewKind,
+  }));
+
+  const requestFileOptions = filesWithUrls.map((file) => ({
+    id: file.id,
+    fileName: file.file_name,
+    assetCategory: file.asset_category,
+    fileType: file.file_type,
+  }));
+
+  const revisionSourceFiles = familyFilesForRevisionPicker.map((file) => ({
+    id: file.id,
+    fileName: file.fileName,
+    assetCategory: file.assetCategory,
+    fileType: file.fileType,
+    sourceRevision: file.sourceRevision.revision,
+  }));
+
   return (
-    <section className="mx-auto max-w-7xl px-6 py-10">
-      <div className="rounded-[32px] border border-slate-200 bg-white p-8 shadow-sm">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+    <section className="mx-auto max-w-[1540px]">
+      <div className="rounded-[12px] border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-4xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">
               Part detail
             </p>
 
-            <h1 className="mt-3 text-4xl font-semibold tracking-tight text-slate-950">
+            <h1 className="mt-2 text-3xl font-black tracking-[-0.01em] text-slate-950">
               {part.name}
             </h1>
 
-            <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-600">
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
               {part.description || "No description added yet."}
             </p>
 
-            <div className="mt-5 flex flex-wrap gap-2">
-              <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+            <div className="mt-4 flex flex-wrap gap-2">
+              <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
                 Part number {part.part_number || "-"}
               </span>
-              <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+              <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
                 Revision {part.revision || "-"}
               </span>
               <span
-                className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${getStatusBadgeClass(
+                className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${getStatusBadgeClass(
                   part.status,
                 )}`}
               >
                 {part.status || "-"}
               </span>
-              <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+              <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
                 {getProcessTypeLabel(part.process_type)}
               </span>
             </div>
 
             {!canEditPart ? (
-              <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-                You have read-only access. Viewers can browse files and metadata
-                but cannot upload, recategorize, delete, or update part status.
+              <div className="mt-4 rounded-[10px] border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                You have read-only access. Viewers can browse files, metadata,
+                and collaboration but cannot upload, recategorize, delete, or
+                update part status.
               </div>
             ) : null}
           </div>
 
           {canEditPart ? (
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap gap-2">
               <CreateRevisionButton
                 sourcePartId={part.id}
                 currentRevision={part.revision}
-                sourceFiles={familyFilesForRevisionPicker.map((file) => ({
-                  id: file.id,
-                  fileName: file.fileName,
-                  assetCategory: file.assetCategory,
-                  fileType: file.fileType,
-                  sourceRevision: file.sourceRevision.revision,
-                }))}
+                sourceFiles={revisionSourceFiles}
               />
 
               <Link
                 href={`/dashboard/parts/${part.id}/edit`}
-                className="inline-flex rounded-full border border-slate-300 px-5 py-3 text-sm font-medium text-slate-900 transition hover:bg-slate-50"
+                className="inline-flex rounded-[10px] border border-slate-300 px-4 py-2.5 text-sm font-bold text-slate-900 transition hover:bg-slate-50"
               >
                 Edit part
               </Link>
@@ -410,10 +492,35 @@ export default async function PartDetailPage({ params }: PageProps) {
         </div>
       </div>
 
-      <div className="mt-8 rounded-[32px] border border-slate-200 bg-white p-8 shadow-sm">
+      <div className="mt-5 rounded-[12px] border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h2 className="text-xl font-black text-slate-950">
+              Live file viewer
+            </h2>
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
+              Review STEP, STL, PDF, image, and controlled vault files directly
+              against this revision.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700">
+              {filesWithUrls.length} file{filesWithUrls.length === 1 ? "" : "s"}
+            </div>
+            <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700">
+              {previewableFilesCount} preview-ready
+            </div>
+          </div>
+        </div>
+
+        <PartFilesViewer files={viewerFiles} />
+      </div>
+
+      <div className="mt-5 rounded-[12px] border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <h2 className="text-2xl font-semibold tracking-tight text-slate-950">
+            <h2 className="text-lg font-black text-slate-950">
               Revisions
             </h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">
@@ -423,7 +530,7 @@ export default async function PartDetailPage({ params }: PageProps) {
         </div>
 
         {revisionRows.length > 0 ? (
-          <div className="mt-6 flex flex-wrap gap-3">
+          <div className="mt-4 flex flex-wrap gap-2">
             {revisionRows.map((revisionPart) => {
               const isCurrent = revisionPart.id === part.id;
 
@@ -431,7 +538,7 @@ export default async function PartDetailPage({ params }: PageProps) {
                 <Link
                   key={revisionPart.id}
                   href={`/dashboard/parts/${revisionPart.id}`}
-                  className={`min-w-[140px] rounded-2xl border px-4 py-3 transition ${
+                  className={`min-w-[132px] rounded-[10px] border px-3 py-3 transition ${
                     isCurrent
                       ? "border-slate-900 bg-slate-50"
                       : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
@@ -481,13 +588,23 @@ export default async function PartDetailPage({ params }: PageProps) {
         )}
       </div>
 
-      <div className="mt-8 grid gap-6 lg:grid-cols-[380px_1fr] lg:items-stretch">
-        <div className="h-full rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-2xl font-semibold tracking-tight text-slate-950">
+      <div className="mt-5 max-w-2xl">
+        <PartCollaborationPanel
+          partId={part.id}
+          revisionPartId={part.id}
+          revisionLabel={part.revision}
+          messages={collaborationThreadMessages}
+          canComment
+        />
+      </div>
+
+      <div className="mt-5 grid gap-5 lg:grid-cols-[320px_minmax(0,1fr)] lg:items-stretch">
+        <div className="h-full rounded-[12px] border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 className="text-lg font-black text-slate-950">
             Part information
           </h2>
 
-          <div className="mt-6 grid gap-4 text-sm">
+          <div className="mt-4 grid gap-3 text-sm">
             <div>
               <p className="text-slate-500">Part Number</p>
               <p className="font-medium text-slate-900">
@@ -578,8 +695,8 @@ export default async function PartDetailPage({ params }: PageProps) {
               <UploadSection partId={part.id} />
             </div>
           ) : (
-            <div className="h-full rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
-              <h2 className="text-2xl font-semibold tracking-tight text-slate-950">
+            <div className="h-full rounded-[12px] border border-slate-200 bg-white p-5 shadow-sm">
+              <h2 className="text-lg font-black text-slate-950">
                 Upload files
               </h2>
               <p className="mt-4 text-sm text-slate-600">
@@ -590,51 +707,10 @@ export default async function PartDetailPage({ params }: PageProps) {
         </div>
       </div>
 
-      <div className="mt-8 rounded-[32px] border border-slate-200 bg-white p-8 shadow-sm">
+      <div className="mt-5 rounded-[12px] border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <h2 className="text-2xl font-semibold tracking-tight text-slate-950">
-              In-page preview
-            </h2>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-              Review part files directly inside the page. PDF, image and preview
-              surfaces are handled in a tidy split view, while STL and STEP files
-              are prepared for the next dedicated 3D/CAD viewer layer.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-3">
-            <div className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-700">
-              {filesWithUrls.length} file{filesWithUrls.length === 1 ? "" : "s"}
-            </div>
-            <div className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-700">
-              {previewableFilesCount} preview-ready
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-8">
-          <PartFilesViewer
-            files={filesWithUrls.map((file) => ({
-              id: file.id,
-              fileName: file.file_name,
-              fileType: file.file_type,
-              fileSizeBytes: file.file_size_bytes,
-              assetCategory: file.asset_category,
-              createdAt: file.created_at,
-              uploaderName: file.uploaderName,
-              previewUrl: file.previewUrl,
-              downloadUrl: file.downloadUrl,
-              previewKind: file.previewKind,
-            }))}
-          />
-        </div>
-      </div>
-
-      <div className="mt-6 rounded-[32px] border border-slate-200 bg-white p-8 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <h2 className="text-2xl font-semibold tracking-tight text-slate-950">
+            <h2 className="text-lg font-black text-slate-950">
               File management
             </h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">
@@ -645,7 +721,7 @@ export default async function PartDetailPage({ params }: PageProps) {
         </div>
 
         {filesWithUrls.length > 0 ? (
-          <div className="mt-6 space-y-6">
+          <div className="mt-4 space-y-5">
             {CATEGORY_ORDER.map((category) => {
               const categoryFiles = groupedFiles[category];
 
@@ -656,7 +732,7 @@ export default async function PartDetailPage({ params }: PageProps) {
               return (
                 <div key={category}>
                   <div className="mb-3 flex items-center justify-between">
-                    <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-500">
+                    <h3 className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">
                       {CATEGORY_LABELS[category]}
                     </h3>
                     <span className="text-sm text-slate-400">
@@ -668,14 +744,14 @@ export default async function PartDetailPage({ params }: PageProps) {
                     {categoryFiles.map((file) => (
                       <div
                         key={file.id}
-                        className="flex flex-col gap-4 rounded-2xl border border-slate-200 px-4 py-3 md:flex-row md:items-center md:justify-between"
+                        className="flex flex-col gap-3 rounded-[10px] border border-slate-200 px-4 py-3 md:flex-row md:items-center md:justify-between"
                       >
                         <div>
                           <p className="font-medium text-slate-900">
                             {file.file_name}
                           </p>
                           <p className="text-sm text-slate-500">
-                            {file.file_type || "unknown"} ·{" "}
+                            {file.file_type || "unknown"} -{" "}
                             {formatBytes(file.file_size_bytes)}
                           </p>
                           <p className="mt-1 text-xs text-slate-400">
@@ -697,7 +773,7 @@ export default async function PartDetailPage({ params }: PageProps) {
                         ) : file.downloadUrl ? (
                           <Link
                             href={file.downloadUrl}
-                            className="inline-flex rounded-xl border border-slate-300 px-3 py-2 text-xs font-medium text-slate-900 transition hover:bg-slate-50"
+                            className="inline-flex rounded-[10px] border border-slate-300 px-3 py-2 text-xs font-bold text-slate-900 transition hover:bg-slate-50"
                           >
                             Download
                           </Link>
@@ -718,27 +794,31 @@ export default async function PartDetailPage({ params }: PageProps) {
         )}
       </div>
 
-      <div className="mt-10">
-        <div className="mb-6">
-          <h2 className="text-2xl font-semibold text-slate-900">
+      <div className="mt-5 rounded-[12px] border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+          <h2 className="text-xl font-black text-slate-900">
             Manufacturing Requests
           </h2>
           <p className="mt-2 text-sm text-slate-600">
-            Create and track manufacturing or engineering service workflows
-            for this part.
+            Send this revision to internal printers, external vendors, or
+            CAD/optimization workflows from one controlled request panel.
           </p>
+          </div>
+
+          <Link
+            href="/dashboard/requests"
+            className="rounded-[10px] border border-slate-200 px-3 py-2 text-sm font-bold text-slate-900 transition hover:bg-slate-50"
+          >
+            All requests
+          </Link>
         </div>
 
-        <div className="grid gap-6 xl:grid-cols-2 xl:items-stretch">
+        <div className="grid gap-5 2xl:grid-cols-[minmax(0,1fr)_420px]">
           <ServiceRequestActions
             partId={part.id}
             canRequest={canRequest}
-            availableFiles={filesWithUrls.map((file) => ({
-              id: file.id,
-              fileName: file.file_name,
-              assetCategory: file.asset_category,
-              fileType: file.file_type,
-            }))}
+            availableFiles={requestFileOptions}
           />
 
           <ServiceRequestHistory partId={part.id} />

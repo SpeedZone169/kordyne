@@ -3,6 +3,19 @@
 :root {
   --background: #f2f5f8;
   --foreground: #0c1424;
+  --shell-bg: #eef3f7;
+  --shell-surface: #ffffff;
+  --shell-border: rgba(15, 23, 42, 0.1);
+  --shell-muted: #64748b;
+}
+
+:root[data-theme="dark"] {
+  --background: #08111f;
+  --foreground: #e5edf7;
+  --shell-bg: #0b1422;
+  --shell-surface: #101c2d;
+  --shell-border: rgba(148, 163, 184, 0.18);
+  --shell-muted: #94a3b8;
 }
 
 @theme inline {
@@ -27,6 +40,70 @@ body {
 ::selection {
   background: #123a66;
   color: #ffffff;
+}
+
+:root[data-theme="dark"] body {
+  background:
+    radial-gradient(circle at 20% 0%, rgba(31, 111, 178, 0.18), transparent 28%),
+    var(--background);
+}
+
+:root[data-theme="dark"] .bg-white,
+:root[data-theme="dark"] .bg-gray-50,
+:root[data-theme="dark"] .bg-slate-50 {
+  background-color: #101c2d !important;
+}
+
+:root[data-theme="dark"] .bg-slate-50\/70,
+:root[data-theme="dark"] .bg-slate-50\/80 {
+  background-color: rgba(16, 28, 45, 0.74) !important;
+}
+
+:root[data-theme="dark"] .bg-slate-100,
+:root[data-theme="dark"] .bg-gray-100 {
+  background-color: #17253a !important;
+}
+
+:root[data-theme="dark"] .border-slate-200,
+:root[data-theme="dark"] .border-gray-200,
+:root[data-theme="dark"] .border-slate-300,
+:root[data-theme="dark"] .border-gray-300 {
+  border-color: rgba(148, 163, 184, 0.22) !important;
+}
+
+:root[data-theme="dark"] .text-slate-950,
+:root[data-theme="dark"] .text-slate-900,
+:root[data-theme="dark"] .text-gray-900 {
+  color: #e5edf7 !important;
+}
+
+:root[data-theme="dark"] .text-slate-800,
+:root[data-theme="dark"] .text-gray-800,
+:root[data-theme="dark"] .text-slate-700,
+:root[data-theme="dark"] .text-gray-700 {
+  color: #cbd8e8 !important;
+}
+
+:root[data-theme="dark"] .text-slate-600,
+:root[data-theme="dark"] .text-gray-600,
+:root[data-theme="dark"] .text-slate-500,
+:root[data-theme="dark"] .text-gray-500,
+:root[data-theme="dark"] .text-slate-400,
+:root[data-theme="dark"] .text-gray-400 {
+  color: #94a3b8 !important;
+}
+
+:root[data-theme="dark"] input,
+:root[data-theme="dark"] select,
+:root[data-theme="dark"] textarea {
+  background-color: #0f1b2d;
+  border-color: rgba(148, 163, 184, 0.28);
+  color: #e5edf7;
+}
+
+:root[data-theme="dark"] input::placeholder,
+:root[data-theme="dark"] textarea::placeholder {
+  color: #64748b;
 }
 
 button,
