@@ -1,27 +1,13 @@
 ﻿import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "../../../../lib/supabase/server";
+import { DESIGN_CONNECTOR_PROVIDER_LIST } from "../../../../lib/design-connectors/contract";
 
-type ProviderKey = "fusion" | "inventor" | "solidworks" | "onshape";
-
-const CONNECTORS: Array<{
-  key: ProviderKey;
-  label: string;
-  href?: string;
-}> = [
-  {
-    key: "fusion",
-    label: "Fusion",
-    href: "/api/design-connectors/fusion/download",
-  },
-  {
-    key: "inventor",
-    label: "Inventor",
-    href: "/api/design-connectors/inventor/download",
-  },
-  { key: "solidworks", label: "SolidWorks" },
-  { key: "onshape", label: "Onshape" },
-];
+const CONNECTORS = DESIGN_CONNECTOR_PROVIDER_LIST.map((provider) => ({
+  key: provider.key,
+  label: provider.label,
+  href: provider.downloadRoute,
+}));
 
 function formatUtc(value?: string | null) {
   if (!value) return "—";

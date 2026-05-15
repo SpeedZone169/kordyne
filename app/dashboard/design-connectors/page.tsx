@@ -1,41 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "../../../lib/supabase/server";
+import { DESIGN_CONNECTOR_PROVIDER_LIST } from "../../../lib/design-connectors/contract";
 import Client from "./Client";
 
-const SUPPORTED_PROFILE_PROVIDERS = [
-  "fusion",
-  "solidworks",
-  "inventor",
-  "onshape",
-] as const;
-
-type ProviderKey = (typeof SUPPORTED_PROFILE_PROVIDERS)[number];
-
-const PROVIDER_META: Record<
-  ProviderKey,
-  {
-    label: string;
-    shortStatus: string;
-  }
-> = {
-  fusion: {
-    label: "Fusion",
-    shortStatus: "Live",
-  },
-  inventor: {
-    label: "Inventor",
-    shortStatus: "Next",
-  },
-  solidworks: {
-    label: "SolidWorks",
-    shortStatus: "Planned",
-  },
-  onshape: {
-    label: "Onshape",
-    shortStatus: "Planned",
-  },
-};
+const SUPPORTED_PROFILE_PROVIDERS = DESIGN_CONNECTOR_PROVIDER_LIST.map(
+  (provider) => provider.key,
+);
 
 function formatUtcDate(value?: string | null) {
   if (!value) return "—";
@@ -156,7 +127,7 @@ export default async function DesignConnectorsPage() {
     (run) => run.status === "queued" || run.status === "running",
   ).length;
   const successfulRunCount = recentRuns.filter(
-    (run) => run.status === "completed",
+    (run) => run.status === "completed" || run.status === "succeeded",
   ).length;
 
   return (
@@ -251,8 +222,8 @@ export default async function DesignConnectorsPage() {
         </div>
 
         <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {SUPPORTED_PROFILE_PROVIDERS.map((providerKey) => {
-            const meta = PROVIDER_META[providerKey];
+          {DESIGN_CONNECTOR_PROVIDER_LIST.map((meta) => {
+            const providerKey = meta.key;
             const entitlement = entitlementByProvider.get(providerKey);
             const release = latestReleaseByProvider.get(providerKey);
             const enabled = Boolean(entitlement?.is_enabled);
@@ -267,7 +238,7 @@ export default async function DesignConnectorsPage() {
               ? "Enabled"
               : release
                 ? "Available"
-                : meta.shortStatus;
+                : meta.statusLabel;
 
             const runtimeRoles =
               Array.isArray(entitlement?.allowed_runtime_roles) &&

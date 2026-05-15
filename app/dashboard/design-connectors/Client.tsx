@@ -6,6 +6,10 @@ import type {
   DesignConnectorProfileRecord,
   DesignSyncRunRecord,
 } from "../../../lib/design-connectors/types";
+import {
+  DESIGN_CONNECTOR_AUTH_MODE_OPTIONS,
+  DESIGN_CONNECTOR_PROVIDER_LIST,
+} from "../../../lib/design-connectors/contract";
 
 type ClientProps = {
   initialConnectors: DesignConnectorListItem[];
@@ -47,20 +51,9 @@ type ClientProps = {
 type ProfileListItem = ClientProps["initialProfiles"][number];
 type RunListItem = ClientProps["initialRuns"][number];
 
-const PROVIDERS = [
-  { value: "fusion", label: "Fusion" },
-  { value: "solidworks", label: "SolidWorks" },
-  { value: "inventor", label: "Inventor" },
-  { value: "onshape", label: "Onshape" },
-] as const;
+const DEFAULT_PROVIDER = "onshape";
 
-const AUTH_MODE_OPTIONS = [
-  { value: "oauth_authorization_code", label: "OAuth Authorization Code" },
-  { value: "client_credentials", label: "Client Credentials" },
-  { value: "api_token", label: "API Token" },
-] as const;
-
-type ProviderFilter = "all" | (typeof PROVIDERS)[number]["value"];
+type ProviderFilter = "all" | (typeof DESIGN_CONNECTOR_PROVIDER_LIST)[number]["key"];
 
 function formatDateTime(value?: string | null) {
   if (!value) return "—";
@@ -79,13 +72,17 @@ function formatDateTime(value?: string | null) {
 }
 
 function providerLabel(providerKey: string) {
-  return PROVIDERS.find((item) => item.value === providerKey)?.label ?? providerKey;
+  return (
+    DESIGN_CONNECTOR_PROVIDER_LIST.find((item) => item.key === providerKey)
+      ?.label ?? providerKey
+  );
 }
 
 function authModeLabel(authMode: string | null) {
   if (!authMode) return "—";
   return (
-    AUTH_MODE_OPTIONS.find((item) => item.value === authMode)?.label ?? authMode
+    DESIGN_CONNECTOR_AUTH_MODE_OPTIONS.find((item) => item.value === authMode)
+      ?.label ?? authMode
   );
 }
 
@@ -102,7 +99,7 @@ export default function Client({
   const [runs, setRuns] = useState<RunListItem[]>(initialRuns);
 
   const [profileForm, setProfileForm] = useState({
-    provider_key: "fusion",
+    provider_key: DEFAULT_PROVIDER,
     display_name: "",
     auth_mode: "oauth_authorization_code",
     client_id: "",
@@ -112,7 +109,7 @@ export default function Client({
   const [profileMessage, setProfileMessage] = useState<string | null>(null);
 
   const [connectorForm, setConnectorForm] = useState({
-    provider_key: "fusion",
+    provider_key: DEFAULT_PROVIDER,
     credential_profile_id: "",
     display_name: "",
     connection_mode: "bidirectional",
@@ -138,7 +135,7 @@ export default function Client({
 
   function resetProfileForm() {
     setProfileForm({
-      provider_key: "fusion",
+      provider_key: DEFAULT_PROVIDER,
       display_name: "",
       auth_mode: "oauth_authorization_code",
       client_id: "",
@@ -435,7 +432,7 @@ export default function Client({
           id: payload.sync_run_id,
           provider_key:
             connectors.find((item) => item.id === connectorId)?.provider_key ??
-            "fusion",
+            DEFAULT_PROVIDER,
           run_type: "sync",
           direction: "bidirectional",
           status: payload.status ?? "succeeded",
@@ -485,8 +482,8 @@ export default function Client({
                 }
                 disabled={Boolean(editingProfileId)}
               >
-                {PROVIDERS.map((provider) => (
-                  <option key={provider.value} value={provider.value}>
+                {DESIGN_CONNECTOR_PROVIDER_LIST.map((provider) => (
+                  <option key={provider.key} value={provider.key}>
                     {provider.label}
                   </option>
                 ))}
@@ -520,7 +517,7 @@ export default function Client({
                   }))
                 }
               >
-                {AUTH_MODE_OPTIONS.map((option) => (
+                {DESIGN_CONNECTOR_AUTH_MODE_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
                   </option>
@@ -662,8 +659,8 @@ export default function Client({
                 onChange={(e) => setProviderFilter(e.target.value as ProviderFilter)}
               >
                 <option value="all">All</option>
-                {PROVIDERS.map((provider) => (
-                  <option key={provider.value} value={provider.value}>
+                {DESIGN_CONNECTOR_PROVIDER_LIST.map((provider) => (
+                  <option key={provider.key} value={provider.key}>
                     {provider.label}
                   </option>
                 ))}
@@ -794,8 +791,8 @@ export default function Client({
                   }))
                 }
               >
-                {PROVIDERS.map((provider) => (
-                  <option key={provider.value} value={provider.value}>
+                {DESIGN_CONNECTOR_PROVIDER_LIST.map((provider) => (
+                  <option key={provider.key} value={provider.key}>
                     {provider.label}
                   </option>
                 ))}

@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "../../../../../lib/supabase/server";
+import { getDesignConnectorAdapter } from "../../../../../lib/design-connectors/adapters";
+import { toDesignConnectorProfileRecord } from "../../../../../lib/design-connectors/profile-record";
+import type { DesignSyncResult } from "../../../../../lib/design-connectors/adapters/base";
 import type {
   DesignSyncDirection,
   DesignSyncRunType,
@@ -89,11 +92,32 @@ export async function POST(request: Request, context: RouteContext) {
       );
     }
 
+    const { data: profileRow, error: profileError } = await supabase
+      .from("internal_connector_profiles")
+      .select("*")
+      .eq("id", connector.credential_profile_id)
+      .maybeSingle();
+
+    if (profileError) {
+      return NextResponse.json({ error: profileError.message }, { status: 500 });
+    }
+
+    if (!profileRow) {
+      return NextResponse.json(
+        { error: "Credential profile not found." },
+        { status: 404 },
+      );
+    }
+
     const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
     const runType = asRunType(body.run_type);
     const direction = asDirection(body.direction);
     const targetRef = asNullableString(body.target_ref);
     const requestSummary = asObject(body.summary);
+    const adapter = getDesignConnectorAdapter(connector.provider_key);
+    const profile = toDesignConnectorProfileRecord(
+      profileRow as Record<string, unknown>,
+    );
 
     const { data: syncRun, error: syncRunError } = await supabase
       .from("design_sync_runs")
@@ -107,7 +131,8 @@ export async function POST(request: Request, context: RouteContext) {
         target_ref: targetRef,
         status: "running",
         summary: {
-          phase: "stub",
+          phase: "adapter",
+          adapter_provider_key: adapter.providerKey,
           requested_summary: requestSummary,
         },
         triggered_by_user_id: user.id,
@@ -119,17 +144,84 @@ export async function POST(request: Request, context: RouteContext) {
       return NextResponse.json({ error: syncRunError.message }, { status: 500 });
     }
 
+    let syncResult: DesignSyncResult;
+
+    try {
+      syncResult = adapter.sync
+        ? await adapter.sync(profile, {
+            connector_id: connector.id,
+            sync_scope_type: connector.sync_scope_type,
+            sync_scope_external_id: connector.sync_scope_external_id,
+            sync_scope_label: connector.sync_scope_label,
+            run_type: runType,
+            direction,
+            target_ref: targetRef,
+            summary: requestSummary,
+          })
+        : {
+            ok: true,
+            provider_key: connector.provider_key,
+            message: "Design connector sync stub completed.",
+            summary: {
+              adapter_mode: "stub",
+              result: "No provider sync logic implemented yet.",
+            },
+            items: [],
+          };
+    } catch (error) {
+      syncResult = {
+        ok: false,
+        provider_key: connector.provider_key,
+        message:
+          error instanceof Error ? error.message : "Connector adapter sync failed.",
+        summary: {
+          adapter_mode: "error",
+        },
+        items: [],
+      };
+    }
+
     const completedAt = new Date().toISOString();
+    const completedStatus = syncResult.ok ? "succeeded" : "failed";
+    const discoveredItems = syncResult.items ?? [];
+
+    if (discoveredItems.length > 0) {
+      const { error: itemsInsertError } = await supabase
+        .from("design_sync_run_items")
+        .insert(
+          discoveredItems.map((item) => ({
+            sync_run_id: syncRun.id,
+            external_ref: item.id,
+            action: "discover",
+            status: completedStatus,
+            message: item.name,
+            details: {
+              item,
+              adapter_mode: item.metadata?.adapter_mode ?? "unknown",
+            },
+          })),
+        );
+
+      if (itemsInsertError) {
+        return NextResponse.json(
+          { error: itemsInsertError.message },
+          { status: 500 },
+        );
+      }
+    }
 
     const { error: runUpdateError } = await supabase
       .from("design_sync_runs")
       .update({
-        status: "succeeded",
+        status: completedStatus,
         completed_at: completedAt,
+        error_message: syncResult.ok ? null : syncResult.message,
         summary: {
-          phase: "stub",
+          phase: "adapter",
+          adapter_provider_key: adapter.providerKey,
           requested_summary: requestSummary,
-          result: "No provider sync logic implemented yet.",
+          result: syncResult.summary ?? {},
+          discovered_item_count: discoveredItems.length,
         },
       })
       .eq("id", syncRun.id);
@@ -142,8 +234,8 @@ export async function POST(request: Request, context: RouteContext) {
       .from("design_connectors")
       .update({
         last_sync_at: completedAt,
-        last_sync_status: "succeeded",
-        last_error: null,
+        last_sync_status: completedStatus,
+        last_error: syncResult.ok ? null : syncResult.message,
         updated_by_user_id: user.id,
       })
       .eq("id", connector.id);
@@ -171,7 +263,9 @@ export async function POST(request: Request, context: RouteContext) {
           run_type: runType,
           direction,
           target_ref: targetRef,
-          stub: true,
+          adapter_provider_key: adapter.providerKey,
+          adapter_message: syncResult.message,
+          discovered_item_count: discoveredItems.length,
         },
       });
 
@@ -180,10 +274,11 @@ export async function POST(request: Request, context: RouteContext) {
     }
 
     return NextResponse.json({
-      ok: true,
+      ok: syncResult.ok,
       sync_run_id: syncRun.id,
-      status: "succeeded",
-      message: "Design connector sync stub completed.",
+      status: completedStatus,
+      message: syncResult.message,
+      discovered_item_count: discoveredItems.length,
     });
   } catch (error) {
     return NextResponse.json(

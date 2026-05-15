@@ -75,6 +75,25 @@ export type DesignPublishResult = {
   metadata?: Record<string, unknown>;
 };
 
+export type DesignSyncInput = {
+  connector_id: string;
+  sync_scope_type: string;
+  sync_scope_external_id?: string | null;
+  sync_scope_label?: string | null;
+  run_type: string;
+  direction: string;
+  target_ref?: string | null;
+  summary?: Record<string, unknown>;
+};
+
+export type DesignSyncResult = {
+  ok: boolean;
+  provider_key: DesignConnectorProvider | string;
+  message: string;
+  summary?: Record<string, unknown>;
+  items?: DesignDiscoveredItem[];
+};
+
 export interface DesignConnectorAdapter {
   readonly providerKey: DesignConnectorProvider | string;
 
@@ -121,6 +140,11 @@ export interface DesignConnectorAdapter {
     profile: DesignConnectorProfileRecord,
     input: DesignAppCompareInput,
   ): Promise<DesignCompareResult>;
+
+  sync?(
+    profile: DesignConnectorProfileRecord,
+    input: DesignSyncInput,
+  ): Promise<DesignSyncResult>;
 }
 
 export class UnsupportedDesignConnectorAdapter
