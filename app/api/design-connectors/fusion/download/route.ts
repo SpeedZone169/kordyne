@@ -11,7 +11,7 @@ export async function GET() {
   } = await supabase.auth.getUser();
 
   if (userError || !user) {
-    return NextResponse.redirect(new URL("/login?next=/dashboard/design-connectors/downloads", process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"));
+    return NextResponse.redirect(new URL("/login?next=/dashboard/design-connectors/downloads", process.env.NEXT_PUBLIC_SITE_URL || "https://www.kordyne.com"));
   }
 
   const { data: membership, error: membershipError } = await supabase
