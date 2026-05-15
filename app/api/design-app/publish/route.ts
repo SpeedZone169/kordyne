@@ -26,6 +26,7 @@ type PublishInput = {
     status?: string | null;
     revision_note?: string | null;
     source?: string | null;
+    cad_metadata?: Record<string, unknown> | null;
   } | null;
   files?: Array<{
     role?: string | null;
@@ -90,6 +91,12 @@ export async function POST(request: Request) {
     const category = asString(input.metadata?.category) || null;
     const status = asString(input.metadata?.status) || "draft";
     const revisionNote = asString(input.metadata?.revision_note) || null;
+    const cadMetadata =
+      input.metadata?.cad_metadata &&
+      typeof input.metadata.cad_metadata === "object" &&
+      !Array.isArray(input.metadata.cad_metadata)
+        ? input.metadata.cad_metadata
+        : null;
     const externalName = asString(input.external_name) || partName || null;
     const externalUrl = asString(input.external_url) || null;
 
@@ -373,6 +380,7 @@ export async function POST(request: Request) {
       publish_mode: publishMode,
       uploaded_file_count: files.length,
       uploaded_roles: files.map((file) => asString(file.role).toLowerCase()),
+      cad_metadata: cadMetadata,
     };
 
     const { data: insertedSourceLink, error: sourceLinkError } = await admin
@@ -420,6 +428,7 @@ export async function POST(request: Request) {
       file_count: files.length,
       external_document_id: asString(input.external_document_id) || null,
       external_item_id: asString(input.external_item_id) || null,
+      cad_metadata: cadMetadata,
     };
 
     const { data: insertedSyncRun, error: syncRunError } = await admin

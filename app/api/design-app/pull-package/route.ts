@@ -1,5 +1,19 @@
 import { NextResponse } from "next/server";
+import { createDesignAppAdminClient } from "../../../../lib/design-app/admin";
 import { getDesignAppRequestContext } from "../../../../lib/design-app/request-auth";
+
+const DESIGN_UPLOAD_BUCKET =
+  process.env.NEXT_PUBLIC_SUPABASE_DESIGN_UPLOAD_BUCKET || "part-files";
+
+type PartFileRecord = Record<string, unknown> & {
+  storage_path?: string | null;
+  file_name?: string | null;
+  file_size_bytes?: number | null;
+};
+
+function asString(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
 
 export async function POST(request: Request) {
   try {
@@ -11,6 +25,7 @@ export async function POST(request: Request) {
 
     if ("error" in ctx) return ctx.error;
 
+    const admin = createDesignAppAdminClient();
     const body = (await request.json()) as {
       part_family_id?: string;
     };
@@ -76,10 +91,48 @@ export async function POST(request: Request) {
       );
     }
 
+    const signedFiles = await Promise.all(
+      ((files ?? []) as PartFileRecord[]).map(async (file) => {
+        const storagePath = asString(file.storage_path);
+
+        if (!storagePath) {
+          return {
+            ...file,
+            signed_url: null,
+            filename: asString(file.file_name),
+            size_bytes:
+              typeof file.file_size_bytes === "number"
+                ? file.file_size_bytes
+                : null,
+          };
+        }
+
+        const { data: signed, error: signedError } = await admin.storage
+          .from(DESIGN_UPLOAD_BUCKET)
+          .createSignedUrl(storagePath, 10 * 60);
+
+        if (signedError || !signed?.signedUrl) {
+          throw new Error(
+            signedError?.message ?? "Could not create a signed file URL.",
+          );
+        }
+
+        return {
+          ...file,
+          signed_url: signed.signedUrl,
+          filename: asString(file.file_name),
+          size_bytes:
+            typeof file.file_size_bytes === "number"
+              ? file.file_size_bytes
+              : null,
+        };
+      }),
+    );
+
     return NextResponse.json({
       ok: true,
       latest_part: latestPart,
-      files: files ?? [],
+      files: signedFiles,
       source_links: sourceLinks ?? [],
     });
   } catch (error) {

@@ -20,6 +20,7 @@ type PublishInput = {
     revision_note?: string | null;
     thumbnail_storage_path?: string | null;
     thumbnail_filename?: string | null;
+    cad_metadata?: Record<string, unknown> | null;
   } | null;
   files?: Array<{
     role?: string | null;
@@ -125,6 +126,12 @@ export async function POST(request: Request) {
     const category = asString(input.metadata?.category) || null;
     const status = asString(input.metadata?.status) || "draft";
     const revisionNote = asString(input.metadata?.revision_note) || null;
+    const cadMetadata =
+      input.metadata?.cad_metadata &&
+      typeof input.metadata.cad_metadata === "object" &&
+      !Array.isArray(input.metadata.cad_metadata)
+        ? input.metadata.cad_metadata
+        : null;
     const externalName = asString(input.external_name) || partName || null;
     const externalDocumentId =
       asString(input.external_document_id) || externalName || null;
@@ -459,6 +466,7 @@ export async function POST(request: Request) {
       thumbnail_storage_path: thumbnailStoragePath,
       thumbnail_filename: thumbnailFileName,
       idempotency_key: idempotencyKey,
+      cad_metadata: cadMetadata,
     };
 
     const { data: insertedSourceLink, error: sourceLinkError } = await admin
@@ -502,6 +510,7 @@ export async function POST(request: Request) {
       thumbnail_file_id: thumbnailFileId,
       has_thumbnail: Boolean(thumbnailStoragePath),
       idempotency_key: idempotencyKey,
+      cad_metadata: cadMetadata,
     };
 
     const { data: insertedSyncRun, error: syncRunError } = await admin
@@ -582,4 +591,3 @@ export async function POST(request: Request) {
     );
   }
 }
-
