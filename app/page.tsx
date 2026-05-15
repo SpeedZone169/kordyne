@@ -26,6 +26,93 @@ function CapabilityCard({
   );
 }
 
+const flowSteps = [
+  "Project",
+  "CAD <-> Kordyne Vault",
+  "Collaboration Space",
+  "External Collaboration",
+];
+
+const internalFlow = [
+  "Internal Manufacturing",
+  "Machine Utilisation",
+  "Scheduling",
+];
+
+const externalFlow = [
+  "External Manufacturing",
+  "Supplier Quote",
+  "Invoicing",
+  "Inventory Update",
+  "Project Update",
+];
+
+function FlowPill({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="rounded-[8px] border border-white/12 bg-white/[0.07] px-4 py-3 text-sm font-black text-white shadow-sm">
+      {children}
+    </div>
+  );
+}
+
+function WorkflowRouteMap() {
+  return (
+    <section className="bg-[#101823] py-16 text-white lg:py-20">
+      <div className="mx-auto max-w-7xl px-5 sm:px-6 lg:px-8">
+        <div className="grid gap-10 lg:grid-cols-[0.85fr_1.15fr] lg:items-start">
+          <div>
+            <Eyebrow>Operating flow</Eyebrow>
+            <h2 className="mt-4 text-4xl font-black leading-tight text-white sm:text-5xl">
+              A finished workflow from project context to manufacturing
+              execution.
+            </h2>
+            <p className="mt-5 text-lg leading-8 text-slate-300">
+              Kordyne keeps the part record alive as it moves through CAD,
+              vault control, collaboration, provider routing, production,
+              commercial response, inventory, and project status.
+            </p>
+          </div>
+
+          <div className="relative overflow-hidden rounded-[8px] border border-white/12 bg-white/[0.05] p-5">
+            <div className="absolute inset-0 kordyne-grid-bg opacity-50" />
+            <div className="relative space-y-5">
+              <div className="grid gap-3 md:grid-cols-4">
+                {flowSteps.map((step) => (
+                  <FlowPill key={step}>{step}</FlowPill>
+                ))}
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                <div className="rounded-[8px] border border-emerald-300/20 bg-emerald-400/10 p-4">
+                  <p className="text-xs font-black uppercase text-emerald-200">
+                    Internal route
+                  </p>
+                  <div className="mt-3 grid gap-3">
+                    {internalFlow.map((step) => (
+                      <FlowPill key={step}>{step}</FlowPill>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-[8px] border border-[#e08a49]/30 bg-[#e08a49]/10 p-4">
+                  <p className="text-xs font-black uppercase text-[#ffd9bd]">
+                    External route
+                  </p>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    {externalFlow.map((step) => (
+                      <FlowPill key={step}>{step}</FlowPill>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function Home() {
   return (
     <main className="min-h-screen bg-[#f5f7fa] text-slate-900">
@@ -78,6 +165,8 @@ export default function Home() {
           <WorkflowStrip />
         </div>
       </section>
+
+      <WorkflowRouteMap />
 
       <section className="mx-auto max-w-7xl px-5 py-16 sm:px-6 lg:px-8 lg:py-24">
         <div className="grid gap-10 lg:grid-cols-[0.82fr_1.18fr] lg:items-start">
@@ -163,6 +252,36 @@ export default function Home() {
             title="Provider workspace"
             body="Give manufacturers a focused place to review packages, clarify technical questions, quote, and return files."
           />
+        </div>
+
+        <div className="mt-12 grid gap-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
+          <div>
+            <Eyebrow>OEM digital parts</Eyebrow>
+            <h2 className="mt-4 text-4xl font-black leading-tight text-slate-950">
+              Certified spare-part files can become a controlled commercial
+              channel for machine manufacturers.
+            </h2>
+            <p className="mt-5 text-lg leading-8 text-slate-600">
+              Machine OEMs can publish approved digital part files by machine
+              model, control who can access them, and let customers route those
+              files into internal production or approved provider packages.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {[
+              "Machine model library",
+              "Licensed part files",
+              "Customer entitlement",
+              "Manufacturing-ready package",
+            ].map((item) => (
+              <div
+                key={item}
+                className="rounded-[8px] border border-slate-200 bg-white p-5 text-sm font-bold text-slate-900 shadow-sm"
+              >
+                {item}
+              </div>
+            ))}
+          </div>
         </div>
 
         <div className="mt-12 rounded-[8px] border border-slate-200 bg-white p-6 shadow-sm lg:p-9">

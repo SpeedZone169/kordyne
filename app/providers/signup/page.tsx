@@ -1,4 +1,6 @@
 import Link from "next/link";
+import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import InviteSignupForm from "./InviteSignupForm";
@@ -20,101 +22,114 @@ type InviteMetaRow = {
   organization_id: string;
 };
 
+function ProviderSignupShell({ children }: { children: React.ReactNode }) {
+  return (
+    <main className="min-h-screen bg-[#f5f7fa] text-slate-950">
+      <Navbar />
+      {children}
+      <Footer />
+    </main>
+  );
+}
+
 export default async function SignupPage({ searchParams }: SignupPageProps) {
   const { invite } = await searchParams;
 
   if (!invite) {
     return (
-      <main className="min-h-screen bg-[#f5f5f3] text-slate-950">
-        <section className="mx-auto max-w-6xl px-6 py-16 lg:px-10 lg:py-24">
+      <ProviderSignupShell>
+        <section className="relative overflow-hidden bg-[#101823] text-white">
+          <div className="absolute inset-0 kordyne-grid-bg opacity-65" />
+          <div className="relative mx-auto max-w-6xl px-5 py-16 sm:px-6 lg:px-8 lg:py-20">
           <div className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-start">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
-                Customer onboarding
+              <p className="text-xs font-black uppercase tracking-[0.28em] text-[#e08a49]">
+                Provider access
               </p>
 
-              <h1 className="mt-4 text-4xl font-semibold tracking-tight text-slate-950 lg:text-6xl">
-                Customer access is currently by approval and invitation
+              <h1 className="mt-4 text-4xl font-semibold tracking-tight text-white lg:text-6xl">
+                Provider accounts are opened through customer-approved invites.
               </h1>
 
-              <p className="mt-6 max-w-2xl text-base leading-7 text-slate-600">
-                Kordyne customer accounts are not open for public self-signup yet.
-                Companies are onboarded directly, assigned a plan, and invited
-                into the platform once approved.
+              <p className="mt-6 max-w-2xl text-base leading-7 text-slate-300">
+                Manufacturers, consultants, and external reviewers join Kordyne
+                through scoped invitations. The same sign-in page routes provider
+                users into the provider workspace.
               </p>
 
               <div className="mt-8 flex flex-wrap gap-3">
                 <Link
                   href="/contact"
-                  className="rounded-full bg-slate-950 px-6 py-3 text-sm font-medium text-white transition hover:opacity-90"
+                  className="rounded-[8px] bg-[#e08a49] px-6 py-3 text-sm font-black text-white transition hover:bg-[#c97539]"
                 >
-                  Contact Kordyne
+                  Request provider access
                 </Link>
 
                 <Link
-                  href="/platform"
-                  className="rounded-full border border-zinc-300 bg-white px-6 py-3 text-sm font-medium text-slate-900 transition hover:bg-zinc-50"
+                  href="/login?portal=provider&next=%2Fprovider"
+                  className="rounded-[8px] border border-white/18 bg-white/10 px-6 py-3 text-sm font-black text-white transition hover:bg-white/15"
                 >
-                  Explore platform
+                  Provider sign in
                 </Link>
               </div>
             </div>
 
-            <div className="rounded-[32px] border border-zinc-200 bg-white p-8">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-                How onboarding works
+            <div className="rounded-[8px] border border-white/12 bg-white p-6 text-slate-900 shadow-[0_24px_70px_rgba(2,8,23,0.28)]">
+              <p className="text-xs font-black uppercase tracking-[0.24em] text-slate-500">
+                Provider onboarding
               </p>
 
               <div className="mt-6 space-y-5">
-                <div className="rounded-[24px] border border-zinc-200 bg-[#fafaf9] p-5">
-                  <p className="text-sm font-semibold text-slate-950">
-                    1. Initial discussion
+                <div className="rounded-[8px] border border-zinc-200 bg-[#f5f7fa] p-5">
+                  <p className="text-sm font-black text-slate-950">
+                    1. Approved relationship
                   </p>
                   <p className="mt-2 text-sm leading-6 text-slate-600">
-                    You contact Kordyne and we review your manufacturing,
-                    engineering, and collaboration needs.
+                    A customer or Kordyne admin approves the provider
+                    relationship and shared work context.
                   </p>
                 </div>
 
-                <div className="rounded-[24px] border border-zinc-200 bg-[#fafaf9] p-5">
-                  <p className="text-sm font-semibold text-slate-950">
-                    2. Plan and onboarding approval
+                <div className="rounded-[8px] border border-zinc-200 bg-[#f5f7fa] p-5">
+                  <p className="text-sm font-black text-slate-950">
+                    2. Scoped invitation
                   </p>
                   <p className="mt-2 text-sm leading-6 text-slate-600">
-                    Your company is configured internally with a plan, seat limit,
-                    and onboarding status before user access is enabled.
+                    Users receive an invite tied to the provider organization,
+                    package access, and allowed role.
                   </p>
                 </div>
 
-                <div className="rounded-[24px] border border-zinc-200 bg-[#fafaf9] p-5">
-                  <p className="text-sm font-semibold text-slate-950">
-                    3. Admin invite
+                <div className="rounded-[8px] border border-zinc-200 bg-[#f5f7fa] p-5">
+                  <p className="text-sm font-black text-slate-950">
+                    3. Provider workspace
                   </p>
                   <p className="mt-2 text-sm leading-6 text-slate-600">
-                    Your company admin receives an invite link and completes
-                    account setup through the secure invite flow.
+                    Signed-in providers land in the focused portal for packages,
+                    quotes, collaboration, and returned files.
                   </p>
                 </div>
               </div>
 
-              <div className="mt-8 rounded-[24px] border border-zinc-200 bg-white p-5">
-                <p className="text-sm font-semibold text-slate-950">
+              <div className="mt-8 rounded-[8px] border border-zinc-200 bg-white p-5">
+                <p className="text-sm font-black text-slate-950">
                   Already invited?
                 </p>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
                   Use the invite link from your email to complete your account.
                 </p>
                 <Link
-                  href="/login"
-                  className="mt-4 inline-flex rounded-full border border-zinc-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-900 transition hover:bg-zinc-50"
+                  href="/login?portal=provider&next=%2Fprovider"
+                  className="mt-4 inline-flex rounded-[8px] border border-zinc-300 bg-white px-5 py-2.5 text-sm font-bold text-slate-900 transition hover:bg-zinc-50"
                 >
-                  Go to login
+                  Go to provider login
                 </Link>
               </div>
             </div>
           </div>
+          </div>
         </section>
-      </main>
+      </ProviderSignupShell>
     );
   }
 
@@ -134,9 +149,9 @@ export default async function SignupPage({ searchParams }: SignupPageProps) {
 
   if (!inviteDetails || inviteError) {
     return (
-      <main className="min-h-screen bg-[#f5f5f3] text-slate-950">
+      <ProviderSignupShell>
         <section className="mx-auto max-w-4xl px-6 py-16 lg:px-10 lg:py-24">
-          <div className="rounded-[32px] border border-zinc-200 bg-white p-8">
+          <div className="rounded-[8px] border border-zinc-200 bg-white p-8 shadow-sm">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
               Invite signup
             </p>
@@ -149,14 +164,14 @@ export default async function SignupPage({ searchParams }: SignupPageProps) {
             <div className="mt-8">
               <Link
                 href="/contact"
-                className="rounded-full bg-slate-950 px-6 py-3 text-sm font-medium text-white transition hover:opacity-90"
+                className="rounded-[8px] bg-[#e08a49] px-6 py-3 text-sm font-black text-white transition hover:bg-[#c97539]"
               >
                 Contact Kordyne
               </Link>
             </div>
           </div>
         </section>
-      </main>
+      </ProviderSignupShell>
     );
   }
 
@@ -183,9 +198,9 @@ export default async function SignupPage({ searchParams }: SignupPageProps) {
 
   if (inviteDetails.status !== "pending") {
     return (
-      <main className="min-h-screen bg-[#f5f5f3] text-slate-950">
+      <ProviderSignupShell>
         <section className="mx-auto max-w-4xl px-6 py-16 lg:px-10 lg:py-24">
-          <div className="rounded-[32px] border border-zinc-200 bg-white p-8">
+          <div className="rounded-[8px] border border-zinc-200 bg-white p-8 shadow-sm">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
               Invite signup
             </p>
@@ -199,25 +214,25 @@ export default async function SignupPage({ searchParams }: SignupPageProps) {
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
                 href={`/invite/${invite}`}
-                className="rounded-full bg-slate-950 px-6 py-3 text-sm font-medium text-white transition hover:opacity-90"
+                className="rounded-[8px] bg-slate-950 px-6 py-3 text-sm font-black text-white transition hover:opacity-90"
               >
                 Back to invite
               </Link>
               <Link
                 href="/login"
-                className="rounded-full border border-zinc-300 bg-white px-6 py-3 text-sm font-medium text-slate-900 transition hover:bg-zinc-50"
+                className="rounded-[8px] border border-zinc-300 bg-white px-6 py-3 text-sm font-black text-slate-900 transition hover:bg-zinc-50"
               >
                 Go to login
               </Link>
             </div>
           </div>
         </section>
-      </main>
+      </ProviderSignupShell>
     );
   }
 
   return (
-    <main className="min-h-screen bg-[#f5f5f3] text-slate-950">
+    <ProviderSignupShell>
       <section className="mx-auto max-w-6xl px-6 py-16 lg:px-10 lg:py-24">
         <div className="grid gap-10 lg:grid-cols-[1fr_1fr] lg:items-start">
           <div>
@@ -235,7 +250,7 @@ export default async function SignupPage({ searchParams }: SignupPageProps) {
               before accepting their invite.
             </p>
 
-            <div className="mt-8 rounded-[28px] border border-zinc-200 bg-white p-6">
+            <div className="mt-8 rounded-[8px] border border-zinc-200 bg-white p-6 shadow-sm">
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
                 Invite details
               </p>
@@ -249,7 +264,7 @@ export default async function SignupPage({ searchParams }: SignupPageProps) {
               <div className="mt-6">
                 <Link
                   href={`/invite/${invite}`}
-                  className="rounded-full border border-zinc-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-900 transition hover:bg-zinc-50"
+                  className="rounded-[8px] border border-zinc-300 bg-white px-5 py-2.5 text-sm font-bold text-slate-900 transition hover:bg-zinc-50"
                 >
                   Back to invite
                 </Link>
@@ -265,6 +280,6 @@ export default async function SignupPage({ searchParams }: SignupPageProps) {
           />
         </div>
       </section>
-    </main>
+    </ProviderSignupShell>
   );
 }

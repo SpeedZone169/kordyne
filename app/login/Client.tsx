@@ -48,6 +48,7 @@ export default function Client({ nextPath, portal }: Props) {
   const [password, setPassword] = useState("");
   const [turnstileToken, setTurnstileToken] = useState("");
   const [turnstileKey, setTurnstileKey] = useState(0);
+  const [turnstileError, setTurnstileError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -153,7 +154,9 @@ export default function Client({ nextPath, portal }: Props) {
 
     try {
       if (!turnstileToken) {
-        throw new Error("Please complete the security check.");
+        throw new Error(
+          turnstileError || "Please complete the security check.",
+        );
       }
 
       const response = await fetch("/api/auth/login", {
@@ -184,6 +187,7 @@ export default function Client({ nextPath, portal }: Props) {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to sign in.");
       setTurnstileToken("");
+      setTurnstileError("");
       setTurnstileKey((value) => value + 1);
     } finally {
       setSubmitting(false);
@@ -192,7 +196,7 @@ export default function Client({ nextPath, portal }: Props) {
 
   return (
     <div className="mx-auto flex min-h-[calc(100vh-145px)] w-full max-w-2xl items-center px-4 py-16 lg:px-6">
-      <div className="w-full rounded-[32px] border border-zinc-200 bg-white p-8 shadow-sm">
+      <div className="w-full rounded-[8px] border border-zinc-200 bg-white p-8 shadow-sm">
         <p className="text-sm font-medium uppercase tracking-wide text-slate-500">
           {copy.badge}
         </p>
@@ -217,7 +221,7 @@ export default function Client({ nextPath, portal }: Props) {
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               placeholder="you@company.com"
-              className="w-full rounded-full border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
+              className="w-full rounded-[8px] border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
               required
             />
           </div>
@@ -242,26 +246,35 @@ export default function Client({ nextPath, portal }: Props) {
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               placeholder="Your password"
-              className="w-full rounded-full border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
+              className="w-full rounded-[8px] border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
               required
             />
           </div>
 
           {error ? (
-            <div className="rounded-[18px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            <div className="rounded-[8px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
               {error}
             </div>
           ) : null}
 
-          <div className="rounded-[18px] border border-zinc-200 bg-[#f7f8fa] p-4">
-            <TurnstileWidget key={turnstileKey} onVerify={setTurnstileToken} />
+          <div className="rounded-[8px] border border-zinc-200 bg-[#f7f8fa] p-4">
+            <TurnstileWidget
+              key={turnstileKey}
+              onVerify={(token) => {
+                setTurnstileToken(token);
+                if (token) {
+                  setTurnstileError("");
+                }
+              }}
+              onError={setTurnstileError}
+            />
           </div>
 
           <div className="flex flex-wrap gap-3 pt-2">
             <button
               type="submit"
               disabled={submitting || !turnstileToken}
-              className="rounded-full bg-slate-950 px-5 py-3 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-[8px] bg-slate-950 px-5 py-3 text-sm font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {submitting ? "Signing in..." : "Sign in"}
             </button>
@@ -269,7 +282,7 @@ export default function Client({ nextPath, portal }: Props) {
             {portal === "customer" ? (
               <Link
                 href="/signup"
-                className="rounded-full border border-zinc-300 bg-white px-5 py-3 text-sm font-medium text-slate-700 transition hover:bg-zinc-50"
+                className="rounded-[8px] border border-zinc-300 bg-white px-5 py-3 text-sm font-bold text-slate-700 transition hover:bg-zinc-50"
               >
                 Create account
               </Link>

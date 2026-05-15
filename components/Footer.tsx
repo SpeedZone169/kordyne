@@ -20,6 +20,9 @@ export default function Footer() {
               <Link href="/platform" className="transition hover:text-slate-950">
                 Platform
               </Link>
+              <Link href="/pricing" className="transition hover:text-slate-950">
+                Pricing
+              </Link>
               <Link href="/enterprise" className="transition hover:text-slate-950">
                 Enterprise
               </Link>

@@ -94,7 +94,7 @@ export default function InviteSignupForm({
 
   if (success) {
     return (
-      <div className="rounded-[32px] border border-zinc-200 bg-white p-8">
+      <div className="rounded-[8px] border border-zinc-200 bg-white p-8 shadow-sm">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
           Account created
         </p>
@@ -111,14 +111,14 @@ export default function InviteSignupForm({
         <div className="mt-6 flex flex-wrap gap-3">
           <Link
             href={`/invite/${inviteToken}`}
-            className="rounded-full bg-slate-950 px-5 py-2.5 text-sm font-medium text-white transition hover:opacity-90"
+            className="rounded-[8px] bg-slate-950 px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90"
           >
             Back to invite
           </Link>
 
           <Link
             href={`/login?next=${encodeURIComponent(`/invite/${inviteToken}`)}`}
-            className="rounded-full border border-zinc-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-900 transition hover:bg-zinc-50"
+            className="rounded-[8px] border border-zinc-300 bg-white px-5 py-2.5 text-sm font-bold text-slate-900 transition hover:bg-zinc-50"
           >
             Go to login
           </Link>
@@ -137,7 +137,7 @@ export default function InviteSignupForm({
         />
       ) : null}
 
-      <div className="rounded-[32px] border border-zinc-200 bg-white p-8">
+      <div className="rounded-[8px] border border-zinc-200 bg-white p-8 shadow-sm">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
           Invited account setup
         </p>
@@ -160,7 +160,7 @@ export default function InviteSignupForm({
               type="text"
               value={organizationName}
               readOnly
-              className="w-full rounded-full border border-zinc-300 bg-[#fafaf9] px-4 py-3 text-sm text-slate-600 outline-none"
+              className="w-full rounded-[8px] border border-zinc-300 bg-[#f5f7fa] px-4 py-3 text-sm text-slate-600 outline-none"
             />
           </div>
 
@@ -172,7 +172,7 @@ export default function InviteSignupForm({
               type="email"
               value={inviteEmail}
               readOnly
-              className="w-full rounded-full border border-zinc-300 bg-[#fafaf9] px-4 py-3 text-sm text-slate-600 outline-none"
+              className="w-full rounded-[8px] border border-zinc-300 bg-[#f5f7fa] px-4 py-3 text-sm text-slate-600 outline-none"
             />
           </div>
 
@@ -184,7 +184,7 @@ export default function InviteSignupForm({
               type="text"
               name="fullName"
               required
-              className="w-full rounded-full border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
+              className="w-full rounded-[8px] border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
               placeholder="Your full name"
             />
           </div>
@@ -198,7 +198,7 @@ export default function InviteSignupForm({
               name="password"
               required
               minLength={8}
-              className="w-full rounded-full border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
+              className="w-full rounded-[8px] border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
               placeholder="Create a password"
             />
           </div>
@@ -212,12 +212,12 @@ export default function InviteSignupForm({
               name="repeatPassword"
               required
               minLength={8}
-              className="w-full rounded-full border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
+              className="w-full rounded-[8px] border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
               placeholder="Repeat your password"
             />
           </div>
 
-          <label className="flex items-start gap-3 rounded-[20px] border border-zinc-200 bg-[#fafaf9] p-4 text-sm leading-6 text-slate-600">
+          <label className="flex items-start gap-3 rounded-[8px] border border-zinc-200 bg-[#f5f7fa] p-4 text-sm leading-6 text-slate-600">
             <input
               type="checkbox"
               name="acceptedTerms"
@@ -244,13 +244,13 @@ export default function InviteSignupForm({
               data-theme="light"
             />
           ) : (
-            <div className="rounded-[20px] border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-              NEXT_PUBLIC_TURNSTILE_SITE_KEY is missing.
+            <div className="rounded-[8px] border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+              Security verification is unavailable. Please contact Kordyne to complete account setup.
             </div>
           )}
 
           {error ? (
-            <div className="rounded-[20px] border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            <div className="rounded-[8px] border border-red-200 bg-red-50 p-4 text-sm text-red-700">
               {error}
             </div>
           ) : null}
@@ -259,14 +259,14 @@ export default function InviteSignupForm({
             <button
               type="submit"
               disabled={isSubmitting || !siteKey}
-              className="rounded-full bg-slate-950 px-5 py-2.5 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-[8px] bg-slate-950 px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isSubmitting ? "Creating account..." : "Create invited account"}
             </button>
 
             <Link
               href={`/invite/${inviteToken}`}
-              className="rounded-full border border-zinc-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-900 transition hover:bg-zinc-50"
+              className="rounded-[8px] border border-zinc-300 bg-white px-5 py-2.5 text-sm font-bold text-slate-900 transition hover:bg-zinc-50"
             >
               Back to invite
             </Link>

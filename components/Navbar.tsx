@@ -13,6 +13,7 @@ type AuthUser = {
 const marketingLinks = [
   { href: "/", label: "Home" },
   { href: "/platform", label: "Platform" },
+  { href: "/pricing", label: "Pricing" },
   { href: "/enterprise", label: "Enterprise" },
   { href: "/providers", label: "Providers" },
   { href: "/contact", label: "Contact" },

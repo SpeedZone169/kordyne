@@ -1,96 +1,101 @@
 import Link from "next/link";
+import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
 
 export default function SignupPage() {
   return (
-    <main className="min-h-screen bg-[#f5f5f3] text-slate-950">
-      <section className="mx-auto max-w-6xl px-6 py-16 lg:px-10 lg:py-24">
-        <div className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-start">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
-              Customer onboarding
+    <main className="min-h-screen bg-[#f5f7fa] text-slate-950">
+      <Navbar />
+
+      <section className="relative overflow-hidden bg-[#101823] text-white">
+        <div className="absolute inset-0 kordyne-grid-bg opacity-65" />
+        <div className="relative mx-auto grid max-w-7xl gap-10 px-5 py-16 sm:px-6 lg:grid-cols-[1fr_0.86fr] lg:px-8 lg:py-20">
+          <div className="self-center">
+            <p className="text-xs font-black uppercase text-[#e08a49]">
+              Customer access
             </p>
-
-            <h1 className="mt-4 text-4xl font-semibold tracking-tight text-slate-950 lg:text-6xl">
-              Customer access is currently by approval and invitation
+            <h1 className="mt-4 text-5xl font-black leading-tight text-white sm:text-6xl">
+              Kordyne workspaces are opened through approved onboarding.
             </h1>
-
-            <p className="mt-6 max-w-2xl text-base leading-7 text-slate-600">
-              Kordyne customer accounts are not open for public self-signup yet.
-              Companies are onboarded directly, assigned a plan, and invited
-              into the platform once approved.
+            <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-300">
+              Customer accounts are created after the company workspace, plan,
+              seats, and access model are confirmed. Invited users can complete
+              setup from the secure invitation sent to their work email.
             </p>
 
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
                 href="/contact"
-                className="rounded-full bg-slate-950 px-6 py-3 text-sm font-medium text-white transition hover:opacity-90"
+                className="rounded-[8px] bg-[#e08a49] px-5 py-3 text-sm font-black text-white transition hover:bg-[#c97539]"
               >
-                Contact Kordyne
+                Request access
               </Link>
-
               <Link
-                href="/platform"
-                className="rounded-full border border-zinc-300 bg-white px-6 py-3 text-sm font-medium text-slate-900 transition hover:bg-zinc-50"
+                href="/login"
+                className="rounded-[8px] border border-white/18 bg-white/10 px-5 py-3 text-sm font-black text-white transition hover:bg-white/15"
               >
-                Explore platform
+                Sign in
               </Link>
             </div>
           </div>
 
-          <div className="rounded-[32px] border border-zinc-200 bg-white p-8">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-              How onboarding works
+          <div className="rounded-[8px] border border-white/12 bg-white p-6 text-slate-900 shadow-[0_24px_70px_rgba(2,8,23,0.28)]">
+            <p className="text-xs font-black uppercase text-slate-500">
+              Onboarding flow
             </p>
-
-            <div className="mt-6 space-y-5">
-              <div className="rounded-[24px] border border-zinc-200 bg-[#fafaf9] p-5">
-                <p className="text-sm font-semibold text-slate-950">
-                  1. Initial discussion
-                </p>
-                <p className="mt-2 text-sm leading-6 text-slate-600">
-                  You contact Kordyne and we review your manufacturing,
-                  engineering, and collaboration needs.
-                </p>
-              </div>
-
-              <div className="rounded-[24px] border border-zinc-200 bg-[#fafaf9] p-5">
-                <p className="text-sm font-semibold text-slate-950">
-                  2. Plan and onboarding approval
-                </p>
-                <p className="mt-2 text-sm leading-6 text-slate-600">
-                  Your company is configured internally with a plan, seat limit,
-                  and onboarding status before user access is enabled.
-                </p>
-              </div>
-
-              <div className="rounded-[24px] border border-zinc-200 bg-[#fafaf9] p-5">
-                <p className="text-sm font-semibold text-slate-950">
-                  3. Admin invite
-                </p>
-                <p className="mt-2 text-sm leading-6 text-slate-600">
-                  Your company admin receives an invite link and completes
-                  account setup through the secure invite flow.
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-8 rounded-[24px] border border-zinc-200 bg-white p-5">
-              <p className="text-sm font-semibold text-slate-950">
-                Already invited?
-              </p>
-              <p className="mt-2 text-sm leading-6 text-slate-600">
-                Use the invite link from your email to complete your account.
-              </p>
-              <Link
-                href="/login"
-                className="mt-4 inline-flex rounded-full border border-zinc-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-900 transition hover:bg-zinc-50"
-              >
-                Go to login
-              </Link>
+            <div className="mt-5 space-y-3">
+              {[
+                [
+                  "Workspace review",
+                  "Kordyne aligns the vault, project, manufacturing, and collaboration requirements with the company.",
+                ],
+                [
+                  "Plan activation",
+                  "The organization is configured with approved seats, roles, and starting capabilities.",
+                ],
+                [
+                  "Secure invite",
+                  "Admins and users receive invitation links that create accounts inside the approved workspace.",
+                ],
+              ].map(([title, body], index) => (
+                <div
+                  key={title}
+                  className="rounded-[8px] border border-slate-200 bg-[#f5f7fa] p-4"
+                >
+                  <p className="text-xs font-black text-[#e08a49]">
+                    0{index + 1}
+                  </p>
+                  <h2 className="mt-2 text-base font-black text-slate-950">
+                    {title}
+                  </h2>
+                  <p className="mt-2 text-sm leading-6 text-slate-600">
+                    {body}
+                  </p>
+                </div>
+              ))}
             </div>
           </div>
         </div>
       </section>
+
+      <section className="mx-auto max-w-7xl px-5 py-14 sm:px-6 lg:px-8">
+        <div className="grid gap-4 md:grid-cols-3">
+          {[
+            "Part vault and revision governance",
+            "Provider and external viewer access",
+            "Machine connectors and request routing",
+          ].map((item) => (
+            <div
+              key={item}
+              className="rounded-[8px] border border-slate-200 bg-white p-5 text-sm font-bold text-slate-900 shadow-sm"
+            >
+              {item}
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <Footer />
     </main>
   );
 }

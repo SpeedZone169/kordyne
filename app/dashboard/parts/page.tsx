@@ -235,6 +235,60 @@ function PartThumbnail({ family }: { family: PartFamilyView }) {
   );
 }
 
+const vaultFlowSteps = [
+  "Project",
+  "CAD <-> Vault",
+  "Part collaboration",
+  "External review",
+  "Manufacturing route",
+];
+
+function VaultWorkflowBand() {
+  return (
+    <div className="mb-5 overflow-hidden rounded-[12px] border border-slate-200 bg-[#101823] text-white shadow-sm">
+      <div className="relative p-4 lg:p-5">
+        <div className="absolute inset-0 kordyne-grid-bg opacity-45" />
+        <div className="relative grid gap-4 xl:grid-cols-[1fr_0.72fr] xl:items-center">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.12em] text-[#e08a49]">
+              Vault to production
+            </p>
+            <div className="mt-3 grid gap-2 md:grid-cols-5">
+              {vaultFlowSteps.map((step) => (
+                <div
+                  key={step}
+                  className="rounded-[8px] border border-white/12 bg-white/[0.07] px-3 py-2 text-xs font-black text-white"
+                >
+                  {step}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid gap-2 sm:grid-cols-2">
+            <div className="rounded-[8px] border border-emerald-300/20 bg-emerald-400/10 p-3">
+              <p className="text-xs font-black uppercase text-emerald-200">
+                Internal
+              </p>
+              <p className="mt-1 text-sm font-bold text-white">
+                Machines, utilisation, scheduling
+              </p>
+            </div>
+            <div className="rounded-[8px] border border-[#e08a49]/30 bg-[#e08a49]/10 p-3">
+              <p className="text-xs font-black uppercase text-[#ffd9bd]">
+                External
+              </p>
+              <p className="mt-1 text-sm font-bold text-white">
+                Quotes, invoices, returned files
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default async function PartsPage({ searchParams }: PartsPageProps) {
   const supabase = await createClient();
 
@@ -442,6 +496,8 @@ export default async function PartsPage({ searchParams }: PartsPageProps) {
           ) : null}
         </div>
       </div>
+
+      <VaultWorkflowBand />
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="min-w-0 rounded-[12px] border border-slate-200 bg-white shadow-sm">
