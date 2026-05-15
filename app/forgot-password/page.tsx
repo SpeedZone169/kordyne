@@ -8,6 +8,7 @@ import TurnstileWidget from "../../components/TurnstileWidget";
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [turnstileToken, setTurnstileToken] = useState("");
+  const [turnstileKey, setTurnstileKey] = useState(0);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -52,6 +53,8 @@ export default function ForgotPasswordPage() {
       setError("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
+      setTurnstileToken("");
+      setTurnstileKey((value) => value + 1);
     }
   }
 
@@ -75,11 +78,11 @@ export default function ForgotPasswordPage() {
             required
           />
 
-          <TurnstileWidget onVerify={setTurnstileToken} />
+          <TurnstileWidget key={turnstileKey} onVerify={setTurnstileToken} />
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || !turnstileToken}
             className="w-full rounded-xl bg-gray-900 py-3 text-white disabled:opacity-60"
           >
             {loading ? "Sending..." : "Send Reset Link"}

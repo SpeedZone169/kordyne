@@ -19,9 +19,9 @@ export default function RootLayout({
         {children}
         <Analytics />
         <Script
-          src="https://challenges.cloudflare.com/turnstile/v0/api.js"
-          async
-          defer
+          id="cloudflare-turnstile"
+          src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
+          strategy="afterInteractive"
         />
       </body>
     </html>

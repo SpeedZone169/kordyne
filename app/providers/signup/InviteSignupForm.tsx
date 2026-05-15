@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import Script from "next/script";
 import { FormEvent, useState } from "react";
+import TurnstileWidget from "../../../components/TurnstileWidget";
 
 type InviteSignupFormProps = {
   inviteToken: string;
@@ -20,6 +20,8 @@ export default function InviteSignupForm({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const [turnstileKey, setTurnstileKey] = useState(0);
 
   const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 
@@ -34,9 +36,6 @@ export default function InviteSignupForm({
     const password = String(formData.get("password") ?? "");
     const repeatPassword = String(formData.get("repeatPassword") ?? "");
     const acceptedTerms = formData.get("acceptedTerms") === "on";
-    const turnstileToken = String(
-      formData.get("cf-turnstile-response") ?? ""
-    ).trim();
 
     if (!fullName) {
       setError("Full name is required.");
@@ -81,6 +80,7 @@ export default function InviteSignupForm({
 
       setSuccess(true);
       form.reset();
+      setTurnstileToken("");
     } catch (submitError) {
       setError(
         submitError instanceof Error
@@ -89,6 +89,8 @@ export default function InviteSignupForm({
       );
     } finally {
       setIsSubmitting(false);
+      setTurnstileToken("");
+      setTurnstileKey((value) => value + 1);
     }
   }
 
@@ -129,14 +131,6 @@ export default function InviteSignupForm({
 
   return (
     <>
-      {siteKey ? (
-        <Script
-          src="https://challenges.cloudflare.com/turnstile/v0/api.js"
-          async
-          defer
-        />
-      ) : null}
-
       <div className="rounded-[8px] border border-zinc-200 bg-white p-8 shadow-sm">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
           Invited account setup
@@ -238,11 +232,12 @@ export default function InviteSignupForm({
           </label>
 
           {siteKey ? (
-            <div
-              className="cf-turnstile"
-              data-sitekey={siteKey}
-              data-theme="light"
-            />
+            <div className="rounded-[8px] border border-zinc-200 bg-[#f5f7fa] p-4">
+              <TurnstileWidget
+                key={turnstileKey}
+                onVerify={setTurnstileToken}
+              />
+            </div>
           ) : (
             <div className="rounded-[8px] border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
               Security verification is unavailable. Please contact Kordyne to complete account setup.
@@ -258,7 +253,7 @@ export default function InviteSignupForm({
           <div className="flex flex-wrap gap-3">
             <button
               type="submit"
-              disabled={isSubmitting || !siteKey}
+              disabled={isSubmitting || !siteKey || !turnstileToken}
               className="rounded-[8px] bg-slate-950 px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isSubmitting ? "Creating account..." : "Create invited account"}

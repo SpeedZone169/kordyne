@@ -1,6 +1,5 @@
 "use client";
 
-import Script from "next/script";
 import { useEffect, useRef, useState } from "react";
 
 declare global {
@@ -14,8 +13,8 @@ declare global {
           "expired-callback"?: () => void;
           "error-callback"?: () => void;
         }
-      ) => void;
-      remove?: (container: HTMLElement) => void;
+      ) => string;
+      remove?: (widgetId: string) => void;
     };
   }
 }
@@ -34,6 +33,7 @@ const turnstileMissingMessage = turnstileSiteKey
 
 export default function TurnstileWidget({ onVerify, onError }: TurnstileWidgetProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const widgetIdRef = useRef<string | null>(null);
   const [message, setMessage] = useState(turnstileMissingMessage);
 
   useEffect(() => {
@@ -41,54 +41,82 @@ export default function TurnstileWidget({ onVerify, onError }: TurnstileWidgetPr
 
     const container = containerRef.current;
     if (!container) return;
+    const widgetContainer = container;
+    const siteKey = turnstileSiteKey ?? "";
 
-    if (!turnstileSiteKey) {
+    if (!siteKey) {
       onError?.(turnstileMissingMessage);
       return;
     }
 
+    let cancelled = false;
+
+    function renderWidget() {
+      if (
+        cancelled ||
+        widgetIdRef.current ||
+        !window.turnstile ||
+        !widgetContainer.isConnected
+      ) {
+        return;
+      }
+
+      widgetIdRef.current = window.turnstile.render(widgetContainer, {
+        sitekey: siteKey,
+        callback: (token: string) => {
+          setMessage("");
+          onVerify(token);
+        },
+        "expired-callback": () => {
+          onVerify("");
+        },
+        "error-callback": () => {
+          setMessage(turnstileUnavailableMessage);
+          onVerify("");
+          onError?.(turnstileUnavailableMessage);
+        },
+      });
+
+      window.clearTimeout(unavailableTimeout);
+    }
+
     const interval = setInterval(() => {
-      if (window.turnstile && container.childNodes.length === 0) {
-        window.turnstile.render(container, {
-          sitekey: turnstileSiteKey,
-          callback: (token: string) => {
-            setMessage("");
-            onVerify(token);
-          },
-          "expired-callback": () => {
-            onVerify("");
-          },
-          "error-callback": () => {
-            setMessage(turnstileUnavailableMessage);
-            onVerify("");
-            onError?.(turnstileUnavailableMessage);
-          },
-        });
+      renderWidget();
+
+      if (widgetIdRef.current) {
         clearInterval(interval);
       }
     }, 300);
 
-    return () => {
-      clearInterval(interval);
+    const unavailableTimeout = window.setTimeout(() => {
+      if (cancelled || widgetIdRef.current) {
+        return;
+      }
 
-      if (window.turnstile?.remove) {
-        window.turnstile.remove(container);
+      setMessage(turnstileUnavailableMessage);
+      onVerify("");
+      onError?.(turnstileUnavailableMessage);
+      clearInterval(interval);
+    }, 10000);
+
+    renderWidget();
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      window.clearTimeout(unavailableTimeout);
+
+      const widgetId = widgetIdRef.current;
+      widgetIdRef.current = null;
+
+      if (widgetId && window.turnstile?.remove) {
+        window.turnstile.remove(widgetId);
       }
     };
   }, [onError, onVerify]);
 
   return (
     <>
-      <Script
-        src="https://challenges.cloudflare.com/turnstile/v0/api.js"
-        async
-        defer
-        onError={() => {
-          setMessage(turnstileUnavailableMessage);
-          onVerify("");
-          onError?.(turnstileUnavailableMessage);
-        }}
-      />
       <div ref={containerRef} />
       {message ? (
         <p className="mt-2 text-xs leading-5 text-rose-600">{message}</p>
