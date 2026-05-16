@@ -50,14 +50,16 @@ export async function POST(request: Request) {
         .maybeSingle();
 
       if (!error && data?.link_code) {
+        const browserUrl = new URL("/design-app/connect", origin);
+        browserUrl.searchParams.set("code", linkCode);
+        browserUrl.searchParams.set("client_type", clientType);
+
         return NextResponse.json({
           ok: true,
           code: linkCode,
           client_verifier: clientVerifier,
           client_type: clientType,
-          browser_url: `${origin}/design-app/connect?code=${encodeURIComponent(
-            linkCode,
-          )}`,
+          browser_url: browserUrl.toString(),
         });
       }
 

@@ -11,15 +11,22 @@ type Status =
   | "approved"
   | "error";
 
+const CLIENT_LABELS: Record<string, string> = {
+  fusion: "Fusion",
+  inventor: "Inventor",
+  onshape: "Onshape",
+};
+
 function getRedirectKey(code: string) {
   return `kordyne-design-app-login-redirect:${code}`;
 }
 
 export default function DesignAppConnectPage() {
   const [status, setStatus] = useState<Status>("checking");
-  const [message, setMessage] = useState("Checking browser session…");
+  const [message, setMessage] = useState("Checking browser session...");
   const [code, setCode] = useState("");
   const [codeReady, setCodeReady] = useState(false);
+  const [clientLabel, setClientLabel] = useState("CAD connector");
 
   const supabase = useMemo(
     () =>
@@ -33,6 +40,13 @@ export default function DesignAppConnectPage() {
   useEffect(() => {
     const timer = window.setTimeout(() => {
       const params = new URLSearchParams(window.location.search);
+      const clientType = (
+        params.get("client_type") ??
+        params.get("clientType") ??
+        ""
+      ).toLowerCase();
+
+      setClientLabel(CLIENT_LABELS[clientType] ?? "CAD connector");
       setCode(params.get("code") ?? "");
       setCodeReady(true);
     }, 0);
@@ -42,7 +56,7 @@ export default function DesignAppConnectPage() {
 
   const approve = useCallback(async function approve(currentCode: string) {
     setStatus("approving");
-    setMessage("Approving Fusion connection…");
+    setMessage(`Approving ${clientLabel} connection...`);
 
     const { data, error } = await supabase.auth.getSession();
 
@@ -82,9 +96,9 @@ export default function DesignAppConnectPage() {
     setStatus("approved");
     setMessage(
       payload.message ??
-        "Connection approved. Returning control to Fusion.",
+        `Connection approved. Returning control to ${clientLabel}.`,
     );
-  }, [supabase]);
+  }, [clientLabel, supabase]);
 
   useEffect(() => {
     let isMounted = true;
@@ -122,7 +136,7 @@ export default function DesignAppConnectPage() {
         const loginUrl = `/login?next=${encodeURIComponent(returnTo)}`;
 
         setStatus("redirecting_to_login");
-        setMessage("Redirecting to Kordyne login…");
+        setMessage("Redirecting to Kordyne login...");
         window.location.assign(loginUrl);
         return;
       }
@@ -165,7 +179,7 @@ export default function DesignAppConnectPage() {
     <div className="mx-auto max-w-2xl space-y-6 p-6">
       <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
         <h1 className="text-2xl font-semibold text-gray-900">
-          Connect Fusion to Kordyne
+          Connect {clientLabel} to Kordyne
         </h1>
 
         <p className="mt-3 text-sm text-gray-600">{message}</p>

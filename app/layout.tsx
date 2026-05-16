@@ -6,6 +6,12 @@ import { Analytics } from "@vercel/analytics/next";
 export const metadata: Metadata = {
   title: "Kordyne",
   description: "Digital infrastructure for advanced parts",
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/favicon.png", type: "image/png", sizes: "373x373" },
+    ],
+  },
 };
 
 export default function RootLayout({

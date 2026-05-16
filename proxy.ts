@@ -15,6 +15,7 @@ function isExcludedPath(pathname: string) {
   return (
     pathname.startsWith("/_next/") ||
     pathname === "/favicon.ico" ||
+    pathname === "/favicon.png" ||
     pathname === "/kordyne-logo.svg" ||
     pathname === "/robots.txt" ||
     pathname === "/.well-known/security.txt" ||

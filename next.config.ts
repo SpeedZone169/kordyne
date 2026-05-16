@@ -18,7 +18,7 @@ const contentSecurityPolicy = [
   "child-src 'self' https://challenges.cloudflare.com blob:",
 
   // Supabase, Autodesk, Turnstile, general HTTPS APIs
-  "connect-src 'self' https: wss:",
+  "connect-src 'self' https: wss: https://challenges.cloudflare.com",
 
   "worker-src 'self' blob:",
   "media-src 'self' blob: data:",

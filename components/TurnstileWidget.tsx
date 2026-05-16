@@ -33,11 +33,18 @@ const turnstileMissingMessage = turnstileSiteKey
 
 export default function TurnstileWidget({ onVerify, onError }: TurnstileWidgetProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const onErrorRef = useRef(onError);
+  const onVerifyRef = useRef(onVerify);
   const widgetIdRef = useRef<string | null>(null);
   const [message, setMessage] = useState(turnstileMissingMessage);
 
   useEffect(() => {
-    onVerify("");
+    onVerifyRef.current = onVerify;
+    onErrorRef.current = onError;
+  }, [onError, onVerify]);
+
+  useEffect(() => {
+    onVerifyRef.current("");
 
     const container = containerRef.current;
     if (!container) return;
@@ -45,7 +52,7 @@ export default function TurnstileWidget({ onVerify, onError }: TurnstileWidgetPr
     const siteKey = turnstileSiteKey ?? "";
 
     if (!siteKey) {
-      onError?.(turnstileMissingMessage);
+      onErrorRef.current?.(turnstileMissingMessage);
       return;
     }
 
@@ -65,15 +72,15 @@ export default function TurnstileWidget({ onVerify, onError }: TurnstileWidgetPr
         sitekey: siteKey,
         callback: (token: string) => {
           setMessage("");
-          onVerify(token);
+          onVerifyRef.current(token);
         },
         "expired-callback": () => {
-          onVerify("");
+          onVerifyRef.current("");
         },
         "error-callback": () => {
           setMessage(turnstileUnavailableMessage);
-          onVerify("");
-          onError?.(turnstileUnavailableMessage);
+          onVerifyRef.current("");
+          onErrorRef.current?.(turnstileUnavailableMessage);
         },
       });
 
@@ -94,8 +101,8 @@ export default function TurnstileWidget({ onVerify, onError }: TurnstileWidgetPr
       }
 
       setMessage(turnstileUnavailableMessage);
-      onVerify("");
-      onError?.(turnstileUnavailableMessage);
+      onVerifyRef.current("");
+      onErrorRef.current?.(turnstileUnavailableMessage);
       clearInterval(interval);
     }, 10000);
 
@@ -109,11 +116,15 @@ export default function TurnstileWidget({ onVerify, onError }: TurnstileWidgetPr
       const widgetId = widgetIdRef.current;
       widgetIdRef.current = null;
 
-      if (widgetId && window.turnstile?.remove) {
-        window.turnstile.remove(widgetId);
+      if (widgetId && widgetContainer.isConnected && window.turnstile?.remove) {
+        try {
+          window.turnstile.remove(widgetId);
+        } catch {
+          // Turnstile can already be gone if navigation unmounts the iframe first.
+        }
       }
     };
-  }, [onError, onVerify]);
+  }, []);
 
   return (
     <>
