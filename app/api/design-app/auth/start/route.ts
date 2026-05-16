@@ -36,6 +36,8 @@ export async function POST(request: Request) {
     const clientVerifier = generateClientVerifier();
     const clientVerifierHash = hashVerifier(clientVerifier);
 
+    let lastInsertError: string | null = null;
+
     for (let attempt = 0; attempt < 5; attempt += 1) {
       const { data, error } = await admin
         .from("design_app_login_links")
@@ -63,11 +65,23 @@ export async function POST(request: Request) {
         });
       }
 
+      lastInsertError = error?.message ?? "No link code returned.";
       linkCode = generateLinkCode();
     }
 
+    console.error(
+      "[design-app/auth/start] Failed to create login link.",
+      lastInsertError,
+    );
+
     return NextResponse.json(
-      { ok: false, error: "Failed to create browser login request." },
+      {
+        ok: false,
+        error:
+          process.env.NODE_ENV === "development" && lastInsertError
+            ? lastInsertError
+            : "Failed to create browser login request.",
+      },
       { status: 500 },
     );
   } catch (error) {
