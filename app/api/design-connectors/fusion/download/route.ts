@@ -2,8 +2,16 @@ import { NextResponse } from "next/server";
 import { createClient } from "../../../../../lib/supabase/server";
 import { createDesignAppAdminClient } from "../../../../../lib/design-app/admin";
 
-export async function GET() {
+function getRequestedFormat(request: Request) {
+  const url = new URL(request.url);
+  const format = url.searchParams.get("format")?.trim().toLowerCase() || "zip";
+
+  return format === "msi" ? "msi" : "zip";
+}
+
+export async function GET(request: Request) {
   const supabase = await createClient();
+  const packageFormat = getRequestedFormat(request);
 
   const {
     data: { user },
@@ -62,6 +70,7 @@ export async function GET() {
   let release:
     | {
         id: string;
+        package_format: string | null;
         storage_bucket: string;
         storage_path: string;
         file_name: string;
@@ -72,18 +81,21 @@ export async function GET() {
   if (entitlement.current_release_id) {
     const { data } = await admin
       .from("connector_distribution_releases")
-      .select("id, storage_bucket, storage_path, file_name, is_active")
+      .select("id, package_format, storage_bucket, storage_path, file_name, is_active")
       .eq("id", entitlement.current_release_id)
       .maybeSingle();
 
-    release = data;
+    if (data?.package_format === packageFormat) {
+      release = data;
+    }
   }
 
   if (!release) {
     const { data } = await admin
       .from("connector_distribution_releases")
-      .select("id, storage_bucket, storage_path, file_name, is_active")
+      .select("id, package_format, storage_bucket, storage_path, file_name, is_active")
       .eq("provider_key", "fusion")
+      .eq("package_format", packageFormat)
       .eq("is_active", true)
       .order("created_at", { ascending: false })
       .limit(1)

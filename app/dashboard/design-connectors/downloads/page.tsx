@@ -9,6 +9,11 @@ const CONNECTORS = DESIGN_CONNECTOR_PROVIDER_LIST.map((provider) => ({
   href: provider.downloadRoute,
 }));
 
+const DOWNLOAD_FORMATS = [
+  { key: "msi", label: "MSI installer" },
+  { key: "zip", label: "ZIP package" },
+] as const;
+
 function formatUtc(value?: string | null) {
   if (!value) return "—";
   const date = new Date(value);
@@ -57,7 +62,9 @@ export default async function DesignConnectorDownloadsPage() {
       .eq("organization_id", membership.organization_id),
     supabase
       .from("connector_distribution_releases")
-      .select("id, provider_key, version, file_name, created_at, is_active")
+      .select(
+        "id, provider_key, version, package_format, file_name, created_at, is_active",
+      )
       .eq("is_active", true)
       .order("created_at", { ascending: false }),
   ]);
@@ -69,10 +76,17 @@ export default async function DesignConnectorDownloadsPage() {
     entitlements.map((item) => [item.provider_key, item]),
   );
 
-  const latestReleaseByProvider = new Map<string, (typeof releases)[number]>();
+  const latestReleaseByProviderAndFormat = new Map<
+    string,
+    (typeof releases)[number]
+  >();
+
   for (const release of releases) {
-    if (!latestReleaseByProvider.has(release.provider_key)) {
-      latestReleaseByProvider.set(release.provider_key, release);
+    const format = release.package_format || "zip";
+    const releaseKey = `${release.provider_key}:${format}`;
+
+    if (!latestReleaseByProviderAndFormat.has(releaseKey)) {
+      latestReleaseByProviderAndFormat.set(releaseKey, release);
     }
   }
 
@@ -103,11 +117,17 @@ export default async function DesignConnectorDownloadsPage() {
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
         {CONNECTORS.map((connector) => {
           const entitlement = entitlementByProvider.get(connector.key);
-          const release = latestReleaseByProvider.get(connector.key);
+          const connectorReleases = DOWNLOAD_FORMATS.map((format) => ({
+            ...format,
+            release: latestReleaseByProviderAndFormat.get(
+              `${connector.key}:${format.key}`,
+            ),
+          }));
+          const release =
+            connectorReleases.find((item) => item.release)?.release ?? null;
 
           const enabled = Boolean(entitlement?.is_enabled);
           const version = release?.version ?? "—";
-          const fileName = release?.file_name ?? "—";
           const published = formatUtc(release?.created_at);
           const runtimeRoles =
             Array.isArray(entitlement?.allowed_runtime_roles) &&
@@ -115,7 +135,10 @@ export default async function DesignConnectorDownloadsPage() {
               ? entitlement.allowed_runtime_roles.join(", ")
               : "—";
 
-          const showDownload = Boolean(canDownload && enabled && connector.href);
+          const hasRelease = connectorReleases.some((item) => item.release);
+          const showDownload = Boolean(
+            canDownload && enabled && connector.href && hasRelease,
+          );
 
           const statusLabel = enabled
             ? "Enabled"
@@ -149,8 +172,20 @@ export default async function DesignConnectorDownloadsPage() {
                 <div>
                   <span className="font-medium">Version:</span> {version}
                 </div>
-                <div>
-                  <span className="font-medium">File:</span> {fileName}
+                <div className="space-y-1">
+                  <div className="font-medium">Files:</div>
+                  {connectorReleases.some((item) => item.release) ? (
+                    connectorReleases.map((item) =>
+                      item.release ? (
+                        <div key={item.key}>
+                          <span className="text-gray-500">{item.label}:</span>{" "}
+                          {item.release.file_name}
+                        </div>
+                      ) : null,
+                    )
+                  ) : (
+                    <div>—</div>
+                  )}
                 </div>
                 <div>
                   <span className="font-medium">Published:</span> {published}
@@ -160,14 +195,19 @@ export default async function DesignConnectorDownloadsPage() {
                 </div>
               </div>
 
-              <div className="mt-6">
+              <div className="mt-6 flex flex-wrap gap-2">
                 {showDownload ? (
-                  <a
-                    href={connector.href}
-                    className="inline-flex rounded-xl border border-gray-900 bg-gray-900 px-4 py-2 text-sm font-medium text-white"
-                  >
-                    Download
-                  </a>
+                  connectorReleases.map((item) =>
+                    item.release ? (
+                      <a
+                        key={item.key}
+                        href={`${connector.href}?format=${item.key}`}
+                        className="inline-flex rounded-xl border border-gray-900 bg-gray-900 px-4 py-2 text-sm font-medium text-white"
+                      >
+                        {item.key.toUpperCase()}
+                      </a>
+                    ) : null,
+                  )
                 ) : release ? (
                   <button
                     type="button"
