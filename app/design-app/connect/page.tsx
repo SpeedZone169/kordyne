@@ -27,6 +27,8 @@ export default function DesignAppConnectPage() {
   const [code, setCode] = useState("");
   const [codeReady, setCodeReady] = useState(false);
   const [clientLabel, setClientLabel] = useState("CAD connector");
+  const [redirectToDashboardAfterApproval, setRedirectToDashboardAfterApproval] =
+    useState(false);
 
   const supabase = useMemo(
     () =>
@@ -83,6 +85,11 @@ export default function DesignAppConnectPage() {
       message?: string;
     };
 
+    let cameFromLogin = false;
+    try {
+      cameFromLogin = sessionStorage.getItem(getRedirectKey(currentCode)) === "1";
+    } catch {}
+
     if (!res.ok || !payload.ok) {
       setStatus("error");
       setMessage(payload.error ?? "Approval failed.");
@@ -94,9 +101,11 @@ export default function DesignAppConnectPage() {
     } catch {}
 
     setStatus("approved");
+    setRedirectToDashboardAfterApproval(cameFromLogin);
     setMessage(
-      payload.message ??
-        `Connection approved. Returning control to ${clientLabel}.`,
+      cameFromLogin
+        ? "Connection approved. Opening your Kordyne dashboard."
+        : `Connection approved. You can return to ${clientLabel}.`,
     );
   }, [clientLabel, supabase]);
 
@@ -155,18 +164,26 @@ export default function DesignAppConnectPage() {
   useEffect(() => {
     if (status !== "approved") return;
 
-    const timer = window.setTimeout(() => {
+    const closeTimer = window.setTimeout(() => {
       try {
         window.close();
       } catch {}
+    }, 250);
 
-      window.setTimeout(() => {
+    let dashboardTimer: number | undefined;
+    if (redirectToDashboardAfterApproval) {
+      dashboardTimer = window.setTimeout(() => {
         window.location.replace("/dashboard");
-      }, 800);
-    }, 1200);
+      }, 900);
+    }
 
-    return () => window.clearTimeout(timer);
-  }, [status]);
+    return () => {
+      window.clearTimeout(closeTimer);
+      if (dashboardTimer) {
+        window.clearTimeout(dashboardTimer);
+      }
+    };
+  }, [redirectToDashboardAfterApproval, status]);
 
   const loginHref =
     typeof window !== "undefined"
@@ -214,15 +231,12 @@ export default function DesignAppConnectPage() {
           ) : null}
         </div>
 
-        <div className="mt-6 rounded-2xl border bg-gray-50 p-4 text-sm text-gray-600">
+        <div className="mt-6 rounded-[8px] border bg-gray-50 p-4 text-sm text-gray-600">
           <p>
-            Connection code:{" "}
-            <span className="font-mono font-semibold">
-              {code || "-"}
-            </span>
+            Keep {clientLabel} open while Kordyne completes the connection.
           </p>
           <p className="mt-2">
-            After approval, this page will try to close. If the browser blocks that, it will redirect to your dashboard.
+            After approval, this tab will close if your browser allows it.
           </p>
         </div>
       </div>
