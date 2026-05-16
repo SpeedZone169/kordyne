@@ -2,16 +2,12 @@ import { NextResponse } from "next/server";
 import { createClient } from "../../../../../lib/supabase/server";
 import { createDesignAppAdminClient } from "../../../../../lib/design-app/admin";
 
-function getRequestedFormat(request: Request) {
-  const url = new URL(request.url);
-  const format = url.searchParams.get("format")?.trim().toLowerCase() || "zip";
+const PROVIDER_KEY = "fusion";
+const PROVIDER_LABEL = "Fusion";
+const PACKAGE_FORMAT = "msi";
 
-  return format === "msi" ? "msi" : "zip";
-}
-
-export async function GET(request: Request) {
+export async function GET() {
   const supabase = await createClient();
-  const packageFormat = getRequestedFormat(request);
 
   const {
     data: { user },
@@ -19,7 +15,12 @@ export async function GET(request: Request) {
   } = await supabase.auth.getUser();
 
   if (userError || !user) {
-    return NextResponse.redirect(new URL("/login?next=/dashboard/design-connectors/downloads", process.env.NEXT_PUBLIC_SITE_URL || "https://www.kordyne.com"));
+    return NextResponse.redirect(
+      new URL(
+        "/login?next=/dashboard/design-connectors/downloads",
+        process.env.NEXT_PUBLIC_SITE_URL || "https://www.kordyne.com",
+      ),
+    );
   }
 
   const { data: membership, error: membershipError } = await supabase
@@ -39,7 +40,10 @@ export async function GET(request: Request) {
 
   if (!membership?.organization_id || membership.role !== "admin") {
     return NextResponse.json(
-      { ok: false, error: "Only organization admins can download connector packages." },
+      {
+        ok: false,
+        error: "Only organization admins can download connector packages.",
+      },
       { status: 403 },
     );
   }
@@ -48,7 +52,7 @@ export async function GET(request: Request) {
     .from("organization_connector_entitlements")
     .select("current_release_id, is_enabled")
     .eq("organization_id", membership.organization_id)
-    .eq("provider_key", "fusion")
+    .eq("provider_key", PROVIDER_KEY)
     .maybeSingle();
 
   if (entitlementError) {
@@ -60,7 +64,10 @@ export async function GET(request: Request) {
 
   if (!entitlement?.is_enabled) {
     return NextResponse.json(
-      { ok: false, error: "Fusion connector is not enabled for this organization." },
+      {
+        ok: false,
+        error: `${PROVIDER_LABEL} connector is not enabled for this organization.`,
+      },
       { status: 403 },
     );
   }
@@ -81,11 +88,13 @@ export async function GET(request: Request) {
   if (entitlement.current_release_id) {
     const { data } = await admin
       .from("connector_distribution_releases")
-      .select("id, package_format, storage_bucket, storage_path, file_name, is_active")
+      .select(
+        "id, package_format, storage_bucket, storage_path, file_name, is_active",
+      )
       .eq("id", entitlement.current_release_id)
       .maybeSingle();
 
-    if (data?.package_format === packageFormat) {
+    if (data?.package_format === PACKAGE_FORMAT && data.is_active) {
       release = data;
     }
   }
@@ -93,9 +102,11 @@ export async function GET(request: Request) {
   if (!release) {
     const { data } = await admin
       .from("connector_distribution_releases")
-      .select("id, package_format, storage_bucket, storage_path, file_name, is_active")
-      .eq("provider_key", "fusion")
-      .eq("package_format", packageFormat)
+      .select(
+        "id, package_format, storage_bucket, storage_path, file_name, is_active",
+      )
+      .eq("provider_key", PROVIDER_KEY)
+      .eq("package_format", PACKAGE_FORMAT)
       .eq("is_active", true)
       .order("created_at", { ascending: false })
       .limit(1)
@@ -106,7 +117,10 @@ export async function GET(request: Request) {
 
   if (!release?.storage_bucket || !release.storage_path) {
     return NextResponse.json(
-      { ok: false, error: "No active Fusion connector package is configured." },
+      {
+        ok: false,
+        error: `No active ${PROVIDER_LABEL} connector MSI installer is configured.`,
+      },
       { status: 404 },
     );
   }
@@ -119,7 +133,10 @@ export async function GET(request: Request) {
 
   if (signedUrlError || !signedUrlData?.signedUrl) {
     return NextResponse.json(
-      { ok: false, error: signedUrlError?.message ?? "Could not create download link." },
+      {
+        ok: false,
+        error: signedUrlError?.message ?? "Could not create download link.",
+      },
       { status: 500 },
     );
   }

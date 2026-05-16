@@ -38,6 +38,33 @@ export type DesignConnectorProviderStatus =
   | "mock"
   | "planned";
 
+export type DesignConnectorDistributionKind =
+  | "msi"
+  | "cloud_api"
+  | "not_applicable";
+
+export type DesignConnectorCollaborationScope = "part" | "project" | "request";
+
+export type DesignConnectorRegulatedWorkspaceField =
+  | "itar"
+  | "ear_eccn"
+  | "controlled_data"
+  | "us_person_only";
+
+export type DesignConnectorSecurityPolicy = {
+  distributionKind: DesignConnectorDistributionKind;
+  requiresSignedInstaller: boolean;
+  requiresSignedRuntime: boolean;
+  requiresReleaseChecksum: boolean;
+  blocksUnsignedUpdates: boolean;
+  allowsStaticSecretsInInstaller: boolean;
+  tokenStorage: readonly string[];
+  controlledReleaseRequired: boolean;
+  supplierAuditGateRequired: boolean;
+  regulatedWorkspaceFields: readonly DesignConnectorRegulatedWorkspaceField[];
+  collaborationScopes: readonly DesignConnectorCollaborationScope[];
+};
+
 export type DesignConnectorProviderDefinition = {
   key: DesignConnectorProvider;
   label: string;
@@ -51,7 +78,45 @@ export type DesignConnectorProviderDefinition = {
   scopeTypes: readonly DesignSyncScopeType[];
   runtimes: readonly DesignConnectorRuntime[];
   capabilities: readonly DesignConnectorCapability[];
+  security: DesignConnectorSecurityPolicy;
   downloadRoute?: string;
+};
+
+const REGULATED_WORKSPACE_FIELDS: readonly DesignConnectorRegulatedWorkspaceField[] =
+  ["itar", "ear_eccn", "controlled_data", "us_person_only"];
+
+const COLLABORATION_SCOPES: readonly DesignConnectorCollaborationScope[] = [
+  "part",
+  "project",
+  "request",
+];
+
+const DESKTOP_MSI_SECURITY_POLICY: DesignConnectorSecurityPolicy = {
+  distributionKind: "msi",
+  requiresSignedInstaller: true,
+  requiresSignedRuntime: true,
+  requiresReleaseChecksum: true,
+  blocksUnsignedUpdates: true,
+  allowsStaticSecretsInInstaller: false,
+  tokenStorage: ["windows_dpapi", "credential_manager", "encrypted_oauth_vault"],
+  controlledReleaseRequired: true,
+  supplierAuditGateRequired: true,
+  regulatedWorkspaceFields: REGULATED_WORKSPACE_FIELDS,
+  collaborationScopes: COLLABORATION_SCOPES,
+};
+
+const CLOUD_CONNECTOR_SECURITY_POLICY: DesignConnectorSecurityPolicy = {
+  distributionKind: "cloud_api",
+  requiresSignedInstaller: false,
+  requiresSignedRuntime: false,
+  requiresReleaseChecksum: false,
+  blocksUnsignedUpdates: true,
+  allowsStaticSecretsInInstaller: false,
+  tokenStorage: ["encrypted_oauth_vault"],
+  controlledReleaseRequired: true,
+  supplierAuditGateRequired: true,
+  regulatedWorkspaceFields: REGULATED_WORKSPACE_FIELDS,
+  collaborationScopes: COLLABORATION_SCOPES,
 };
 
 export const DESIGN_CONNECTOR_PROVIDER_DEFINITIONS: Record<
@@ -78,6 +143,7 @@ export const DESIGN_CONNECTOR_PROVIDER_DEFINITIONS: Record<
       "desktop_handoff",
       "package_download",
     ],
+    security: DESKTOP_MSI_SECURITY_POLICY,
     downloadRoute: "/api/design-connectors/fusion/download",
   },
   inventor: {
@@ -100,6 +166,7 @@ export const DESIGN_CONNECTOR_PROVIDER_DEFINITIONS: Record<
       "desktop_handoff",
       "package_download",
     ],
+    security: DESKTOP_MSI_SECURITY_POLICY,
     downloadRoute: "/api/design-connectors/inventor/download",
   },
   solidworks: {
@@ -124,6 +191,7 @@ export const DESIGN_CONNECTOR_PROVIDER_DEFINITIONS: Record<
       "sync",
       "desktop_handoff",
     ],
+    security: DESKTOP_MSI_SECURITY_POLICY,
   },
   onshape: {
     key: "onshape",
@@ -149,6 +217,7 @@ export const DESIGN_CONNECTOR_PROVIDER_DEFINITIONS: Record<
       "sync",
       "web_handoff",
     ],
+    security: CLOUD_CONNECTOR_SECURITY_POLICY,
   },
 };
 

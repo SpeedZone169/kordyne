@@ -7,11 +7,11 @@ const CONNECTORS = DESIGN_CONNECTOR_PROVIDER_LIST.map((provider) => ({
   key: provider.key,
   label: provider.label,
   href: provider.downloadRoute,
+  security: provider.security,
 }));
 
 const DOWNLOAD_FORMATS = [
   { key: "msi", label: "MSI installer" },
-  { key: "zip", label: "ZIP package" },
 ] as const;
 
 function formatUtc(value?: string | null) {
@@ -63,8 +63,9 @@ export default async function DesignConnectorDownloadsPage() {
     supabase
       .from("connector_distribution_releases")
       .select(
-        "id, provider_key, version, package_format, file_name, created_at, is_active",
+        "id, provider_key, version, package_format, file_name, created_at, is_active, sha256_checksum, signature_thumbprint",
       )
+      .eq("package_format", "msi")
       .eq("is_active", true)
       .order("created_at", { ascending: false }),
   ]);
@@ -82,7 +83,7 @@ export default async function DesignConnectorDownloadsPage() {
   >();
 
   for (const release of releases) {
-    const format = release.package_format || "zip";
+    const format = release.package_format || "msi";
     const releaseKey = `${release.provider_key}:${format}`;
 
     if (!latestReleaseByProviderAndFormat.has(releaseKey)) {
@@ -139,6 +140,14 @@ export default async function DesignConnectorDownloadsPage() {
           const showDownload = Boolean(
             canDownload && enabled && connector.href && hasRelease,
           );
+          const securityLabel = connector.security.requiresSignedInstaller
+            ? "Signed MSI required"
+            : "Controlled access enforced";
+          const integrityLabel = release?.sha256_checksum
+            ? "Checksum recorded"
+            : release
+              ? "Checksum pending"
+              : "—";
 
           const statusLabel = enabled
             ? "Enabled"
@@ -193,6 +202,14 @@ export default async function DesignConnectorDownloadsPage() {
                 <div>
                   <span className="font-medium">Runtime:</span> {runtimeRoles}
                 </div>
+                <div>
+                  <span className="font-medium">Security:</span>{" "}
+                  {securityLabel}
+                </div>
+                <div>
+                  <span className="font-medium">Integrity:</span>{" "}
+                  {integrityLabel}
+                </div>
               </div>
 
               <div className="mt-6 flex flex-wrap gap-2">
@@ -201,10 +218,10 @@ export default async function DesignConnectorDownloadsPage() {
                     item.release ? (
                       <a
                         key={item.key}
-                        href={`${connector.href}?format=${item.key}`}
+                        href={connector.href}
                         className="inline-flex rounded-xl border border-gray-900 bg-gray-900 px-4 py-2 text-sm font-medium text-white"
                       >
-                        {item.key.toUpperCase()}
+                        Download MSI
                       </a>
                     ) : null,
                   )

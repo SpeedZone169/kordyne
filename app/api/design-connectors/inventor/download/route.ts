@@ -4,17 +4,10 @@ import { createDesignAppAdminClient } from "../../../../../lib/design-app/admin"
 
 const PROVIDER_KEY = "inventor";
 const PROVIDER_LABEL = "Inventor";
+const PACKAGE_FORMAT = "msi";
 
-function getRequestedFormat(request: Request) {
-  const url = new URL(request.url);
-  const format = url.searchParams.get("format")?.trim().toLowerCase() || "zip";
-
-  return format === "msi" ? "msi" : "zip";
-}
-
-export async function GET(request: Request) {
+export async function GET() {
   const supabase = await createClient();
-  const packageFormat = getRequestedFormat(request);
 
   const {
     data: { user },
@@ -95,11 +88,13 @@ export async function GET(request: Request) {
   if (entitlement.current_release_id) {
     const { data } = await admin
       .from("connector_distribution_releases")
-      .select("id, package_format, storage_bucket, storage_path, file_name, is_active")
+      .select(
+        "id, package_format, storage_bucket, storage_path, file_name, is_active",
+      )
       .eq("id", entitlement.current_release_id)
       .maybeSingle();
 
-    if (data?.package_format === packageFormat) {
+    if (data?.package_format === PACKAGE_FORMAT && data.is_active) {
       release = data;
     }
   }
@@ -107,9 +102,11 @@ export async function GET(request: Request) {
   if (!release) {
     const { data } = await admin
       .from("connector_distribution_releases")
-      .select("id, package_format, storage_bucket, storage_path, file_name, is_active")
+      .select(
+        "id, package_format, storage_bucket, storage_path, file_name, is_active",
+      )
       .eq("provider_key", PROVIDER_KEY)
-      .eq("package_format", packageFormat)
+      .eq("package_format", PACKAGE_FORMAT)
       .eq("is_active", true)
       .order("created_at", { ascending: false })
       .limit(1)
@@ -122,7 +119,7 @@ export async function GET(request: Request) {
     return NextResponse.json(
       {
         ok: false,
-        error: `No active ${PROVIDER_LABEL} connector package is configured.`,
+        error: `No active ${PROVIDER_LABEL} connector MSI installer is configured.`,
       },
       { status: 404 },
     );

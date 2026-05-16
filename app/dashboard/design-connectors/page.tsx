@@ -97,8 +97,11 @@ export default async function DesignConnectorsPage() {
       .eq("organization_id", membership.organization_id),
     supabase
       .from("connector_distribution_releases")
-      .select("id, provider_key, version, file_name, created_at, is_active")
+      .select(
+        "id, provider_key, version, package_format, file_name, created_at, is_active",
+      )
       .eq("is_active", true)
+      .eq("package_format", "msi")
       .in("provider_key", [...SUPPORTED_PROFILE_PROVIDERS])
       .order("created_at", { ascending: false }),
   ]);
