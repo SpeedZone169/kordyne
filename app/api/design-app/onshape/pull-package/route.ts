@@ -4,6 +4,9 @@ import { createDesignAppAdminClient } from "../../../../../lib/design-app/admin"
 
 const DESIGN_UPLOAD_BUCKET =
   process.env.NEXT_PUBLIC_SUPABASE_DESIGN_UPLOAD_BUCKET || "part-files";
+const ONSHAPE_NATIVE_MANIFEST_EXTENSION = ".onshape.json";
+const ONSHAPE_NATIVE_MANIFEST_MIME_TYPE =
+  "application/vnd.kordyne.onshape-manifest+json";
 
 function asString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -13,11 +16,22 @@ function getLowerFileName(value: unknown) {
   return String(value ?? "").trim().toLowerCase();
 }
 
+function getFileExtension(fileName: string) {
+  const lower = fileName.toLowerCase();
+
+  if (lower.endsWith(ONSHAPE_NATIVE_MANIFEST_EXTENSION)) {
+    return ONSHAPE_NATIVE_MANIFEST_EXTENSION;
+  }
+
+  const idx = lower.lastIndexOf(".");
+  return idx >= 0 ? lower.slice(idx) : "";
+}
+
 function isOnshapeReferenceFile(fileName: string) {
   return (
+    fileName.endsWith(ONSHAPE_NATIVE_MANIFEST_EXTENSION) ||
     fileName.endsWith(".onshape") ||
-    fileName.endsWith(".json") ||
-    fileName.endsWith(".onshape.json")
+    fileName.endsWith(".json")
   );
 }
 
@@ -33,6 +47,19 @@ function isAssemblyReference(fileName: string) {
   );
 }
 
+function buildNativeFormat(fileExtension: string) {
+  return {
+    provider_key: "onshape",
+    format: "onshape_document_reference",
+    canonical_extension: ONSHAPE_NATIVE_MANIFEST_EXTENSION,
+    file_extension: fileExtension || ONSHAPE_NATIVE_MANIFEST_EXTENSION,
+    mime_type: ONSHAPE_NATIVE_MANIFEST_MIME_TYPE,
+    feature_tree_strategy: "preserved_in_onshape_document",
+    step_limitation:
+      "STEP is stored as exchange geometry only and is not treated as the native source.",
+  };
+}
+
 type SignedFile = {
   file_id: string;
   filename: string;
@@ -40,6 +67,8 @@ type SignedFile = {
   size_bytes: number | null;
   storage_path: string;
   signed_url: string;
+  file_extension: string;
+  native_format: ReturnType<typeof buildNativeFormat> | null;
   is_primary: boolean;
   is_assembly: boolean;
 };
@@ -47,12 +76,14 @@ type SignedFile = {
 async function signFiles(
   admin: ReturnType<typeof createDesignAppAdminClient>,
   files: Array<Record<string, unknown>>,
+  options: { native?: boolean } = {},
 ) {
   const signedFiles: SignedFile[] = [];
 
   for (const file of files) {
     const storagePath = asString(file.storage_path);
     const filename = asString(file.file_name) || "onshape-file";
+    const fileExtension = getFileExtension(filename);
 
     if (!storagePath) continue;
 
@@ -76,6 +107,8 @@ async function signFiles(
           : null,
       storage_path: storagePath,
       signed_url: signed.signedUrl,
+      file_extension: fileExtension,
+      native_format: options.native ? buildNativeFormat(fileExtension) : null,
       is_primary: false,
       is_assembly: isAssemblyReference(filename.toLowerCase()),
     });
@@ -161,7 +194,9 @@ export async function POST(request: Request) {
       isStepFile(getLowerFileName(file.file_name)),
     ) as Array<Record<string, unknown>>;
 
-    const signedNativeFiles = await signFiles(admin, nativeFiles);
+    const signedNativeFiles = await signFiles(admin, nativeFiles, {
+      native: true,
+    });
     const signedStepFiles = await signFiles(admin, stepFiles);
 
     if (signedNativeFiles.length === 0 && signedStepFiles.length === 0) {

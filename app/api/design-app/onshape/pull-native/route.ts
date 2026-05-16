@@ -4,6 +4,9 @@ import { createDesignAppAdminClient } from "../../../../../lib/design-app/admin"
 
 const DESIGN_UPLOAD_BUCKET =
   process.env.NEXT_PUBLIC_SUPABASE_DESIGN_UPLOAD_BUCKET || "part-files";
+const ONSHAPE_NATIVE_MANIFEST_EXTENSION = ".onshape.json";
+const ONSHAPE_NATIVE_MANIFEST_MIME_TYPE =
+  "application/vnd.kordyne.onshape-manifest+json";
 
 function asString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -12,10 +15,34 @@ function asString(value: unknown) {
 function isOnshapeReferenceFile(fileName: string) {
   const lower = fileName.toLowerCase();
   return (
+    lower.endsWith(ONSHAPE_NATIVE_MANIFEST_EXTENSION) ||
     lower.endsWith(".onshape") ||
-    lower.endsWith(".json") ||
-    lower.endsWith(".onshape.json")
+    lower.endsWith(".json")
   );
+}
+
+function getFileExtension(fileName: string) {
+  const lower = fileName.toLowerCase();
+
+  if (lower.endsWith(ONSHAPE_NATIVE_MANIFEST_EXTENSION)) {
+    return ONSHAPE_NATIVE_MANIFEST_EXTENSION;
+  }
+
+  const idx = lower.lastIndexOf(".");
+  return idx >= 0 ? lower.slice(idx) : "";
+}
+
+function buildNativeFormat(fileExtension: string) {
+  return {
+    provider_key: "onshape",
+    format: "onshape_document_reference",
+    canonical_extension: ONSHAPE_NATIVE_MANIFEST_EXTENSION,
+    file_extension: fileExtension || ONSHAPE_NATIVE_MANIFEST_EXTENSION,
+    mime_type: ONSHAPE_NATIVE_MANIFEST_MIME_TYPE,
+    feature_tree_strategy: "preserved_in_onshape_document",
+    step_limitation:
+      "STEP is stored as exchange geometry only and is not treated as the native source.",
+  };
 }
 
 function isAssemblyReference(fileName: string) {
@@ -125,6 +152,10 @@ export async function POST(request: Request) {
         size_bytes: file.file_size_bytes ?? null,
         storage_path: storagePath,
         signed_url: signed.signedUrl,
+        file_extension: getFileExtension(String(file.file_name ?? "")),
+        native_format: buildNativeFormat(
+          getFileExtension(String(file.file_name ?? "")),
+        ),
         is_primary: false,
         is_assembly: isAssemblyReference(String(file.file_name ?? "")),
       });

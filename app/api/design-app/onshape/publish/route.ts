@@ -2,6 +2,12 @@ import { NextResponse } from "next/server";
 import { getDesignAppRequestContext } from "../../../../../lib/design-app/request-auth";
 import { createDesignAppAdminClient } from "../../../../../lib/design-app/admin";
 
+const DESIGN_UPLOAD_BUCKET =
+  process.env.NEXT_PUBLIC_SUPABASE_DESIGN_UPLOAD_BUCKET || "part-files";
+const ONSHAPE_NATIVE_MANIFEST_EXTENSION = ".onshape.json";
+const ONSHAPE_NATIVE_MANIFEST_MIME_TYPE =
+  "application/vnd.kordyne.onshape-manifest+json";
+
 type PublishInput = {
   idempotency_key?: string | null;
   part_id?: string | null;
@@ -39,6 +45,30 @@ type PublishInput = {
 
 function asString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function sanitizeFileName(name: string) {
+  return name.replace(/[^a-zA-Z0-9._-]/g, "_");
+}
+
+function getFileExtension(fileName: string) {
+  const lower = fileName.toLowerCase();
+
+  if (lower.endsWith(ONSHAPE_NATIVE_MANIFEST_EXTENSION)) {
+    return ONSHAPE_NATIVE_MANIFEST_EXTENSION;
+  }
+
+  const idx = lower.lastIndexOf(".");
+  return idx >= 0 ? lower.slice(idx) : "";
+}
+
+function isOnshapeNativeReferenceFile(fileName: string) {
+  const extension = getFileExtension(fileName);
+  return (
+    extension === ONSHAPE_NATIVE_MANIFEST_EXTENSION ||
+    extension === ".onshape" ||
+    extension === ".json"
+  );
 }
 
 function metadataString(
@@ -85,6 +115,33 @@ function isAllowedFileRole(role: string) {
 
 function isValidIdempotencyKey(value: string) {
   return /^[a-zA-Z0-9._:-]{8,128}$/.test(value);
+}
+
+function buildOnshapeNativeFormat(
+  fileExtension: string | null,
+  reference: {
+    document_id: string | null;
+    workspace_id: string | null;
+    project_id: string | null;
+    element_or_part_id: string | null;
+    version_or_microversion_id: string | null;
+    revision_id: string | null;
+    url: string | null;
+  },
+  generated: boolean,
+) {
+  return {
+    provider_key: "onshape",
+    format: "onshape_document_reference",
+    canonical_extension: ONSHAPE_NATIVE_MANIFEST_EXTENSION,
+    file_extension: fileExtension || ONSHAPE_NATIVE_MANIFEST_EXTENSION,
+    mime_type: ONSHAPE_NATIVE_MANIFEST_MIME_TYPE,
+    generated_manifest: generated,
+    feature_tree_strategy: "preserved_in_onshape_document",
+    step_limitation:
+      "STEP is stored as exchange geometry only and is not treated as the native source.",
+    reference,
+  };
 }
 
 export async function POST(request: Request) {
@@ -194,6 +251,15 @@ export async function POST(request: Request) {
         "url",
       ) ||
       null;
+    const onshapeReference = {
+      document_id: externalDocumentId,
+      workspace_id: externalWorkspaceId,
+      project_id: externalProjectId,
+      element_or_part_id: externalItemId,
+      version_or_microversion_id: externalVersionId,
+      revision_id: externalRevisionId,
+      url: externalUrl,
+    };
 
     if (!isAllowedPublishMode(publishMode)) {
       return NextResponse.json(
@@ -240,6 +306,7 @@ export async function POST(request: Request) {
 
     for (const file of files) {
       const storagePath = asString(file.storage_path);
+      const fileName = asString(file.filename);
 
       if (!storagePath) {
         return NextResponse.json(
@@ -270,6 +337,38 @@ export async function POST(request: Request) {
           { status: 400 },
         );
       }
+
+      if (role === "native" && !isOnshapeNativeReferenceFile(fileName)) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error:
+              "Native Onshape files must be .onshape.json, .onshape or JSON document references.",
+          },
+          { status: 400 },
+        );
+      }
+    }
+
+    const nativeInputFiles = files.filter(
+      (file) => asString(file.role).toLowerCase() === "native",
+    );
+    const hasCanonicalNativeManifest = nativeInputFiles.some(
+      (file) =>
+        getFileExtension(asString(file.filename)) ===
+        ONSHAPE_NATIVE_MANIFEST_EXTENSION,
+    );
+    const canGenerateNativeManifest = Boolean(externalDocumentId || externalUrl);
+
+    if (nativeInputFiles.length === 0 && !canGenerateNativeManifest) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            "Onshape publish requires a native Onshape document reference (.onshape.json) or external_document_id/external_url. STEP alone loses the feature tree.",
+        },
+        { status: 400 },
+      );
     }
 
     const { data: lockRow, error: lockError } = await admin
@@ -442,17 +541,27 @@ export async function POST(request: Request) {
     let thumbnailFileId: string | null = null;
     let thumbnailStoragePath: string | null = null;
     let thumbnailFileName: string | null = null;
+    let nativeFileId: string | null = null;
+    let nativeStoragePath: string | null = null;
+    let nativeFileName: string | null = null;
+    const storedFiles: Array<Record<string, unknown>> = [];
 
     for (const file of files) {
       const role = asString(file.role).toLowerCase();
       const assetCategory = inferAssetCategory(role);
+      const fileName = asString(file.filename) || "Unnamed file";
+      const fileExtension = getFileExtension(fileName);
+      const nativeFormat =
+        role === "native"
+          ? buildOnshapeNativeFormat(fileExtension, onshapeReference, false)
+          : null;
 
       const { data: insertedPartFile, error: partFileError } = await admin
         .from("part_files")
         .insert({
           part_id: createdPart.id,
           user_id: ctx.user.id,
-          file_name: asString(file.filename) || "Unnamed file",
+          file_name: fileName,
           file_type: asString(file.mime_type) || "application/octet-stream",
           asset_category: assetCategory,
           storage_path: asString(file.storage_path),
@@ -464,6 +573,28 @@ export async function POST(request: Request) {
 
       if (partFileError) {
         return failWithLock(partFileError.message);
+      }
+
+      storedFiles.push({
+        role,
+        file_id: String(insertedPartFile?.id ?? "") || null,
+        filename: asString(insertedPartFile?.file_name) || fileName,
+        storage_path:
+          asString(insertedPartFile?.storage_path) || asString(file.storage_path),
+        asset_category:
+          asString(insertedPartFile?.asset_category) || assetCategory,
+        file_extension: fileExtension || null,
+        native_format: nativeFormat,
+      });
+
+      if (role === "native") {
+        nativeFileId = String(insertedPartFile?.id ?? "") || nativeFileId;
+        nativeStoragePath =
+          asString(insertedPartFile?.storage_path) ||
+          asString(file.storage_path) ||
+          nativeStoragePath;
+        nativeFileName =
+          asString(insertedPartFile?.file_name) || fileName || nativeFileName;
       }
 
       if (role === "thumbnail" || assetCategory === "image") {
@@ -516,24 +647,112 @@ export async function POST(request: Request) {
       }
     }
 
+    if (!hasCanonicalNativeManifest && canGenerateNativeManifest) {
+      const generatedAt = new Date().toISOString();
+      const manifestFileName = `${sanitizeFileName(
+        `${partName || externalDocumentId || "onshape-document"}`
+          .replace(/\.onshape\.json$/i, "")
+          .replace(/\.[^.]+$/i, ""),
+      )}${ONSHAPE_NATIVE_MANIFEST_EXTENSION}`;
+      const manifestStoragePath = [
+        "design-app",
+        ctx.organizationId,
+        ctx.user.id,
+        `${Date.now()}-native-${manifestFileName}`,
+      ].join("/");
+      const nativeFormat = buildOnshapeNativeFormat(
+        ONSHAPE_NATIVE_MANIFEST_EXTENSION,
+        onshapeReference,
+        true,
+      );
+      const manifestBody = {
+        schema: "kordyne.onshape.native-reference.v1",
+        generated_at: generatedAt,
+        part_id: createdPart.id,
+        part_family_id: createdPart.part_family_id,
+        part_name: createdPart.name,
+        revision: createdPart.revision,
+        native_format: nativeFormat,
+      };
+      const manifestBytes = new TextEncoder().encode(
+        JSON.stringify(manifestBody, null, 2),
+      );
+
+      const { error: manifestUploadError } = await admin.storage
+        .from(DESIGN_UPLOAD_BUCKET)
+        .upload(manifestStoragePath, manifestBytes, {
+          contentType: ONSHAPE_NATIVE_MANIFEST_MIME_TYPE,
+          upsert: false,
+        });
+
+      if (manifestUploadError) {
+        return failWithLock(manifestUploadError.message);
+      }
+
+      const { data: insertedNativeManifest, error: nativeManifestFileError } =
+        await admin
+          .from("part_files")
+          .insert({
+            part_id: createdPart.id,
+            user_id: ctx.user.id,
+            file_name: manifestFileName,
+            file_type: ONSHAPE_NATIVE_MANIFEST_MIME_TYPE,
+            asset_category: "cad_3d",
+            storage_path: manifestStoragePath,
+            file_size_bytes: manifestBytes.byteLength,
+          })
+          .select("id, file_name, storage_path, asset_category")
+          .single();
+
+      if (nativeManifestFileError) {
+        return failWithLock(nativeManifestFileError.message);
+      }
+
+      nativeFileId = String(insertedNativeManifest?.id ?? "") || nativeFileId;
+      nativeStoragePath =
+        asString(insertedNativeManifest?.storage_path) || manifestStoragePath;
+      nativeFileName =
+        asString(insertedNativeManifest?.file_name) || manifestFileName;
+
+      storedFiles.push({
+        role: "native",
+        file_id: nativeFileId,
+        filename: nativeFileName,
+        storage_path: nativeStoragePath,
+        asset_category: "cad_3d",
+        file_extension: ONSHAPE_NATIVE_MANIFEST_EXTENSION,
+        native_format: nativeFormat,
+        generated: true,
+      });
+    }
+
     const partSourceMetadata = {
       source: "onshape_connector_publish",
       publish_mode: publishMode,
       uploaded_file_count: files.length,
       uploaded_roles: files.map((file) => asString(file.role).toLowerCase()),
+      persisted_file_count: storedFiles.length,
+      persisted_files: storedFiles,
+      native_file_id: nativeFileId,
+      native_storage_path: nativeStoragePath,
+      native_filename: nativeFileName,
+      native_format: buildOnshapeNativeFormat(
+        nativeFileName ? getFileExtension(nativeFileName) : null,
+        onshapeReference,
+        Boolean(
+          nativeFileName &&
+            getFileExtension(nativeFileName) ===
+              ONSHAPE_NATIVE_MANIFEST_EXTENSION &&
+            !hasCanonicalNativeManifest,
+        ),
+      ),
       thumbnail_file_id: thumbnailFileId,
       thumbnail_storage_path: thumbnailStoragePath,
       thumbnail_filename: thumbnailFileName,
       idempotency_key: idempotencyKey,
       cad_metadata: cadMetadata,
       onshape: {
-        document_id: externalDocumentId,
-        workspace_id: externalWorkspaceId,
-        project_id: externalProjectId,
-        element_or_part_id: externalItemId,
-        version_or_microversion_id: externalVersionId,
-        revision_id: externalRevisionId,
-        url: externalUrl,
+        ...onshapeReference,
       },
     };
 
@@ -581,6 +800,10 @@ export async function POST(request: Request) {
       external_version_id: externalVersionId,
       external_revision_id: externalRevisionId,
       external_url: externalUrl,
+      native_file_id: nativeFileId,
+      native_storage_path: nativeStoragePath,
+      native_filename: nativeFileName,
+      native_format: partSourceMetadata.native_format,
       thumbnail_file_id: thumbnailFileId,
       has_thumbnail: Boolean(thumbnailStoragePath),
       idempotency_key: idempotencyKey,
@@ -624,6 +847,10 @@ export async function POST(request: Request) {
       status: createdPart.status,
       thumbnail_file_id: thumbnailFileId,
       thumbnail_storage_path: thumbnailStoragePath,
+      native_file_id: nativeFileId,
+      native_storage_path: nativeStoragePath,
+      native_filename: nativeFileName,
+      native_format: partSourceMetadata.native_format,
       external_document_id: externalDocumentId,
       external_item_id: externalItemId,
       external_version_id: externalVersionId,

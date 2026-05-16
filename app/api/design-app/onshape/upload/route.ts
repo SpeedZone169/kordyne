@@ -4,6 +4,9 @@ import { createDesignAppAdminClient } from "../../../../../lib/design-app/admin"
 
 const DESIGN_UPLOAD_BUCKET =
   process.env.NEXT_PUBLIC_SUPABASE_DESIGN_UPLOAD_BUCKET || "part-files";
+const ONSHAPE_NATIVE_MANIFEST_EXTENSION = ".onshape.json";
+const ONSHAPE_NATIVE_MANIFEST_MIME_TYPE =
+  "application/vnd.kordyne.onshape-manifest+json";
 
 const ALLOWED_ROLES = new Set(["step", "native", "thumbnail"]);
 const MAX_DESIGN_FILE_SIZE_BYTES = 250 * 1024 * 1024;
@@ -15,6 +18,11 @@ function sanitizeFileName(name: string) {
 
 function getExtension(name: string) {
   const lower = name.toLowerCase();
+
+  if (lower.endsWith(ONSHAPE_NATIVE_MANIFEST_EXTENSION)) {
+    return ONSHAPE_NATIVE_MANIFEST_EXTENSION;
+  }
+
   const idx = lower.lastIndexOf(".");
   return idx >= 0 ? lower.slice(idx) : "";
 }
@@ -51,7 +59,7 @@ function isAllowedExtensionForRole(
 
 function defaultContentTypeForRole(role: string, extension = "") {
   if (role === "step") return "application/step";
-  if (role === "native") return "application/json";
+  if (role === "native") return ONSHAPE_NATIVE_MANIFEST_MIME_TYPE;
 
   if (role === "thumbnail") {
     if (extension === ".jpg" || extension === ".jpeg") return "image/jpeg";
@@ -77,8 +85,8 @@ function uploadMessageForRole(role: string) {
 function invalidExtensionMessageForRole(role: string) {
   if (role === "native") {
     return (
-      "Only Onshape document reference files (.onshape or .json) are allowed " +
-      "for native Onshape upload."
+      "Only Onshape document reference files (.onshape.json, .onshape or " +
+      ".json) are allowed for native Onshape upload."
     );
   }
 
@@ -87,6 +95,19 @@ function invalidExtensionMessageForRole(role: string) {
   }
 
   return "Only STEP files are allowed for STEP upload.";
+}
+
+function buildNativeFormat(fileExtension: string) {
+  return {
+    provider_key: "onshape",
+    format: "onshape_document_reference",
+    canonical_extension: ONSHAPE_NATIVE_MANIFEST_EXTENSION,
+    file_extension: fileExtension || ONSHAPE_NATIVE_MANIFEST_EXTENSION,
+    mime_type: ONSHAPE_NATIVE_MANIFEST_MIME_TYPE,
+    feature_tree_strategy: "preserved_in_onshape_document",
+    step_limitation:
+      "STEP is stored as exchange geometry only and is not treated as the native source.",
+  };
 }
 
 export async function POST(request: Request) {
@@ -157,7 +178,10 @@ export async function POST(request: Request) {
       `${Date.now()}-${role}-${safeName}`,
     ].join("/");
 
-    const contentType = file.type || defaultContentTypeForRole(role, extension);
+    const contentType =
+      role === "native"
+        ? defaultContentTypeForRole(role, extension)
+        : file.type || defaultContentTypeForRole(role, extension);
 
     const { error: uploadError } = await admin.storage
       .from(DESIGN_UPLOAD_BUCKET)
@@ -181,6 +205,8 @@ export async function POST(request: Request) {
         size_bytes: file.size,
         storage_path: storagePath,
         role,
+        file_extension: extension,
+        native_format: role === "native" ? buildNativeFormat(extension) : null,
         organization_id: ctx.organizationId,
         uploaded_by_user_id: ctx.user.id,
         bucket: DESIGN_UPLOAD_BUCKET,
