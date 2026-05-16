@@ -128,9 +128,10 @@ export const DESIGN_CONNECTOR_PROVIDER_DEFINITIONS: Record<
   onshape: {
     key: "onshape",
     label: "Onshape",
-    status: "mock",
-    statusLabel: "Mocked",
-    description: "Cloud CAD adapter scaffold for OAuth-backed Onshape access.",
+    status: "preview",
+    statusLabel: "Preview",
+    description:
+      "Cloud CAD connector runtime for OAuth-backed Onshape document handoff.",
     defaultAuthMode: "oauth_authorization_code",
     authModes: ["oauth_authorization_code", "api_token"],
     defaultConnectionMode: "bidirectional",

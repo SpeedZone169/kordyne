@@ -154,7 +154,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       ok: true,
-      message: "Browser login approved. Return to Fusion and click Complete Browser Login.",
+      message:
+        "Browser login approved. Return to the connector and click Complete Browser Login.",
     });
   } catch (error) {
     return NextResponse.json(
