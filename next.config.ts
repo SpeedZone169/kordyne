@@ -1,9 +1,10 @@
 import type { NextConfig } from "next";
 
-const contentSecurityPolicy = [
+function buildContentSecurityPolicy(frameAncestors: string) {
+  return [
   "default-src 'self'",
   "base-uri 'self'",
-  "frame-ancestors 'none'",
+  `frame-ancestors ${frameAncestors}`,
   "object-src 'none'",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",
@@ -23,15 +24,17 @@ const contentSecurityPolicy = [
   "worker-src 'self' blob:",
   "media-src 'self' blob: data:",
   "form-action 'self'",
-].join("; ");
+  ].join("; ");
+}
+
+const contentSecurityPolicy = buildContentSecurityPolicy("'none'");
+const onshapeContentSecurityPolicy = buildContentSecurityPolicy(
+  "https://cad.onshape.com https://*.onshape.com",
+);
 
 const nextConfig: NextConfig = {
   async headers() {
-    const securityHeaders = [
-      {
-        key: "Content-Security-Policy",
-        value: contentSecurityPolicy,
-      },
+    const sharedSecurityHeaders = [
       {
         key: "Referrer-Policy",
         value: "strict-origin-when-cross-origin",
@@ -41,19 +44,39 @@ const nextConfig: NextConfig = {
         value: "nosniff",
       },
       {
-        key: "X-Frame-Options",
-        value: "DENY",
-      },
-      {
         key: "Permissions-Policy",
         value:
           "camera=(), microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=(), xr-spatial-tracking=()",
       },
     ];
 
+    const securityHeaders = [
+      {
+        key: "Content-Security-Policy",
+        value: contentSecurityPolicy,
+      },
+      {
+        key: "X-Frame-Options",
+        value: "DENY",
+      },
+      ...sharedSecurityHeaders,
+    ];
+
+    const onshapeSecurityHeaders = [
+      {
+        key: "Content-Security-Policy",
+        value: onshapeContentSecurityPolicy,
+      },
+      ...sharedSecurityHeaders,
+    ];
+
     return [
       {
-        source: "/:path*",
+        source: "/design-app/onshape/:path*",
+        headers: onshapeSecurityHeaders,
+      },
+      {
+        source: "/:path((?!design-app/onshape).*)",
         headers: securityHeaders,
       },
     ];

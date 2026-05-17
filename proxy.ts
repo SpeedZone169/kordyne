@@ -21,9 +21,9 @@ function isExcludedPath(pathname: string) {
     pathname === "/.well-known/security.txt" ||
     pathname === "/sitemap.xml" ||
     pathname.startsWith("/api/cron/") ||
-    pathname === "/api/design-app/auth/start" ||
-    pathname === "/api/design-app/auth/exchange" ||
-    pathname === "/api/design-app/auth/approve"
+    pathname.startsWith("/api/design-app/") ||
+    pathname.startsWith("/design-app/connect") ||
+    pathname.startsWith("/design-app/onshape")
   );
 }
 
