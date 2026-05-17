@@ -68,11 +68,21 @@ type UploadedDesignFile = {
 };
 
 const TOKEN_STORAGE_KEY = "kordyne:onshape:connection-token";
+const ONSHAPE_EXTENSION_ACTION_URL =
+  "https://www.kordyne.com/design-app/onshape?documentId={$documentId}&workspaceOrVersion={$workspaceOrVersion}&workspaceOrVersionId={$workspaceOrVersionId}&elementId={$elementId}&tabElementId={$tabElementId}&partNumber={$partNumber}&revision={$revision}&configuration={$configuration}";
+
+function cleanOnshapeParam(value: string | null) {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed) return "";
+  if (/^\{\$[A-Za-z0-9_]+\}$/.test(trimmed)) return "";
+  if (/^\$\{[A-Za-z0-9_]+\}$/.test(trimmed)) return "";
+  return trimmed;
+}
 
 function getParam(params: URLSearchParams, ...names: string[]) {
   for (const name of names) {
-    const value = params.get(name);
-    if (value && value.trim()) return value.trim();
+    const value = cleanOnshapeParam(params.get(name));
+    if (value) return value;
   }
 
   return "";
@@ -149,6 +159,15 @@ function displayNameForContext(context: OnshapeContext) {
   return "Onshape design";
 }
 
+function hasPublishableOnshapeContext(context: OnshapeContext | null) {
+  return Boolean(
+    context?.documentId &&
+      context.elementId &&
+      context.workspaceOrVersionId &&
+      context.workspaceOrVersion,
+  );
+}
+
 function getAuthHeaders(token: string) {
   return {
     Authorization: `Bearer ${token}`,
@@ -181,6 +200,13 @@ export default function OnshapeDesignAppPage() {
     () => (context ? contextStorageKey(context) : ""),
     [context],
   );
+  const publishableContext = hasPublishableOnshapeContext(context);
+  const onshapeDocumentId = context?.documentId ?? "";
+  const onshapeElementId = context?.elementId ?? "";
+  const onshapeServer = context?.server ?? "https://cad.onshape.com";
+  const onshapeWorkspaceId = context?.workspaceId ?? "";
+  const onshapeWorkspaceOrVersion = context?.workspaceOrVersion ?? "";
+  const onshapeWorkspaceOrVersionId = context?.workspaceOrVersionId ?? "";
 
   const callOnshapeApi = useCallback(
     async function callOnshapeApi<T>(
@@ -269,6 +295,72 @@ export default function OnshapeDesignAppPage() {
 
     return () => window.clearTimeout(timer);
   }, [loadProfile]);
+
+  useEffect(() => {
+    if (!publishableContext) return;
+
+    const workspaceId = onshapeWorkspaceId || onshapeWorkspaceOrVersionId;
+    if (!onshapeDocumentId || !workspaceId || !onshapeElementId) return;
+
+    let expectedOrigin = "";
+    try {
+      expectedOrigin = new URL(onshapeServer).origin;
+    } catch {
+      expectedOrigin = "https://cad.onshape.com";
+    }
+
+    const baseMessage = {
+      documentId: onshapeDocumentId,
+      workspaceId,
+      elementId: onshapeElementId,
+    };
+
+    function handleOnshapeMessage(event: MessageEvent) {
+      if (expectedOrigin && event.origin !== expectedOrigin) return;
+      const data = event.data as
+        | {
+            messageName?: string;
+            selections?: Array<{
+              workspaceMicroversionId?: string;
+            }>;
+          }
+        | null;
+
+      if (data?.messageName !== "SELECTION" || !data.selections?.length) {
+        return;
+      }
+
+      const workspaceMicroversionId =
+        data.selections[0]?.workspaceMicroversionId?.trim() ?? "";
+      if (!workspaceMicroversionId) return;
+
+      setContext((current) =>
+        current
+          ? { ...current, microversionId: workspaceMicroversionId }
+          : current,
+      );
+    }
+
+    window.addEventListener("message", handleOnshapeMessage);
+    window.parent.postMessage(
+      { ...baseMessage, messageName: "applicationInit" },
+      expectedOrigin,
+    );
+    window.parent.postMessage(
+      { ...baseMessage, messageName: "requestSelection" },
+      expectedOrigin,
+    );
+
+    return () => window.removeEventListener("message", handleOnshapeMessage);
+  }, [
+    onshapeDocumentId,
+    onshapeElementId,
+    onshapeServer,
+    onshapeWorkspaceId,
+    onshapeWorkspaceOrVersion,
+    onshapeWorkspaceOrVersionId,
+    publishableContext,
+  ]);
 
   useEffect(() => {
     if (!storageKey || !lastPart) return;
@@ -711,6 +803,17 @@ export default function OnshapeDesignAppPage() {
             <dt className="font-semibold text-slate-600">Revision</dt>
             <dd>{context?.revision || "-"}</dd>
           </dl>
+          {context && !publishableContext ? (
+            <div className="mt-4 rounded-[8px] border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">
+              <p className="font-semibold">Onshape did not pass document context.</p>
+              <p className="mt-1">
+                Update the extension Action URL to include Onshape parameters:
+              </p>
+              <code className="mt-2 block break-all rounded-[6px] bg-white p-2 text-[11px] text-slate-900">
+                {ONSHAPE_EXTENSION_ACTION_URL}
+              </code>
+            </div>
+          ) : null}
         </section>
 
         <section className="rounded-[8px] border border-slate-300 bg-white p-4">
@@ -801,7 +904,7 @@ export default function OnshapeDesignAppPage() {
               <button
                 type="button"
                 onClick={() => void exportStepFromOnshape()}
-                disabled={!connected || busy || !context?.documentId}
+                disabled={!connected || busy || !publishableContext}
                 className="rounded-[8px] border border-slate-300 bg-white px-3 py-2 text-xs font-semibold disabled:opacity-60"
               >
                 Export STEP from Onshape
@@ -822,7 +925,7 @@ export default function OnshapeDesignAppPage() {
             <button
               type="button"
               onClick={() => void publish()}
-              disabled={!connected || busy || !context?.documentId}
+              disabled={!connected || busy || !publishableContext}
               className="rounded-[8px] bg-blue-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
             >
               Publish to Kordyne
