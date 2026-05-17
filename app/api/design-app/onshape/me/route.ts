@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getDesignAppRequestContext } from "../../../../../lib/design-app/request-auth";
+import { createDesignAppAdminClient } from "../../../../../lib/design-app/admin";
+import { getOnshapeOAuthGrantStatus } from "../../../../../lib/design-app/onshape-oauth";
 
 export async function GET(request: Request) {
   try {
@@ -37,6 +39,12 @@ export async function GET(request: Request) {
       );
     }
 
+    const admin = createDesignAppAdminClient();
+    const onshapeGrant = await getOnshapeOAuthGrantStatus(
+      admin,
+      ctx.organizationId,
+    );
+
     return NextResponse.json({
       ok: true,
       user: {
@@ -66,6 +74,12 @@ export async function GET(request: Request) {
         : null,
       auth: {
         mode: ctx.token ? "token" : "cookie",
+      },
+      onshape: {
+        oauth_connected: onshapeGrant.connected,
+        credential_profile_id: onshapeGrant.profile_id,
+        token_expires_at: onshapeGrant.token_expires_at,
+        last_test_status: onshapeGrant.last_test_status,
       },
     });
   } catch (error) {

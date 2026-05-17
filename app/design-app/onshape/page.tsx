@@ -43,6 +43,11 @@ type UserProfile = {
   membership?: {
     role?: string | null;
   } | null;
+  onshape?: {
+    oauth_connected?: boolean | null;
+    token_expires_at?: string | null;
+    last_test_status?: string | null;
+  } | null;
 };
 
 type PublishedPart = {
@@ -51,6 +56,15 @@ type PublishedPart = {
   name?: string | null;
   revision?: string | null;
   status?: string | null;
+};
+
+type UploadedDesignFile = {
+  filename: string;
+  mime_type: string;
+  size_bytes: number;
+  storage_path: string;
+  role: "step" | "native" | "thumbnail";
+  file_extension?: string | null;
 };
 
 const TOKEN_STORAGE_KEY = "kordyne:onshape:connection-token";
@@ -158,6 +172,8 @@ export default function OnshapeDesignAppPage() {
   const [status, setStatus] = useState("Reading Onshape context...");
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [lastPart, setLastPart] = useState<PublishedPart | null>(null);
+  const [stepFile, setStepFile] = useState<UploadedDesignFile | null>(null);
+  const [onshapeApiConnected, setOnshapeApiConnected] = useState(false);
   const [libraryItems, setLibraryItems] = useState<PublishedPart[]>([]);
   const [libraryQuery, setLibraryQuery] = useState("");
 
@@ -204,8 +220,10 @@ export default function OnshapeDesignAppPage() {
       );
 
       setProfile(payload);
+      setOnshapeApiConnected(Boolean(payload.onshape?.oauth_connected));
       setState("connected");
       setStatus("Connected to Kordyne.");
+      return payload;
     },
     [callOnshapeApi],
   );
@@ -239,6 +257,7 @@ export default function OnshapeDesignAppPage() {
       void loadProfile(savedToken).catch((error) => {
         window.localStorage.removeItem(TOKEN_STORAGE_KEY);
         setToken("");
+        setOnshapeApiConnected(false);
         setState("not_connected");
         setStatus(
           error instanceof Error
@@ -331,6 +350,109 @@ export default function OnshapeDesignAppPage() {
     }, 1500);
   }
 
+  async function connectOnshapeApi() {
+    if (!token) {
+      setStatus("Connect to Kordyne before connecting Onshape API access.");
+      return;
+    }
+
+    setState("opening_browser");
+    setStatus("Opening Onshape authorization...");
+
+    try {
+      const payload = await callOnshapeApi<{
+        ok: boolean;
+        authorization_url: string;
+      }>("/api/design-app/onshape/oauth/start", {
+        method: "POST",
+        body: JSON.stringify({
+          return_path: window.location.pathname + window.location.search,
+          context: {
+            companyId: context?.companyId || null,
+          },
+        }),
+      });
+
+      window.open(payload.authorization_url, "_blank", "noopener,noreferrer");
+      setState("waiting");
+      setStatus("Approve Onshape access, then return here.");
+
+      const startedAt = Date.now();
+      const poll = window.setInterval(async () => {
+        if (Date.now() - startedAt > 3 * 60 * 1000) {
+          window.clearInterval(poll);
+          setState("connected");
+          setStatus("Onshape authorization is still pending.");
+          return;
+        }
+
+        try {
+          const nextProfile = await loadProfile(token);
+          if (nextProfile.onshape?.oauth_connected) {
+            window.clearInterval(poll);
+            setState("connected");
+            setStatus("Onshape API access connected.");
+          }
+        } catch {
+          // Keep polling while the authorization tab is still in progress.
+        }
+      }, 2000);
+    } catch (error) {
+      setState("error");
+      setStatus(
+        error instanceof Error
+          ? error.message
+          : "Could not start Onshape authorization.",
+      );
+    }
+  }
+
+  async function exportStepFromOnshape() {
+    if (!context || !token) return;
+
+    setState("working");
+    setStatus("Exporting STEP from Onshape...");
+
+    try {
+      const response = await fetch("/api/design-app/onshape/export-step", {
+        method: "POST",
+        headers: getAuthHeaders(token),
+        body: JSON.stringify({
+          ...context,
+          externalName: displayNameForContext(context),
+        }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        ok?: boolean;
+        needs_onshape_oauth?: boolean;
+        file?: UploadedDesignFile;
+        message?: string;
+        error?: string;
+      };
+
+      if (payload.needs_onshape_oauth) {
+        setOnshapeApiConnected(false);
+        setState("connected");
+        setStatus("Connect Onshape API access before exporting STEP.");
+        return;
+      }
+
+      if (!response.ok || !payload.ok || !payload.file) {
+        throw new Error(payload.error || "Onshape STEP export failed.");
+      }
+
+      setStepFile(payload.file);
+      setOnshapeApiConnected(true);
+      setState("connected");
+      setStatus(payload.message || "Onshape STEP export attached.");
+    } catch (error) {
+      setState("error");
+      setStatus(
+        error instanceof Error ? error.message : "Onshape STEP export failed.",
+      );
+    }
+  }
+
   async function publish() {
     if (!context || !token) return;
 
@@ -372,7 +494,7 @@ export default function OnshapeDesignAppPage() {
               native_source: "onshape_document_reference",
             },
           },
-          files: [],
+          files: stepFile ? [stepFile] : [],
         }),
       });
 
@@ -394,6 +516,54 @@ export default function OnshapeDesignAppPage() {
     } catch (error) {
       setState("error");
       setStatus(error instanceof Error ? error.message : "Publish failed.");
+    }
+  }
+
+  async function uploadStepFile(file: File) {
+    if (!token) {
+      setStatus("Connect to Kordyne before attaching STEP.");
+      return;
+    }
+
+    const lowerName = file.name.toLowerCase();
+    if (!lowerName.endsWith(".step") && !lowerName.endsWith(".stp")) {
+      setState("error");
+      setStatus("Only STEP files with .step or .stp extension can be attached.");
+      return;
+    }
+
+    setState("working");
+    setStatus("Uploading STEP exchange file...");
+
+    try {
+      const formData = new FormData();
+      formData.set("role", "step");
+      formData.set("file", file);
+
+      const response = await fetch("/api/design-app/onshape/upload", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        ok?: boolean;
+        file?: UploadedDesignFile;
+        message?: string;
+        error?: string;
+      };
+
+      if (!response.ok || !payload.ok || !payload.file) {
+        throw new Error(payload.error || "STEP upload failed.");
+      }
+
+      setStepFile(payload.file);
+      setState("connected");
+      setStatus(payload.message || "STEP exchange file attached.");
+    } catch (error) {
+      setState("error");
+      setStatus(error instanceof Error ? error.message : "STEP upload failed.");
     }
   }
 
@@ -492,6 +662,8 @@ export default function OnshapeDesignAppPage() {
     window.localStorage.removeItem(TOKEN_STORAGE_KEY);
     setToken("");
     setProfile(null);
+    setStepFile(null);
+    setOnshapeApiConnected(false);
     setState("not_connected");
     setStatus("Disconnected. Connect again when you are ready.");
   }
@@ -553,6 +725,8 @@ export default function OnshapeDesignAppPage() {
               <dd className="truncate">{profile.organization?.name || "-"}</dd>
               <dt className="font-semibold text-slate-600">Role</dt>
               <dd>{profile.membership?.role || "-"}</dd>
+              <dt className="font-semibold text-slate-600">Onshape API</dt>
+              <dd>{onshapeApiConnected ? "Connected" : "Not connected"}</dd>
             </dl>
           ) : (
             <p className="mt-2 text-sm text-slate-700">
@@ -597,6 +771,52 @@ export default function OnshapeDesignAppPage() {
             Kordyne stores the Onshape native document reference so the feature
             tree remains in Onshape instead of being reduced to STEP.
           </p>
+
+          <div className="mt-4 rounded-[8px] border border-slate-200 bg-slate-50 p-3">
+            <label className="block text-sm font-semibold text-slate-700">
+              STEP exchange file
+              <input
+                type="file"
+                accept=".step,.stp,application/step,model/step"
+                disabled={!connected || busy}
+                onChange={(event) => {
+                  const file = event.currentTarget.files?.[0];
+                  event.currentTarget.value = "";
+                  if (file) void uploadStepFile(file);
+                }}
+                className="mt-2 block w-full text-sm file:mr-3 file:rounded-[8px] file:border-0 file:bg-slate-900 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white disabled:opacity-60"
+              />
+            </label>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {!onshapeApiConnected ? (
+                <button
+                  type="button"
+                  onClick={() => void connectOnshapeApi()}
+                  disabled={!connected || busy}
+                  className="rounded-[8px] border border-slate-300 bg-white px-3 py-2 text-xs font-semibold disabled:opacity-60"
+                >
+                  Connect Onshape API
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => void exportStepFromOnshape()}
+                disabled={!connected || busy || !context?.documentId}
+                className="rounded-[8px] border border-slate-300 bg-white px-3 py-2 text-xs font-semibold disabled:opacity-60"
+              >
+                Export STEP from Onshape
+              </button>
+            </div>
+            {stepFile ? (
+              <p className="mt-2 truncate text-xs font-semibold text-emerald-700">
+                Attached {stepFile.filename}
+              </p>
+            ) : (
+              <p className="mt-2 text-xs text-slate-600">
+                Optional neutral file for supplier exchange.
+              </p>
+            )}
+          </div>
 
           <div className="mt-4 flex flex-wrap gap-2">
             <button

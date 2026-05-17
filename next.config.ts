@@ -11,8 +11,8 @@ function buildContentSecurityPolicy(frameAncestors: string) {
   "style-src 'self' 'unsafe-inline' https://developer.api.autodesk.com",
 
   // Turnstile + Autodesk viewer scripts
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com https://developer.api.autodesk.com",
-  "script-src-elem 'self' 'unsafe-inline' https://challenges.cloudflare.com https://developer.api.autodesk.com",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com https://developer.api.autodesk.com https://va.vercel-scripts.com",
+  "script-src-elem 'self' 'unsafe-inline' https://challenges.cloudflare.com https://developer.api.autodesk.com https://va.vercel-scripts.com",
 
   // Turnstile iframe + Autodesk viewer iframe
   "frame-src 'self' https://challenges.cloudflare.com https://developer.api.autodesk.com",
