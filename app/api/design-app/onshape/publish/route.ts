@@ -525,7 +525,7 @@ export async function POST(request: Request) {
 
     const { data: createdPart, error: createdPartError } = await ctx.supabase
       .from("parts")
-      .select("id, organization_id, part_family_id, revision_index, revision, name, status")
+      .select("id, organization_id, part_family_id, revision_index, revision, name, part_number, status")
       .eq("id", partId)
       .eq("organization_id", ctx.organizationId)
       .maybeSingle();
@@ -844,6 +844,7 @@ export async function POST(request: Request) {
       revision_index: createdPart.revision_index,
       revision: createdPart.revision,
       name: createdPart.name,
+      part_number: createdPart.part_number,
       status: createdPart.status,
       thumbnail_file_id: thumbnailFileId,
       thumbnail_storage_path: thumbnailStoragePath,

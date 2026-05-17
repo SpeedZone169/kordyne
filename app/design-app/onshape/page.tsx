@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 type ConnectionState =
@@ -54,8 +55,11 @@ type PublishedPart = {
   part_id: string;
   part_family_id?: string | null;
   name?: string | null;
+  part_number?: string | null;
   revision?: string | null;
   status?: string | null;
+  search_score?: number | null;
+  revision_count?: number | null;
 };
 
 type UploadedDesignFile = {
@@ -67,9 +71,26 @@ type UploadedDesignFile = {
   file_extension?: string | null;
 };
 
+type OnshapeResolvedPart = {
+  name?: string | null;
+  partId?: string | null;
+  partNumber?: string | null;
+  revision?: string | null;
+  state?: string | null;
+  description?: string | null;
+  elementId?: string | null;
+  microversionId?: string | null;
+  bodyType?: string | null;
+};
+
+type ThemeMode = "light" | "dark";
+type ActiveTab = "connect" | "publish" | "library" | "pull" | "compare";
+type PublishMode = "new_family" | "new_revision";
+
 const TOKEN_STORAGE_KEY = "kordyne:onshape:connection-token";
+const THEME_STORAGE_KEY = "kordyne:onshape:theme";
 const ONSHAPE_EXTENSION_ACTION_URL =
-  "https://www.kordyne.com/design-app/onshape?documentId={$documentId}&workspaceOrVersion={$workspaceOrVersion}&workspaceOrVersionId={$workspaceOrVersionId}&elementId={$elementId}&tabElementId={$tabElementId}&partNumber={$partNumber}&revision={$revision}&configuration={$configuration}";
+  "https://www.kordyne.com/design-app/onshape?documentId={$documentId}&workspaceOrVersion={$workspaceOrVersion}&workspaceOrVersionId={$workspaceOrVersionId}&elementId={$elementId}&tabElementId={$tabElementId}&partId={$partId}&partNumber={$partNumber}&revision={$revision}&configuration={$configuration}";
 
 function cleanOnshapeParam(value: string | null) {
   const trimmed = value?.trim() ?? "";
@@ -159,6 +180,25 @@ function displayNameForContext(context: OnshapeContext) {
   return "Onshape design";
 }
 
+function fieldOrDash(value?: string | null) {
+  return value?.trim() || "-";
+}
+
+function nextRevisionHint(revision?: string | null) {
+  const value = revision?.trim();
+  if (!value) return "";
+
+  if (/^[A-Z]$/i.test(value)) {
+    return String.fromCharCode(value.toUpperCase().charCodeAt(0) + 1);
+  }
+
+  if (/^\d+$/.test(value)) {
+    return String(Number(value) + 1);
+  }
+
+  return "";
+}
+
 function hasPublishableOnshapeContext(context: OnshapeContext | null) {
   return Boolean(
     context?.documentId &&
@@ -192,9 +232,31 @@ export default function OnshapeDesignAppPage() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [lastPart, setLastPart] = useState<PublishedPart | null>(null);
   const [stepFile, setStepFile] = useState<UploadedDesignFile | null>(null);
+  const [thumbnailFile, setThumbnailFile] = useState<UploadedDesignFile | null>(
+    null,
+  );
   const [onshapeApiConnected, setOnshapeApiConnected] = useState(false);
   const [libraryItems, setLibraryItems] = useState<PublishedPart[]>([]);
   const [libraryQuery, setLibraryQuery] = useState("");
+  const [theme, setTheme] = useState<ThemeMode>("light");
+  const [activeTab, setActiveTab] = useState<ActiveTab>("connect");
+  const [resolvedPart, setResolvedPart] = useState<OnshapeResolvedPart | null>(
+    null,
+  );
+  const [partName, setPartName] = useState("");
+  const [partNumber, setPartNumber] = useState("");
+  const [description, setDescription] = useState("");
+  const [processType, setProcessType] = useState("");
+  const [material, setMaterial] = useState("");
+  const [revisionScheme, setRevisionScheme] = useState<"alphabetic" | "numeric">(
+    "alphabetic",
+  );
+  const [revisionNote, setRevisionNote] = useState("");
+  const [statusValue, setStatusValue] = useState("draft");
+  const [category, setCategory] = useState("");
+  const [publishMode, setPublishMode] = useState<PublishMode>("new_family");
+  const [publishMatches, setPublishMatches] = useState<PublishedPart[]>([]);
+  const [selectedMatch, setSelectedMatch] = useState<PublishedPart | null>(null);
 
   const storageKey = useMemo(
     () => (context ? contextStorageKey(context) : ""),
@@ -207,6 +269,21 @@ export default function OnshapeDesignAppPage() {
   const onshapeWorkspaceId = context?.workspaceId ?? "";
   const onshapeWorkspaceOrVersion = context?.workspaceOrVersion ?? "";
   const onshapeWorkspaceOrVersionId = context?.workspaceOrVersionId ?? "";
+
+  useEffect(() => {
+    const savedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
+    if (savedTheme === "dark" || savedTheme === "light") {
+      setTheme(savedTheme);
+      return;
+    }
+
+    const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)").matches;
+    setTheme(prefersDark ? "dark" : "light");
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+  }, [theme]);
 
   const callOnshapeApi = useCallback(
     async function callOnshapeApi<T>(
@@ -249,9 +326,89 @@ export default function OnshapeDesignAppPage() {
       setOnshapeApiConnected(Boolean(payload.onshape?.oauth_connected));
       setState("connected");
       setStatus("Connected to Kordyne.");
+      setActiveTab("publish");
       return payload;
     },
     [callOnshapeApi],
+  );
+
+  const loadOnshapePartContext = useCallback(
+    async function loadOnshapePartContext(activeToken = token, silent = false) {
+      if (!context || !activeToken || !hasPublishableOnshapeContext(context)) {
+        return null;
+      }
+
+      if (!silent) {
+        setState("working");
+        setStatus("Reading Onshape part context...");
+      }
+
+      const response = await fetch("/api/design-app/onshape/context", {
+        method: "POST",
+        headers: getAuthHeaders(activeToken),
+        body: JSON.stringify(context),
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        ok?: boolean;
+        needs_onshape_oauth?: boolean;
+        active_part?: OnshapeResolvedPart | null;
+        error?: string;
+      };
+
+      if (payload.needs_onshape_oauth) {
+        setOnshapeApiConnected(false);
+        if (!silent) {
+          setState("connected");
+          setStatus("Reconnect Onshape API access to read part metadata.");
+        }
+        return null;
+      }
+
+      if (!response.ok || !payload.ok) {
+        if (!silent) {
+          setState("error");
+          setStatus(payload.error || "Could not read Onshape part metadata.");
+        }
+        return null;
+      }
+
+      const activePart = payload.active_part ?? null;
+      setResolvedPart(activePart);
+
+      if (activePart) {
+        setContext((current) =>
+          current
+            ? {
+                ...current,
+                partId: activePart.partId || current.partId,
+                partNumber: activePart.partNumber || current.partNumber,
+                revision: activePart.revision || current.revision,
+                microversionId:
+                  activePart.microversionId || current.microversionId,
+              }
+            : current,
+        );
+        setPartName((current) =>
+          current && !current.startsWith("Onshape element")
+            ? current
+            : activePart.name || current,
+        );
+        setPartNumber((current) => current || activePart.partNumber || "");
+        setDescription((current) => current || activePart.description || "");
+      }
+
+      if (!silent) {
+        setState("connected");
+        setStatus(
+          activePart?.name
+            ? `Loaded Onshape part metadata for ${activePart.name}.`
+            : "No individual Onshape part metadata was available.",
+        );
+      }
+
+      return activePart;
+    },
+    [context, token],
   );
 
   useEffect(() => {
@@ -259,6 +416,9 @@ export default function OnshapeDesignAppPage() {
       const parsedContext = parseOnshapeContext();
       setContext(parsedContext);
       setLibraryQuery(parsedContext.partNumber || "");
+      setPartName((current) => current || displayNameForContext(parsedContext));
+      setPartNumber((current) => current || parsedContext.partNumber || "");
+      setRevisionNote("Published from Onshape.");
 
       const savedToken = window.localStorage.getItem(TOKEN_STORAGE_KEY) ?? "";
       const savedPartRaw = window.localStorage.getItem(
@@ -366,6 +526,21 @@ export default function OnshapeDesignAppPage() {
     if (!storageKey || !lastPart) return;
     window.localStorage.setItem(storageKey, JSON.stringify(lastPart));
   }, [lastPart, storageKey]);
+
+  useEffect(() => {
+    if (!token || !onshapeApiConnected || !publishableContext) return;
+    if (resolvedPart?.partId && resolvedPart.elementId === context?.elementId) return;
+
+    void loadOnshapePartContext(token, true);
+  }, [
+    context?.elementId,
+    loadOnshapePartContext,
+    onshapeApiConnected,
+    publishableContext,
+    resolvedPart?.elementId,
+    resolvedPart?.partId,
+    token,
+  ]);
 
   async function connect() {
     setState("opening_browser");
@@ -484,6 +659,7 @@ export default function OnshapeDesignAppPage() {
             window.clearInterval(poll);
             setState("connected");
             setStatus("Onshape API access connected.");
+            void loadOnshapePartContext(token, true);
           }
         } catch {
           // Keep polling while the authorization tab is still in progress.
@@ -499,11 +675,13 @@ export default function OnshapeDesignAppPage() {
     }
   }
 
-  async function exportStepFromOnshape() {
-    if (!context || !token) return;
+  async function exportStepFromOnshape(silent = false) {
+    if (!context || !token) return null;
 
-    setState("working");
-    setStatus("Exporting STEP from Onshape...");
+    if (!silent) {
+      setState("working");
+      setStatus("Exporting STEP from Onshape...");
+    }
 
     try {
       const response = await fetch("/api/design-app/onshape/export-step", {
@@ -511,7 +689,8 @@ export default function OnshapeDesignAppPage() {
         headers: getAuthHeaders(token),
         body: JSON.stringify({
           ...context,
-          externalName: displayNameForContext(context),
+          partNumber: partNumber || context.partNumber,
+          externalName: partName || displayNameForContext(context),
         }),
       });
       const payload = (await response.json().catch(() => ({}))) as {
@@ -525,8 +704,8 @@ export default function OnshapeDesignAppPage() {
       if (payload.needs_onshape_oauth) {
         setOnshapeApiConnected(false);
         setState("connected");
-        setStatus("Connect Onshape API access before exporting STEP.");
-        return;
+        setStatus(payload.error || "Reconnect Onshape API access before exporting STEP.");
+        return null;
       }
 
       if (!response.ok || !payload.ok || !payload.file) {
@@ -537,27 +716,195 @@ export default function OnshapeDesignAppPage() {
       setOnshapeApiConnected(true);
       setState("connected");
       setStatus(payload.message || "Onshape STEP export attached.");
+      return payload.file;
     } catch (error) {
       setState("error");
       setStatus(
         error instanceof Error ? error.message : "Onshape STEP export failed.",
       );
+      return null;
     }
+  }
+
+  async function exportThumbnailFromOnshape(silent = false) {
+    if (!context || !token) return null;
+
+    if (!silent) {
+      setState("working");
+      setStatus("Capturing Onshape preview...");
+    }
+
+    try {
+      const response = await fetch("/api/design-app/onshape/export-thumbnail", {
+        method: "POST",
+        headers: getAuthHeaders(token),
+        body: JSON.stringify({
+          ...context,
+          partNumber: partNumber || context.partNumber,
+          externalName: partName || displayNameForContext(context),
+        }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        ok?: boolean;
+        needs_onshape_oauth?: boolean;
+        file?: UploadedDesignFile;
+        message?: string;
+        error?: string;
+      };
+
+      if (payload.needs_onshape_oauth) {
+        setOnshapeApiConnected(false);
+        setState("connected");
+        setStatus(
+          payload.error ||
+            "Reconnect Onshape API access before capturing a preview.",
+        );
+        return null;
+      }
+
+      if (!response.ok || !payload.ok || !payload.file) {
+        throw new Error(payload.error || "Onshape preview capture failed.");
+      }
+
+      setThumbnailFile(payload.file);
+      setOnshapeApiConnected(true);
+      setState("connected");
+      setStatus(payload.message || "Onshape preview attached.");
+      return payload.file;
+    } catch (error) {
+      if (!silent) {
+        setState("error");
+        setStatus(
+          error instanceof Error
+            ? error.message
+            : "Onshape preview capture failed.",
+        );
+      }
+
+      return null;
+    }
+  }
+
+  async function findPotentialPublishMatches() {
+    if (!token) return [];
+
+    const query = partNumber || partName;
+    if (!query.trim()) return [];
+
+    const payload = await callOnshapeApi<{
+      ok: boolean;
+      items: Array<PublishedPart>;
+    }>("/api/design-app/onshape/library-search", {
+      method: "POST",
+      body: JSON.stringify({
+        q: query,
+        limit: 10,
+      }),
+    });
+
+    const exactMatches = payload.items.filter((item) => {
+      const itemName = (item.name ?? "").trim().toLowerCase();
+      const itemNumber = (item.part_number ?? "").trim().toLowerCase();
+      const cleanName = partName.trim().toLowerCase();
+      const cleanNumber = partNumber.trim().toLowerCase();
+
+      return (
+        (cleanNumber && itemNumber === cleanNumber) ||
+        (cleanName && itemName === cleanName) ||
+        (item.search_score ?? 0) >= 90
+      );
+    });
+
+    setPublishMatches(exactMatches);
+    return exactMatches;
   }
 
   async function publish() {
     if (!context || !token) return;
 
     setState("working");
-    setStatus("Publishing Onshape reference to Kordyne...");
+    setStatus("Preparing Onshape publish package...");
 
     try {
-      const publishMode = lastPart?.part_id ? "new_revision" : "new_family";
+      if (!partName.trim()) {
+        setState("error");
+        setStatus("Part Name is required before publishing.");
+        return;
+      }
+
+      let targetMatch =
+        publishMode === "new_revision"
+          ? selectedMatch || lastPart || null
+          : null;
+
+      if (!targetMatch && publishMode === "new_family") {
+        const matches = await findPotentialPublishMatches();
+        if (matches.length > 0) {
+          setState("connected");
+          setStatus(
+            "Possible existing Kordyne part found. Choose new revision or keep creating a separate part.",
+          );
+          setActiveTab("publish");
+          return;
+        }
+      }
+
+      if (publishMode === "new_revision" && !targetMatch) {
+        const matches = await findPotentialPublishMatches();
+        targetMatch = matches[0] ?? null;
+      }
+
+      if (publishMode === "new_revision" && !targetMatch?.part_id) {
+        setState("error");
+        setStatus("Select an existing Kordyne part before publishing a revision.");
+        return;
+      }
+
+      let publishStepFile = stepFile;
+      if (!publishStepFile) {
+        setStatus("Exporting STEP from Onshape...");
+        publishStepFile = await exportStepFromOnshape(true);
+      }
+
+      if (!publishStepFile) {
+        setState("connected");
+        setStatus(
+          onshapeApiConnected
+            ? "STEP export was not attached. Check Onshape API access and try again."
+            : "Reconnect Onshape API access so Kordyne can export STEP automatically.",
+        );
+        return;
+      }
+
+      let publishThumbnailFile = thumbnailFile;
+      if (!publishThumbnailFile) {
+        setStatus("Capturing Onshape preview...");
+        publishThumbnailFile = await exportThumbnailFromOnshape(true);
+      }
+
+      if (!publishThumbnailFile) {
+        setState("connected");
+        setStatus(
+          onshapeApiConnected
+            ? "Preview capture was not attached. Check Onshape API access and try again."
+            : "Reconnect Onshape API access so Kordyne can capture the Onshape preview.",
+        );
+        return;
+      }
+
+      setState("working");
+      setStatus(
+        publishMode === "new_revision"
+          ? "Creating next Kordyne revision..."
+          : "Creating Kordyne part...",
+      );
+
       const payload = await callOnshapeApi<{
         ok: boolean;
         part_id: string;
         part_family_id: string;
         name: string | null;
+        part_number?: string | null;
         revision: string | null;
         status: string | null;
         message?: string;
@@ -565,7 +912,7 @@ export default function OnshapeDesignAppPage() {
         method: "POST",
         body: JSON.stringify({
           idempotency_key: randomIdempotencyKey(),
-          part_id: publishMode === "new_revision" ? lastPart?.part_id : null,
+          part_id: publishMode === "new_revision" ? targetMatch?.part_id : null,
           external_workspace_id: context.workspaceId || null,
           external_project_id: context.companyId || null,
           external_document_id: context.documentId || null,
@@ -574,19 +921,29 @@ export default function OnshapeDesignAppPage() {
           external_version_id:
             context.microversionId || context.versionId || null,
           external_revision_id: context.revision || null,
-          external_name: displayNameForContext(context),
+          external_name: partName || displayNameForContext(context),
           external_url: context.externalUrl || null,
           metadata: {
             publish_mode: publishMode,
-            name: displayNameForContext(context),
-            part_number: context.partNumber || null,
-            revision_note: "Published from Onshape.",
+            name: partName.trim(),
+            part_number: partNumber.trim() || null,
+            description: description.trim() || null,
+            process_type: processType || null,
+            material: material.trim() || null,
+            revision_scheme: publishMode === "new_family" ? revisionScheme : null,
+            category: category || null,
+            status: statusValue,
+            revision_note: revisionNote.trim() || "Published from Onshape.",
             cad_metadata: {
               ...context,
+              resolved_part: resolvedPart,
               native_source: "onshape_document_reference",
+              step_storage_path: publishStepFile.storage_path,
+              thumbnail_storage_path: publishThumbnailFile.storage_path,
+              thumbnail_filename: publishThumbnailFile.filename,
             },
           },
-          files: stepFile ? [stepFile] : [],
+          files: [publishStepFile, publishThumbnailFile],
         }),
       });
 
@@ -594,11 +951,15 @@ export default function OnshapeDesignAppPage() {
         part_id: payload.part_id,
         part_family_id: payload.part_family_id,
         name: payload.name,
+        part_number: payload.part_number ?? partNumber,
         revision: payload.revision,
         status: payload.status,
       };
 
       setLastPart(nextPart);
+      setSelectedMatch(nextPart);
+      setPublishMode("new_revision");
+      setPublishMatches([]);
       setState("connected");
       setStatus(
         payload.revision
@@ -608,54 +969,6 @@ export default function OnshapeDesignAppPage() {
     } catch (error) {
       setState("error");
       setStatus(error instanceof Error ? error.message : "Publish failed.");
-    }
-  }
-
-  async function uploadStepFile(file: File) {
-    if (!token) {
-      setStatus("Connect to Kordyne before attaching STEP.");
-      return;
-    }
-
-    const lowerName = file.name.toLowerCase();
-    if (!lowerName.endsWith(".step") && !lowerName.endsWith(".stp")) {
-      setState("error");
-      setStatus("Only STEP files with .step or .stp extension can be attached.");
-      return;
-    }
-
-    setState("working");
-    setStatus("Uploading STEP exchange file...");
-
-    try {
-      const formData = new FormData();
-      formData.set("role", "step");
-      formData.set("file", file);
-
-      const response = await fetch("/api/design-app/onshape/upload", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: formData,
-      });
-      const payload = (await response.json().catch(() => ({}))) as {
-        ok?: boolean;
-        file?: UploadedDesignFile;
-        message?: string;
-        error?: string;
-      };
-
-      if (!response.ok || !payload.ok || !payload.file) {
-        throw new Error(payload.error || "STEP upload failed.");
-      }
-
-      setStepFile(payload.file);
-      setState("connected");
-      setStatus(payload.message || "STEP exchange file attached.");
-    } catch (error) {
-      setState("error");
-      setStatus(error instanceof Error ? error.message : "STEP upload failed.");
     }
   }
 
@@ -767,240 +1080,519 @@ export default function OnshapeDesignAppPage() {
     state === "waiting" ||
     state === "working";
   const contextName = context ? displayNameForContext(context) : "Onshape design";
+  const isDark = theme === "dark";
+  const surface = isDark ? "bg-[#1f2937] text-white" : "bg-[#f4f7fb] text-slate-950";
+  const card = isDark
+    ? "border border-slate-500/70 bg-[#1f2937]"
+    : "border border-slate-300 bg-white";
+  const panel = isDark ? "border-slate-600 bg-[#263241]" : "border-slate-200 bg-slate-50";
+  const muted = isDark ? "text-slate-300" : "text-slate-600";
+  const inputClass = isDark
+    ? "border-slate-600 bg-[#111827] text-white placeholder:text-slate-400"
+    : "border-slate-300 bg-white text-slate-950 placeholder:text-slate-400";
+  const secondaryButton = isDark
+    ? "border border-slate-600 bg-[#344255] text-white hover:border-slate-400"
+    : "border border-slate-300 bg-white text-slate-900 hover:border-blue-600";
+  const inactiveTab = isDark
+    ? "border border-slate-600 bg-[#344255] text-white"
+    : "border border-slate-300 bg-white text-slate-900";
+  const activePartId = context?.partId || resolvedPart?.partId || "";
+  const activePartRevision = context?.revision || resolvedPart?.revision || "";
+  const activePartName =
+    resolvedPart?.name ||
+    (partName && !partName.startsWith("Onshape element") ? partName : "") ||
+    contextName;
+  const targetLabel =
+    publishMode === "new_revision"
+      ? `Target: next revision${selectedMatch?.revision ? ` after Rev ${selectedMatch.revision}` : ""}`
+      : publishMatches.length > 0
+        ? "Target: new Kordyne part family - duplicate intentionally allowed"
+        : "Target: new Kordyne part family";
+
+  function navButton(tab: ActiveTab, label: string) {
+    return (
+      <button
+        type="button"
+        onClick={() => setActiveTab(tab)}
+        className={`h-9 min-w-[94px] px-4 text-sm font-semibold ${
+          activeTab === tab ? "bg-blue-600 text-white" : inactiveTab
+        }`}
+      >
+        {label}
+      </button>
+    );
+  }
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-5 text-slate-950">
-      <div className="mx-auto max-w-xl space-y-4">
-        <header className="flex items-center justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-700">
-              Kordyne
-            </p>
-            <h1 className="text-xl font-semibold">Onshape workspace</h1>
-          </div>
-
-          <span
-            className={
-              connected
-                ? "rounded-[8px] bg-emerald-100 px-3 py-1 text-sm font-semibold text-emerald-800"
-                : "rounded-[8px] bg-amber-100 px-3 py-1 text-sm font-semibold text-amber-800"
-            }
+    <main className={`min-h-screen px-4 py-5 ${surface}`}>
+      <div className="mx-auto max-w-[420px] space-y-5">
+        <header className="flex items-center justify-between gap-4">
+          <Image
+            src="/kordyne-logo.svg"
+            alt="Kordyne"
+            width={260}
+            height={72}
+            className="h-14 min-w-0 flex-1 object-contain object-left"
+          />
+          <button
+            type="button"
+            onClick={() => setTheme(isDark ? "light" : "dark")}
+            className={`h-11 min-w-[112px] px-3 text-sm font-semibold ${secondaryButton}`}
           >
-            {connected ? "Connected" : "Not connected"}
-          </span>
+            {isDark ? "Light theme" : "Dark theme"}
+          </button>
         </header>
 
-        <section className="rounded-[8px] border border-slate-300 bg-white p-4">
-          <h2 className="text-base font-semibold">Active Onshape context</h2>
-          <p className="mt-2 text-sm text-slate-700">{contextName}</p>
-          <dl className="mt-4 grid grid-cols-[120px_1fr] gap-x-3 gap-y-2 text-sm">
-            <dt className="font-semibold text-slate-600">Document</dt>
-            <dd className="truncate">{context?.documentId || "-"}</dd>
-            <dt className="font-semibold text-slate-600">Element</dt>
-            <dd className="truncate">{context?.elementId || "-"}</dd>
-            <dt className="font-semibold text-slate-600">Part</dt>
-            <dd className="truncate">{context?.partId || "-"}</dd>
-            <dt className="font-semibold text-slate-600">Revision</dt>
-            <dd>{context?.revision || "-"}</dd>
+        <div
+          className={`py-2 text-center text-sm font-bold ${
+            connected ? "bg-emerald-200 text-emerald-950" : "bg-[#8f2f12] text-white"
+          }`}
+        >
+          {connected ? "Connected" : "Not connected"}
+        </div>
+
+        <section className={`p-5 ${card}`}>
+          <h1 className="text-lg font-bold">Onshape design-to-vault workspace</h1>
+          <p className={`mt-2 text-sm leading-6 ${muted}`}>
+            Connect once, publish cleanly, and move from Onshape design context
+            to Kordyne with fewer clicks.
+          </p>
+        </section>
+
+        <dl className="grid grid-cols-[120px_1fr] gap-x-3 gap-y-3 text-sm">
+          <dt className={`font-bold ${muted}`}>User</dt>
+          <dd>{fieldOrDash(profile?.user?.full_name || profile?.user?.email)}</dd>
+          <dt className={`font-bold ${muted}`}>Organization</dt>
+          <dd>{fieldOrDash(profile?.organization?.name)}</dd>
+          <dt className={`font-bold ${muted}`}>Role</dt>
+          <dd>{fieldOrDash(profile?.membership?.role)}</dd>
+        </dl>
+
+        <section className={`p-5 ${card}`}>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-base font-bold">Active Onshape context</h2>
+              <p className="mt-3 text-sm font-bold">{activePartName}</p>
+            </div>
+            {onshapeApiConnected ? (
+              <span className="text-xs font-bold text-emerald-500">API connected</span>
+            ) : null}
+          </div>
+
+          <dl className="mt-5 grid grid-cols-[92px_1fr] gap-x-3 gap-y-3 text-sm">
+            <dt className={muted}>Document</dt>
+            <dd className="truncate">{fieldOrDash(context?.documentId)}</dd>
+            <dt className={muted}>Element</dt>
+            <dd className="truncate">{fieldOrDash(context?.elementId)}</dd>
+            <dt className={muted}>Part</dt>
+            <dd className="truncate">{fieldOrDash(activePartId)}</dd>
+            <dt className={muted}>Part no.</dt>
+            <dd className="truncate">{fieldOrDash(context?.partNumber || resolvedPart?.partNumber || partNumber)}</dd>
+            <dt className={muted}>Revision</dt>
+            <dd>{fieldOrDash(activePartRevision)}</dd>
           </dl>
+
           {context && !publishableContext ? (
-            <div className="mt-4 rounded-[8px] border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">
-              <p className="font-semibold">Onshape did not pass document context.</p>
-              <p className="mt-1">
-                Update the extension Action URL to include Onshape parameters:
-              </p>
-              <code className="mt-2 block break-all rounded-[6px] bg-white p-2 text-[11px] text-slate-900">
+            <div className={`mt-5 border p-3 text-xs ${panel}`}>
+              <p className="font-bold">Onshape did not pass document context.</p>
+              <code className="mt-2 block break-all text-[11px]">
                 {ONSHAPE_EXTENSION_ACTION_URL}
               </code>
             </div>
           ) : null}
         </section>
 
-        <section className="rounded-[8px] border border-slate-300 bg-white p-4">
-          <h2 className="text-base font-semibold">Kordyne connection</h2>
-          {profile ? (
-            <dl className="mt-3 grid grid-cols-[120px_1fr] gap-x-3 gap-y-2 text-sm">
-              <dt className="font-semibold text-slate-600">User</dt>
-              <dd className="truncate">
-                {profile.user?.full_name || profile.user?.email || "-"}
-              </dd>
-              <dt className="font-semibold text-slate-600">Organization</dt>
-              <dd className="truncate">{profile.organization?.name || "-"}</dd>
-              <dt className="font-semibold text-slate-600">Role</dt>
-              <dd>{profile.membership?.role || "-"}</dd>
-              <dt className="font-semibold text-slate-600">Onshape API</dt>
-              <dd>{onshapeApiConnected ? "Connected" : "Not connected"}</dd>
-            </dl>
-          ) : (
-            <p className="mt-2 text-sm text-slate-700">
-              Connect once, then publish and compare directly from Onshape.
+        <p className={`text-sm ${state === "error" ? "font-semibold text-red-500" : muted}`}>
+          {status}
+        </p>
+
+        <div className="grid grid-cols-3 gap-2">
+          {navButton("connect", "Connect")}
+          {navButton("publish", "Publish")}
+          {navButton("library", "Library")}
+          {navButton("pull", "Pull")}
+          {navButton("compare", "Compare")}
+        </div>
+
+        {activeTab === "connect" ? (
+          <section className={`p-5 ${card}`}>
+            <h2 className="text-xl font-bold">Connect to Kordyne</h2>
+            <p className={`mt-3 text-sm leading-6 ${muted}`}>
+              Browser login opens Kordyne, signs you in, and returns this panel
+              connected.
             </p>
-          )}
+            <div className="mt-5 flex flex-wrap gap-3">
+              {!connected ? (
+                <button
+                  type="button"
+                  onClick={() => void connect()}
+                  disabled={busy}
+                  className="h-11 bg-blue-600 px-5 text-sm font-bold text-white disabled:opacity-60"
+                >
+                  Connect to Kordyne
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={disconnect}
+                  disabled={busy}
+                  className={`h-11 px-5 text-sm font-bold disabled:opacity-60 ${secondaryButton}`}
+                >
+                  Disconnect
+                </button>
+              )}
+              {connected && !onshapeApiConnected ? (
+                <button
+                  type="button"
+                  onClick={() => void connectOnshapeApi()}
+                  disabled={busy}
+                  className="h-11 bg-blue-600 px-5 text-sm font-bold text-white disabled:opacity-60"
+                >
+                  Connect Onshape API
+                </button>
+              ) : null}
+            </div>
+            <p className={`mt-5 text-xs ${muted}`}>
+              By using this connector, you agree to Kordyne Terms and Privacy.
+            </p>
+          </section>
+        ) : null}
 
-          <div className="mt-4 flex flex-wrap gap-2">
-            {!connected ? (
-              <button
-                type="button"
-                onClick={() => void connect()}
-                disabled={busy}
-                className="rounded-[8px] bg-blue-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
-              >
-                Connect
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={disconnect}
-                disabled={busy}
-                className="rounded-[8px] border border-slate-300 px-4 py-2 text-sm font-semibold disabled:opacity-60"
-              >
-                Disconnect
-              </button>
-            )}
-          </div>
-        </section>
+        {activeTab === "publish" ? (
+          <section className={`p-5 ${card}`}>
+            <h2 className="text-xl font-bold">Publish to Kordyne</h2>
+            <p className={`mt-3 text-sm font-bold ${muted}`}>{targetLabel}</p>
 
-        <section className="rounded-[8px] border border-slate-300 bg-white p-4">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-base font-semibold">Publish</h2>
-            {lastPart ? (
-              <span className="text-xs font-semibold text-slate-600">
-                Linked {lastPart.revision ? `rev ${lastPart.revision}` : "part"}
-              </span>
+            <div className="mt-5 grid gap-4">
+              <label className="text-sm font-bold">
+                Part Name
+                <input
+                  value={partName}
+                  onChange={(event) => setPartName(event.target.value)}
+                  className={`mt-2 h-10 w-full border px-3 text-sm ${inputClass}`}
+                />
+              </label>
+
+              <label className="text-sm font-bold">
+                Part Number
+                <input
+                  value={partNumber}
+                  onChange={(event) => setPartNumber(event.target.value)}
+                  placeholder="Optional part number"
+                  className={`mt-2 h-10 w-full border px-3 text-sm ${inputClass}`}
+                />
+              </label>
+
+              <label className="text-sm font-bold">
+                Description
+                <input
+                  value={description}
+                  onChange={(event) => setDescription(event.target.value)}
+                  placeholder="Optional description"
+                  className={`mt-2 h-10 w-full border px-3 text-sm ${inputClass}`}
+                />
+              </label>
+
+              <label className="text-sm font-bold">
+                Process Type
+                <select
+                  value={processType}
+                  onChange={(event) => setProcessType(event.target.value)}
+                  className={`mt-2 h-10 w-full border px-3 text-sm ${inputClass}`}
+                >
+                  <option value="">Select process type</option>
+                  <option>3D Printing</option>
+                  <option>CNC Machining</option>
+                  <option>Sheet Metal</option>
+                  <option>Injection Molding</option>
+                  <option>Composite Manufacturing</option>
+                  <option>Casting</option>
+                  <option>Fabrication</option>
+                  <option>Multi Process</option>
+                  <option>Other</option>
+                </select>
+              </label>
+
+              <label className="text-sm font-bold">
+                Material
+                <input
+                  value={material}
+                  onChange={(event) => setMaterial(event.target.value)}
+                  placeholder="Type or choose a material"
+                  className={`mt-2 h-10 w-full border px-3 text-sm ${inputClass}`}
+                />
+              </label>
+
+              <label className="text-sm font-bold">
+                Publish Mode
+                <select
+                  value={publishMode}
+                  onChange={(event) => setPublishMode(event.target.value as PublishMode)}
+                  className={`mt-2 h-10 w-full border px-3 text-sm ${inputClass}`}
+                >
+                  <option value="new_family">New family</option>
+                  <option value="new_revision">New revision</option>
+                </select>
+              </label>
+
+              {publishMode === "new_family" ? (
+                <label className="text-sm font-bold">
+                  Revision Scheme
+                  <select
+                    value={revisionScheme}
+                    onChange={(event) =>
+                      setRevisionScheme(event.target.value as "alphabetic" | "numeric")
+                    }
+                    className={`mt-2 h-10 w-full border px-3 text-sm ${inputClass}`}
+                  >
+                    <option value="alphabetic">Alphabetic (A, B, C...)</option>
+                    <option value="numeric">Numeric (1, 2, 3...)</option>
+                  </select>
+                </label>
+              ) : null}
+
+              <label className="text-sm font-bold">
+                Revision Note
+                <input
+                  value={revisionNote}
+                  onChange={(event) => setRevisionNote(event.target.value)}
+                  placeholder="Optional revision note"
+                  className={`mt-2 h-10 w-full border px-3 text-sm ${inputClass}`}
+                />
+              </label>
+
+              <div className="grid grid-cols-2 gap-3">
+                <label className="text-sm font-bold">
+                  Status
+                  <select
+                    value={statusValue}
+                    onChange={(event) => setStatusValue(event.target.value)}
+                    className={`mt-2 h-10 w-full border px-3 text-sm ${inputClass}`}
+                  >
+                    <option value="draft">Draft</option>
+                    <option value="active">Active</option>
+                    <option value="archived">Archived</option>
+                  </select>
+                </label>
+                <label className="text-sm font-bold">
+                  Category
+                  <select
+                    value={category}
+                    onChange={(event) => setCategory(event.target.value)}
+                    className={`mt-2 h-10 w-full border px-3 text-sm ${inputClass}`}
+                  >
+                    <option value="">Select category</option>
+                    <option>Part</option>
+                    <option>Assembly</option>
+                    <option>Spare Part</option>
+                    <option>Tooling</option>
+                    <option>Jig / Fixture</option>
+                    <option>Prototype</option>
+                    <option>Document Only</option>
+                    <option>Other</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+
+            {publishMatches.length > 0 ? (
+              <div className={`mt-5 border p-4 ${panel}`}>
+                <h3 className="text-sm font-bold">Possible existing Vault match</h3>
+                <div className="mt-3 space-y-2">
+                  {publishMatches.slice(0, 3).map((item) => {
+                    const nextRevision = nextRevisionHint(item.revision);
+                    return (
+                      <button
+                        key={item.part_id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedMatch(item);
+                          setLastPart(item);
+                          setPublishMode("new_revision");
+                          setStatus(
+                            nextRevision
+                              ? `Existing match selected. Kordyne will create Rev ${nextRevision}.`
+                              : "Existing match selected. Kordyne will create the next revision.",
+                          );
+                        }}
+                        className={`block w-full border p-3 text-left text-sm ${secondaryButton}`}
+                      >
+                        <span className="block font-bold">{item.name || item.part_id}</span>
+                        <span className={muted}>
+                          {item.part_number ? `${item.part_number} - ` : ""}
+                          {item.revision ? `Rev ${item.revision}` : "No revision"}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPublishMatches([]);
+                    setSelectedMatch(null);
+                    setPublishMode("new_family");
+                    setStatus("Creating a separate new Vault family.");
+                  }}
+                  className={`mt-3 h-10 w-full text-sm font-bold ${secondaryButton}`}
+                >
+                  Create separate new part
+                </button>
+              </div>
             ) : null}
-          </div>
 
-          <p className="mt-2 text-sm text-slate-700">
-            Kordyne stores the Onshape native document reference so the feature
-            tree remains in Onshape instead of being reduced to STEP.
-          </p>
-
-          <div className="mt-4 rounded-[8px] border border-slate-200 bg-slate-50 p-3">
-            <label className="block text-sm font-semibold text-slate-700">
-              STEP exchange file
-              <input
-                type="file"
-                accept=".step,.stp,application/step,model/step"
-                disabled={!connected || busy}
-                onChange={(event) => {
-                  const file = event.currentTarget.files?.[0];
-                  event.currentTarget.value = "";
-                  if (file) void uploadStepFile(file);
-                }}
-                className="mt-2 block w-full text-sm file:mr-3 file:rounded-[8px] file:border-0 file:bg-slate-900 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white disabled:opacity-60"
-              />
-            </label>
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className={`mt-5 border p-4 ${panel}`}>
+              <h3 className="text-sm font-bold">Publish package</h3>
+              <p className={`mt-2 text-xs leading-5 ${muted}`}>
+                Publish exports STEP automatically and stores an Onshape native
+                reference so the feature tree stays editable in Onshape.
+              </p>
+              {stepFile ? (
+                <p className="mt-3 truncate text-xs font-bold text-emerald-500">
+                  STEP ready: {stepFile.filename}
+                </p>
+              ) : (
+                <p className={`mt-3 text-xs ${muted}`}>
+                  STEP will be exported during publish.
+                </p>
+              )}
+              {thumbnailFile ? (
+                <p className="mt-2 truncate text-xs font-bold text-emerald-500">
+                  Preview ready: {thumbnailFile.filename}
+                </p>
+              ) : (
+                <p className={`mt-2 text-xs ${muted}`}>
+                  Preview will be captured during publish.
+                </p>
+              )}
               {!onshapeApiConnected ? (
                 <button
                   type="button"
                   onClick={() => void connectOnshapeApi()}
                   disabled={!connected || busy}
-                  className="rounded-[8px] border border-slate-300 bg-white px-3 py-2 text-xs font-semibold disabled:opacity-60"
+                  className="mt-3 h-10 w-full bg-blue-600 text-sm font-bold text-white disabled:opacity-60"
                 >
-                  Connect Onshape API
+                  Reconnect Onshape API
                 </button>
               ) : null}
+            </div>
+
+            <div className="mt-5 grid gap-3">
+              <button
+                type="button"
+                onClick={() => void publish()}
+                disabled={!connected || busy || !publishableContext}
+                className="h-11 bg-blue-600 px-5 text-sm font-bold text-white disabled:opacity-60"
+              >
+                Publish to Kordyne
+              </button>
               <button
                 type="button"
                 onClick={() => void exportStepFromOnshape()}
                 disabled={!connected || busy || !publishableContext}
-                className="rounded-[8px] border border-slate-300 bg-white px-3 py-2 text-xs font-semibold disabled:opacity-60"
+                className={`h-10 text-sm font-bold disabled:opacity-60 ${secondaryButton}`}
               >
-                Export STEP from Onshape
+                Export STEP only
+              </button>
+              <button
+                type="button"
+                onClick={() => void exportThumbnailFromOnshape()}
+                disabled={!connected || busy || !publishableContext}
+                className={`h-10 text-sm font-bold disabled:opacity-60 ${secondaryButton}`}
+              >
+                Capture preview only
               </button>
             </div>
-            {stepFile ? (
-              <p className="mt-2 truncate text-xs font-semibold text-emerald-700">
-                Attached {stepFile.filename}
-              </p>
-            ) : (
-              <p className="mt-2 text-xs text-slate-600">
-                Optional neutral file for supplier exchange.
-              </p>
-            )}
-          </div>
+          </section>
+        ) : null}
 
-          <div className="mt-4 flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => void publish()}
-              disabled={!connected || busy || !publishableContext}
-              className="rounded-[8px] bg-blue-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
-            >
-              Publish to Kordyne
-            </button>
+        {activeTab === "library" ? (
+          <section className={`p-5 ${card}`}>
+            <h2 className="text-xl font-bold">Kordyne Vault Library</h2>
+            <div className="mt-4 flex gap-2">
+              <input
+                value={libraryQuery}
+                onChange={(event) => setLibraryQuery(event.target.value)}
+                className={`min-w-0 flex-1 border px-3 py-2 text-sm ${inputClass}`}
+                placeholder="Search Kordyne parts"
+              />
+              <button
+                type="button"
+                onClick={() => void searchLibrary()}
+                disabled={!connected || busy}
+                className={`px-4 py-2 text-sm font-bold disabled:opacity-60 ${secondaryButton}`}
+              >
+                Search
+              </button>
+            </div>
+            {libraryItems.length > 0 ? (
+              <div className="mt-4 space-y-2">
+                {libraryItems.slice(0, 8).map((item) => (
+                  <button
+                    key={item.part_id}
+                    type="button"
+                    onClick={() => {
+                      setLastPart(item);
+                      setSelectedMatch(item);
+                      setPublishMode("new_revision");
+                      setActiveTab("publish");
+                      setStatus("Linked this Onshape context to a Kordyne part.");
+                    }}
+                    className={`block w-full border p-3 text-left text-sm ${secondaryButton}`}
+                  >
+                    <span className="block font-bold">{item.name || item.part_id}</span>
+                    <span className={muted}>
+                      {item.part_number ? `${item.part_number} - ` : ""}
+                      {item.revision ? `Revision ${item.revision}` : "No revision"}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </section>
+        ) : null}
+
+        {activeTab === "pull" ? (
+          <section className={`p-5 ${card}`}>
+            <h2 className="text-xl font-bold">Pull from Kordyne</h2>
+            <p className={`mt-3 text-sm leading-6 ${muted}`}>
+              Pull prepares the native Onshape reference already stored against
+              the linked Vault part.
+            </p>
             <button
               type="button"
               onClick={() => void pull()}
               disabled={!connected || busy || !lastPart}
-              className="rounded-[8px] border border-slate-300 px-4 py-2 text-sm font-semibold disabled:opacity-60"
+              className="mt-5 h-11 w-full bg-blue-600 px-5 text-sm font-bold text-white disabled:opacity-60"
             >
-              Pull
+              Pull Latest
             </button>
+          </section>
+        ) : null}
+
+        {activeTab === "compare" ? (
+          <section className={`p-5 ${card}`}>
+            <h2 className="text-xl font-bold">Compare with Kordyne</h2>
+            <p className={`mt-3 text-sm leading-6 ${muted}`}>
+              Check whether this Onshape source is linked to the latest Kordyne
+              revision.
+            </p>
+            <dl className="mt-5 grid grid-cols-[112px_1fr] gap-x-3 gap-y-3 text-sm">
+              <dt className={muted}>Linked part</dt>
+              <dd>{fieldOrDash(lastPart?.name)}</dd>
+              <dt className={muted}>Revision</dt>
+              <dd>{fieldOrDash(lastPart?.revision)}</dd>
+            </dl>
             <button
               type="button"
               onClick={() => void compare()}
               disabled={!connected || busy || !lastPart}
-              className="rounded-[8px] border border-slate-300 px-4 py-2 text-sm font-semibold disabled:opacity-60"
+              className="mt-5 h-11 w-full bg-blue-600 px-5 text-sm font-bold text-white disabled:opacity-60"
             >
-              Compare
+              Refresh Compare
             </button>
-          </div>
-        </section>
-
-        <section className="rounded-[8px] border border-slate-300 bg-white p-4">
-          <h2 className="text-base font-semibold">Library</h2>
-          <div className="mt-3 flex gap-2">
-            <input
-              value={libraryQuery}
-              onChange={(event) => setLibraryQuery(event.target.value)}
-              className="min-w-0 flex-1 rounded-[8px] border border-slate-300 px-3 py-2 text-sm"
-              placeholder="Search Kordyne parts"
-            />
-            <button
-              type="button"
-              onClick={() => void searchLibrary()}
-              disabled={!connected || busy}
-              className="rounded-[8px] border border-slate-300 px-4 py-2 text-sm font-semibold disabled:opacity-60"
-            >
-              Search
-            </button>
-          </div>
-
-          {libraryItems.length > 0 ? (
-            <div className="mt-3 space-y-2">
-              {libraryItems.slice(0, 5).map((item) => (
-                <button
-                  key={item.part_id}
-                  type="button"
-                  onClick={() => {
-                    setLastPart(item);
-                    setStatus("Linked this Onshape context to a Kordyne part.");
-                  }}
-                  className="block w-full rounded-[8px] border border-slate-200 px-3 py-2 text-left text-sm hover:border-blue-500"
-                >
-                  <span className="block font-semibold">
-                    {item.name || item.part_id}
-                  </span>
-                  <span className="text-slate-600">
-                    {item.revision ? `Revision ${item.revision}` : "No revision"}
-                  </span>
-                </button>
-              ))}
-            </div>
-          ) : null}
-        </section>
-
-        <p
-          className={
-            state === "error"
-              ? "rounded-[8px] border border-red-200 bg-red-50 p-3 text-sm text-red-800"
-              : "rounded-[8px] border border-slate-200 bg-white p-3 text-sm text-slate-700"
-          }
-        >
-          {status}
-        </p>
+          </section>
+        ) : null}
       </div>
     </main>
   );

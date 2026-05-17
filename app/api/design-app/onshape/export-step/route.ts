@@ -68,6 +68,16 @@ function parseFilenameFromDisposition(disposition: string | null) {
   return ascii?.[1] ? ascii[1].trim() : "";
 }
 
+function isStoredCredentialDecryptionError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+
+  return (
+    message.includes("Unsupported state or unable to authenticate data") ||
+    message.includes("Missing KORDYNE_CONNECTOR_ENCRYPTION_KEY") ||
+    message.includes("Invalid KORDYNE_CONNECTOR_ENCRYPTION_KEY")
+  );
+}
+
 async function fetchJson<T>(
   url: string,
   accessToken: string,
@@ -193,11 +203,29 @@ export async function POST(request: Request) {
     }
 
     const admin = createDesignAppAdminClient();
-    const storedToken = await loadOnshapeAccessToken(
-      admin,
-      ctx.organizationId,
-      request.url,
-    );
+    let storedToken;
+
+    try {
+      storedToken = await loadOnshapeAccessToken(
+        admin,
+        ctx.organizationId,
+        request.url,
+      );
+    } catch (error) {
+      if (isStoredCredentialDecryptionError(error)) {
+        return NextResponse.json(
+          {
+            ok: false,
+            needs_onshape_oauth: true,
+            error:
+              "Reconnect Onshape API access. The saved Onshape token can no longer be decrypted after the security key change.",
+          },
+          { status: 409 },
+        );
+      }
+
+      throw error;
+    }
 
     if (!storedToken) {
       return NextResponse.json(
