@@ -23,6 +23,9 @@ type OnshapeContext = {
   tabElementId: string;
   partId: string;
   partNumber: string;
+  partName: string;
+  documentName: string;
+  elementName: string;
   revision: string;
   companyId: string;
   userId: string;
@@ -86,6 +89,7 @@ type OnshapeResolvedPart = {
 type ThemeMode = "light" | "dark";
 type ActiveTab = "connect" | "publish" | "library" | "pull" | "compare";
 type PublishMode = "new_family" | "new_revision";
+type PublishStatus = "idle" | "saving" | "publishing" | "published";
 
 const TOKEN_STORAGE_KEY = "kordyne:onshape:connection-token";
 const THEME_STORAGE_KEY = "kordyne:onshape:theme";
@@ -152,6 +156,9 @@ function parseOnshapeContext() {
     tabElementId,
     partId: getParam(params, "partId", "partid", "pid"),
     partNumber: getParam(params, "partNumber", "partnumber"),
+    partName: getParam(params, "partName", "partname", "name"),
+    documentName: getParam(params, "documentName", "documentname"),
+    elementName: getParam(params, "elementName", "elementname"),
     revision: getParam(params, "revision"),
     companyId: getParam(params, "companyId"),
     userId: getParam(params, "userId"),
@@ -173,6 +180,9 @@ function contextStorageKey(context: OnshapeContext) {
 }
 
 function displayNameForContext(context: OnshapeContext) {
+  if (context.partName) return context.partName;
+  if (context.elementName) return context.elementName;
+  if (context.documentName) return context.documentName;
   if (context.partNumber) return context.partNumber;
   if (context.partId) return `Onshape part ${context.partId}`;
   if (context.elementId) return `Onshape element ${context.elementId}`;
@@ -255,6 +265,8 @@ export default function OnshapeDesignAppPage() {
   const [statusValue, setStatusValue] = useState("draft");
   const [category, setCategory] = useState("");
   const [publishMode, setPublishMode] = useState<PublishMode>("new_family");
+  const [publishStatus, setPublishStatus] = useState<PublishStatus>("idle");
+  const [publishWarning, setPublishWarning] = useState("");
   const [publishMatches, setPublishMatches] = useState<PublishedPart[]>([]);
   const [selectedMatch, setSelectedMatch] = useState<PublishedPart | null>(null);
 
@@ -305,6 +317,18 @@ export default function OnshapeDesignAppPage() {
         error?: string;
       };
 
+      if (response.status === 401) {
+        window.localStorage.removeItem(TOKEN_STORAGE_KEY);
+        setToken("");
+        setProfile(null);
+        setOnshapeApiConnected(false);
+        setPublishStatus("idle");
+        setPublishWarning("");
+        setState("not_connected");
+        setStatus("Kordyne session expired. Connect to Kordyne again.");
+        throw new Error("Kordyne session expired. Connect to Kordyne again.");
+      }
+
       if (!response.ok || payload.ok === false) {
         throw new Error(payload.error || "Kordyne request failed.");
       }
@@ -325,7 +349,11 @@ export default function OnshapeDesignAppPage() {
       setProfile(payload);
       setOnshapeApiConnected(Boolean(payload.onshape?.oauth_connected));
       setState("connected");
-      setStatus("Connected to Kordyne.");
+      setStatus(
+        payload.onshape?.oauth_connected
+          ? "Connected to Kordyne and Onshape API."
+          : "Connected to Kordyne. Connect Onshape API to export CAD data.",
+      );
       setActiveTab("publish");
       return payload;
     },
@@ -355,6 +383,18 @@ export default function OnshapeDesignAppPage() {
         error?: string;
       };
 
+      if (response.status === 401) {
+        window.localStorage.removeItem(TOKEN_STORAGE_KEY);
+        setToken("");
+        setProfile(null);
+        setOnshapeApiConnected(false);
+        setPublishStatus("idle");
+        setPublishWarning("");
+        setState("not_connected");
+        setStatus("Kordyne session expired. Connect to Kordyne again.");
+        return null;
+      }
+
       if (payload.needs_onshape_oauth) {
         setOnshapeApiConnected(false);
         if (!silent) {
@@ -382,6 +422,7 @@ export default function OnshapeDesignAppPage() {
                 ...current,
                 partId: activePart.partId || current.partId,
                 partNumber: activePart.partNumber || current.partNumber,
+                partName: activePart.name || current.partName,
                 revision: activePart.revision || current.revision,
                 microversionId:
                   activePart.microversionId || current.microversionId,
@@ -389,7 +430,12 @@ export default function OnshapeDesignAppPage() {
             : current,
         );
         setPartName((current) =>
-          current && !current.startsWith("Onshape element")
+          current &&
+          current !== displayNameForContext(context) &&
+          current !== context.partNumber &&
+          !current.startsWith("Onshape element") &&
+          !current.startsWith("Onshape document") &&
+          !current.startsWith("Onshape part")
             ? current
             : activePart.name || current,
         );
@@ -526,6 +572,11 @@ export default function OnshapeDesignAppPage() {
     if (!storageKey || !lastPart) return;
     window.localStorage.setItem(storageKey, JSON.stringify(lastPart));
   }, [lastPart, storageKey]);
+
+  useEffect(() => {
+    setPublishStatus("idle");
+    setPublishWarning("");
+  }, [context?.documentId, context?.elementId, partName, partNumber]);
 
   useEffect(() => {
     if (!token || !onshapeApiConnected || !publishableContext) return;
@@ -701,6 +752,18 @@ export default function OnshapeDesignAppPage() {
         error?: string;
       };
 
+      if (response.status === 401) {
+        window.localStorage.removeItem(TOKEN_STORAGE_KEY);
+        setToken("");
+        setProfile(null);
+        setOnshapeApiConnected(false);
+        setPublishStatus("idle");
+        setPublishWarning("");
+        setState("not_connected");
+        setStatus("Kordyne session expired. Connect to Kordyne again.");
+        return null;
+      }
+
       if (payload.needs_onshape_oauth) {
         setOnshapeApiConnected(false);
         setState("connected");
@@ -752,6 +815,18 @@ export default function OnshapeDesignAppPage() {
         error?: string;
       };
 
+      if (response.status === 401) {
+        window.localStorage.removeItem(TOKEN_STORAGE_KEY);
+        setToken("");
+        setProfile(null);
+        setOnshapeApiConnected(false);
+        setPublishStatus("idle");
+        setPublishWarning("");
+        setState("not_connected");
+        setStatus("Kordyne session expired. Connect to Kordyne again.");
+        return null;
+      }
+
       if (payload.needs_onshape_oauth) {
         setOnshapeApiConnected(false);
         setState("connected");
@@ -788,7 +863,7 @@ export default function OnshapeDesignAppPage() {
   async function findPotentialPublishMatches() {
     if (!token) return [];
 
-    const query = partNumber || partName;
+    const query = partName || partNumber;
     if (!query.trim()) return [];
 
     const payload = await callOnshapeApi<{
@@ -823,10 +898,13 @@ export default function OnshapeDesignAppPage() {
     if (!context || !token) return;
 
     setState("working");
-    setStatus("Preparing Onshape publish package...");
+    setPublishStatus("saving");
+    setPublishWarning("");
+    setStatus("Saving package: checking Onshape and Kordyne data...");
 
     try {
       if (!partName.trim()) {
+        setPublishStatus("idle");
         setState("error");
         setStatus("Part Name is required before publishing.");
         return;
@@ -838,8 +916,10 @@ export default function OnshapeDesignAppPage() {
           : null;
 
       if (!targetMatch && publishMode === "new_family") {
+        setStatus("Saving package: checking for existing Kordyne part...");
         const matches = await findPotentialPublishMatches();
         if (matches.length > 0) {
+          setPublishStatus("idle");
           setState("connected");
           setStatus(
             "Possible existing Kordyne part found. Choose new revision or keep creating a separate part.",
@@ -850,11 +930,13 @@ export default function OnshapeDesignAppPage() {
       }
 
       if (publishMode === "new_revision" && !targetMatch) {
+        setStatus("Saving package: finding the Kordyne part to revise...");
         const matches = await findPotentialPublishMatches();
         targetMatch = matches[0] ?? null;
       }
 
       if (publishMode === "new_revision" && !targetMatch?.part_id) {
+        setPublishStatus("idle");
         setState("error");
         setStatus("Select an existing Kordyne part before publishing a revision.");
         return;
@@ -862,11 +944,12 @@ export default function OnshapeDesignAppPage() {
 
       let publishStepFile = stepFile;
       if (!publishStepFile) {
-        setStatus("Exporting STEP from Onshape...");
+        setStatus("Saving package: exporting STEP from Onshape...");
         publishStepFile = await exportStepFromOnshape(true);
       }
 
       if (!publishStepFile) {
+        setPublishStatus("idle");
         setState("connected");
         setStatus(
           onshapeApiConnected
@@ -878,26 +961,29 @@ export default function OnshapeDesignAppPage() {
 
       let publishThumbnailFile = thumbnailFile;
       if (!publishThumbnailFile) {
-        setStatus("Capturing Onshape preview...");
+        setStatus("Saving package: capturing Onshape preview...");
         publishThumbnailFile = await exportThumbnailFromOnshape(true);
       }
 
       if (!publishThumbnailFile) {
-        setState("connected");
-        setStatus(
+        setPublishWarning(
           onshapeApiConnected
-            ? "Preview capture was not attached. Check Onshape API access and try again."
-            : "Reconnect Onshape API access so Kordyne can capture the Onshape preview.",
+            ? "Onshape did not return a preview image. Kordyne will publish the CAD package now and the thumbnail can be refreshed later."
+            : "Onshape API access needs reconnecting before Kordyne can refresh the preview thumbnail.",
         );
-        return;
       }
 
       setState("working");
+      setPublishStatus("publishing");
       setStatus(
         publishMode === "new_revision"
-          ? "Creating next Kordyne revision..."
-          : "Creating Kordyne part...",
+          ? "Publishing package: creating next Kordyne revision..."
+          : "Publishing package: creating Kordyne part...",
       );
+
+      const publishFiles = publishThumbnailFile
+        ? [publishStepFile, publishThumbnailFile]
+        : [publishStepFile];
 
       const payload = await callOnshapeApi<{
         ok: boolean;
@@ -939,11 +1025,11 @@ export default function OnshapeDesignAppPage() {
               resolved_part: resolvedPart,
               native_source: "onshape_document_reference",
               step_storage_path: publishStepFile.storage_path,
-              thumbnail_storage_path: publishThumbnailFile.storage_path,
-              thumbnail_filename: publishThumbnailFile.filename,
+              thumbnail_storage_path: publishThumbnailFile?.storage_path ?? null,
+              thumbnail_filename: publishThumbnailFile?.filename ?? null,
             },
           },
-          files: [publishStepFile, publishThumbnailFile],
+          files: publishFiles,
         }),
       });
 
@@ -961,12 +1047,14 @@ export default function OnshapeDesignAppPage() {
       setPublishMode("new_revision");
       setPublishMatches([]);
       setState("connected");
+      setPublishStatus("published");
       setStatus(
         payload.revision
-          ? `Published to Kordyne as revision ${payload.revision}.`
-          : "Published to Kordyne.",
+          ? `Part published to Kordyne as revision ${payload.revision}.`
+          : "Part published to Kordyne.",
       );
     } catch (error) {
+      setPublishStatus("idle");
       setState("error");
       setStatus(error instanceof Error ? error.message : "Publish failed.");
     }
@@ -1068,12 +1156,15 @@ export default function OnshapeDesignAppPage() {
     setToken("");
     setProfile(null);
     setStepFile(null);
+    setThumbnailFile(null);
     setOnshapeApiConnected(false);
+    setPublishStatus("idle");
+    setPublishWarning("");
     setState("not_connected");
     setStatus("Disconnected. Connect again when you are ready.");
   }
 
-  const connected = state === "connected" || state === "working";
+  const connected = Boolean(token && profile);
   const busy =
     state === "checking" ||
     state === "opening_browser" ||
@@ -1102,6 +1193,18 @@ export default function OnshapeDesignAppPage() {
     resolvedPart?.name ||
     (partName && !partName.startsWith("Onshape element") ? partName : "") ||
     contextName;
+  const publishButtonText =
+    publishStatus === "published"
+      ? "Part published"
+      : publishStatus === "publishing"
+        ? "Publishing..."
+        : publishStatus === "saving"
+          ? "Saving package..."
+          : "Publish to Kordyne";
+  const publishButtonClass =
+    publishStatus === "published"
+      ? "bg-emerald-600 text-white"
+      : "bg-blue-600 text-white";
   const targetLabel =
     publishMode === "new_revision"
       ? `Target: next revision${selectedMatch?.revision ? ` after Rev ${selectedMatch.revision}` : ""}`
@@ -1465,6 +1568,21 @@ export default function OnshapeDesignAppPage() {
                   Preview will be captured during publish.
                 </p>
               )}
+              {publishWarning ? (
+                <p className="mt-3 text-xs font-semibold text-amber-500">
+                  {publishWarning}
+                </p>
+              ) : null}
+              <p className={`mt-3 text-xs ${muted}`}>
+                Onshape API:{" "}
+                <span
+                  className={
+                    onshapeApiConnected ? "font-bold text-emerald-500" : "font-bold"
+                  }
+                >
+                  {onshapeApiConnected ? "connected" : "reconnect needed"}
+                </span>
+              </p>
               {!onshapeApiConnected ? (
                 <button
                   type="button"
@@ -1481,10 +1599,15 @@ export default function OnshapeDesignAppPage() {
               <button
                 type="button"
                 onClick={() => void publish()}
-                disabled={!connected || busy || !publishableContext}
-                className="h-11 bg-blue-600 px-5 text-sm font-bold text-white disabled:opacity-60"
+                disabled={
+                  !connected ||
+                  busy ||
+                  !publishableContext ||
+                  publishStatus === "published"
+                }
+                className={`h-11 px-5 text-sm font-bold disabled:opacity-60 ${publishButtonClass}`}
               >
-                Publish to Kordyne
+                {publishButtonText}
               </button>
               <button
                 type="button"

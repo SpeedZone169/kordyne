@@ -95,7 +95,13 @@ function collectThumbnailCandidates(
   const record = value as Record<string, unknown>;
   const href = asString(record.href) || asString(record.url);
 
-  if (href) {
+  if (
+    href &&
+    (href.includes("/thumbnail") ||
+      href.includes("/thumbnails") ||
+      asString(record.mimeType).startsWith("image/") ||
+      asString(record.mediaType).startsWith("image/"))
+  ) {
     const width =
       typeof record.width === "number"
         ? record.width
@@ -134,6 +140,14 @@ async function fetchJson<T>(url: string, accessToken: string) {
   }
 
   return payload;
+}
+
+async function fetchOptionalJson<T>(url: string, accessToken: string) {
+  try {
+    return await fetchJson<T>(url, accessToken);
+  } catch {
+    return null;
+  }
 }
 
 async function fetchThumbnailBytes(url: string, accessToken: string) {
@@ -218,30 +232,49 @@ export async function POST(request: Request) {
     }
 
     const config = getOnshapeOAuthConfig(request.url);
-    const directThumbnailUrl = buildOnshapeApiUrl(
-      config,
-      `/thumbnails/d/${documentId}/${wv}/${wvid}/e/${elementId}?size=600x600`,
-    );
+    const candidates: ThumbnailCandidate[] = [];
+    const thumbnailMetadataUrls = [
+      buildOnshapeApiUrl(
+        config,
+        `/thumbnails/d/${documentId}/${wv}/${wvid}/e/${elementId}`,
+      ),
+      buildOnshapeApiUrl(config, `/thumbnails/d/${documentId}`),
+      buildOnshapeApiUrl(config, `/documents/${documentId}`),
+    ];
 
-    let thumbnail = await fetchThumbnailBytes(
-      directThumbnailUrl,
-      storedToken.accessToken,
-    );
-
-    if (!thumbnail) {
-      const documentPayload = await fetchJson<Record<string, unknown>>(
-        buildOnshapeApiUrl(config, `/documents/${documentId}`),
+    for (const url of thumbnailMetadataUrls) {
+      const payload = await fetchOptionalJson<Record<string, unknown>>(
+        url,
         storedToken.accessToken,
       );
-      const candidates: ThumbnailCandidate[] = [];
-      collectThumbnailCandidates(documentPayload.thumbnail, candidates);
-      const bestCandidate = candidates.sort((a, b) => b.score - a.score)[0];
+      collectThumbnailCandidates(payload, candidates);
+    }
 
-      if (bestCandidate?.href) {
-        thumbnail = await fetchThumbnailBytes(
-          makeAbsoluteOnshapeUrl(bestCandidate.href, config.cadBaseUrl),
-          storedToken.accessToken,
-        );
+    let thumbnail = null as Awaited<ReturnType<typeof fetchThumbnailBytes>>;
+
+    for (const candidate of candidates.sort((a, b) => b.score - a.score)) {
+      thumbnail = await fetchThumbnailBytes(
+        makeAbsoluteOnshapeUrl(candidate.href, config.cadBaseUrl),
+        storedToken.accessToken,
+      );
+      if (thumbnail) break;
+    }
+
+    if (!thumbnail) {
+      const fallbackUrls = [
+        buildOnshapeApiUrl(
+          config,
+          `/thumbnails/d/${documentId}/${wv}/${wvid}/e/${elementId}/s/300x300`,
+        ),
+        buildOnshapeApiUrl(
+          config,
+          `/thumbnails/d/${documentId}/${wv}/${wvid}/e/${elementId}/s/600x600`,
+        ),
+      ];
+
+      for (const url of fallbackUrls) {
+        thumbnail = await fetchThumbnailBytes(url, storedToken.accessToken);
+        if (thumbnail) break;
       }
     }
 
