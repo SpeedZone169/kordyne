@@ -60,22 +60,23 @@ export default function DesignAppConnectPage() {
     setStatus("approving");
     setMessage(`Approving ${clientLabel} connection...`);
 
-    const { data, error } = await supabase.auth.getSession();
+    const { data } = await supabase.auth.getSession();
+    let accessToken = data.session?.access_token;
 
-    if (error || !data.session?.access_token) {
-      setStatus("needs_login");
-      setMessage("Please log in to Kordyne in this browser to continue.");
-      return;
+    if (!accessToken && data.session?.refresh_token) {
+      const { data: refreshed } = await supabase.auth.refreshSession();
+      accessToken = refreshed.session?.access_token;
     }
 
     const res = await fetch("/api/design-app/auth/approve", {
       method: "POST",
+      credentials: "same-origin",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
         code: currentCode,
-        accessToken: data.session.access_token,
+        accessToken,
       }),
     });
 
@@ -85,6 +86,12 @@ export default function DesignAppConnectPage() {
       message?: string;
     };
 
+    if (res.status === 401) {
+      setStatus("needs_login");
+      setMessage(payload.error ?? "Please log in to Kordyne to continue.");
+      return "needs_login" as const;
+    }
+
     let cameFromLogin = false;
     try {
       cameFromLogin = sessionStorage.getItem(getRedirectKey(currentCode)) === "1";
@@ -93,7 +100,7 @@ export default function DesignAppConnectPage() {
     if (!res.ok || !payload.ok) {
       setStatus("error");
       setMessage(payload.error ?? "Approval failed.");
-      return;
+      return "error" as const;
     }
 
     try {
@@ -107,6 +114,7 @@ export default function DesignAppConnectPage() {
         ? "Connection approved. Opening your Kordyne dashboard."
         : `Connection approved. You can return to ${clientLabel}.`,
     );
+    return "approved" as const;
   }, [clientLabel, supabase]);
 
   useEffect(() => {
@@ -122,12 +130,11 @@ export default function DesignAppConnectPage() {
         return;
       }
 
-      const { data } = await supabase.auth.getSession();
+      const approvalResult = await approve(code);
 
       if (!isMounted) return;
 
-      if (data.session?.access_token) {
-        void approve(code);
+      if (approvalResult !== "needs_login") {
         return;
       }
 

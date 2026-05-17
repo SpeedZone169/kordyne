@@ -2,6 +2,15 @@ import { NextResponse } from "next/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { createDesignAppAdminClient } from "../../../../../lib/design-app/admin";
 import { encryptHandoffToken } from "../../../../../lib/design-app/handoff-crypto";
+import { createClient as createServerSupabaseClient } from "../../../../../lib/supabase/server";
+
+type AuthContext = {
+  accessToken: string;
+  supabase: ReturnType<typeof createSupabaseClient>;
+  user: {
+    id: string;
+  };
+};
 
 function createTokenBoundClient(token: string) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -25,6 +34,61 @@ function createTokenBoundClient(token: string) {
   });
 }
 
+async function getCookieAuthContext(): Promise<AuthContext | null> {
+  const supabase = await createServerSupabaseClient();
+
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError || !user) {
+    return null;
+  }
+
+  const { data: sessionData, error: sessionError } =
+    await supabase.auth.getSession();
+
+  const accessToken = sessionData.session?.access_token;
+
+  if (sessionError || !accessToken) {
+    return null;
+  }
+
+  return {
+    accessToken,
+    supabase,
+    user,
+  };
+}
+
+async function getTokenAuthContext(
+  accessToken: string | undefined,
+): Promise<AuthContext | null> {
+  const token = accessToken?.trim();
+
+  if (!token) {
+    return null;
+  }
+
+  const supabase = createTokenBoundClient(token);
+
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser(token);
+
+  if (userError || !user) {
+    return null;
+  }
+
+  return {
+    accessToken: token,
+    supabase,
+    user,
+  };
+}
+
 export async function POST(request: Request) {
   try {
     const body = (await request.json()) as {
@@ -35,27 +99,29 @@ export async function POST(request: Request) {
     const code = body.code?.trim();
     const accessToken = body.accessToken?.trim();
 
-    if (!code || !accessToken) {
+    if (!code) {
       return NextResponse.json(
-        { ok: false, error: "code and accessToken are required." },
+        { ok: false, error: "code is required." },
         { status: 400 },
       );
     }
 
-    const userClient = createTokenBoundClient(accessToken);
-    const admin = createDesignAppAdminClient();
+    const authContext =
+      (await getCookieAuthContext()) ?? (await getTokenAuthContext(accessToken));
 
-    const {
-      data: { user },
-      error: userError,
-    } = await userClient.auth.getUser(accessToken);
-
-    if (userError || !user) {
+    if (!authContext) {
       return NextResponse.json(
-        { ok: false, error: "Unauthorized." },
+        {
+          ok: false,
+          error: "Please log in to Kordyne before approving this connector.",
+        },
         { status: 401 },
       );
     }
+
+    const userClient = authContext.supabase;
+    const admin = createDesignAppAdminClient();
+    const user = authContext.user;
 
     const { data: membership, error: membershipError } = await userClient
       .from("organization_members")
@@ -125,7 +191,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const encryptedAccessToken = encryptHandoffToken(accessToken);
+    const encryptedAccessToken = encryptHandoffToken(authContext.accessToken);
 
     const { data: approvedLink, error: updateError } = await admin
       .from("design_app_login_links")
