@@ -137,6 +137,46 @@ type PullPackage = {
   };
   native_files: PullFile[];
   step_files: PullFile[];
+  source_link?: {
+    id?: string | null;
+    external_document_id?: string | null;
+    external_workspace_id?: string | null;
+    external_item_id?: string | null;
+    external_revision_id?: string | null;
+    external_name?: string | null;
+    external_url?: string | null;
+    open_url?: string | null;
+  } | null;
+  open_action?: {
+    mode: "native_source";
+    label: string;
+    url: string;
+  } | null;
+  message?: string;
+};
+
+type ImportStepPayload = {
+  ok: boolean;
+  mode: "new_document" | "current_document";
+  part: {
+    id: string;
+    name?: string | null;
+    revision?: string | null;
+    status?: string | null;
+    part_family_id?: string | null;
+  };
+  file: {
+    id?: string | null;
+    filename?: string | null;
+    size_bytes?: number | null;
+  };
+  onshape: {
+    document_id?: string | null;
+    workspace_id?: string | null;
+    element_id?: string | null;
+    translation_id?: string | null;
+    open_url?: string | null;
+  };
   message?: string;
 };
 
@@ -283,6 +323,41 @@ function formatBytes(value?: number | null) {
   if (value < 1024) return `${value} B`;
   if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
   return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function openBlankUserTab() {
+  try {
+    return window.open("about:blank", "_blank");
+  } catch {
+    return null;
+  }
+}
+
+function openUrlInTab(url: string, tab: Window | null) {
+  if (!url) return false;
+
+  try {
+    if (tab && !tab.closed) {
+      tab.location.href = url;
+      return true;
+    }
+  } catch {
+    // Fall through to opening a fresh tab below.
+  }
+
+  try {
+    return Boolean(window.open(url, "_blank", "noopener,noreferrer"));
+  } catch {
+    return false;
+  }
+}
+
+function closePendingTab(tab: Window | null) {
+  try {
+    if (tab && !tab.closed) tab.close();
+  } catch {
+    // Some browsers block scripted close; leaving a blank tab is better than failing the workflow.
+  }
 }
 
 function hasPublishableOnshapeContext(context: OnshapeContext | null) {
@@ -1167,6 +1242,12 @@ export default function OnshapeDesignAppPage() {
       return;
     }
 
+    const editableWorkspaceId =
+      onshapeWorkspaceId ||
+      (onshapeWorkspaceOrVersion === "w" ? onshapeWorkspaceOrVersionId : "");
+    const pendingCompareTab =
+      onshapeDocumentId && editableWorkspaceId ? openBlankUserTab() : null;
+
     setState("working");
     setStatus("Checking Kordyne revision status...");
     setCompareSummary(null);
@@ -1204,13 +1285,54 @@ export default function OnshapeDesignAppPage() {
       }
 
       setCompareStepPackage(stepPackage);
+
+      let compareOpenMessage = "";
+
+      if (stepPackage?.step_file?.file_id && onshapeDocumentId && editableWorkspaceId) {
+        setStatus("Importing latest Kordyne STEP into the active Onshape document...");
+
+        const imported = await callOnshapeApi<ImportStepPayload>(
+          "/api/design-app/onshape/import-step",
+          {
+            method: "POST",
+            body: JSON.stringify({
+              mode: "current_document",
+              part_id: stepPackage.latest.part_id,
+              file_id: stepPackage.step_file.file_id,
+              documentId: onshapeDocumentId,
+              workspaceId: editableWorkspaceId,
+              workspaceOrVersion: onshapeWorkspaceOrVersion,
+              workspaceOrVersionId: onshapeWorkspaceOrVersionId,
+            }),
+          },
+        );
+
+        if (imported.onshape.open_url) {
+          const opened = openUrlInTab(imported.onshape.open_url, pendingCompareTab);
+          compareOpenMessage = opened
+            ? " Latest STEP was imported into this Onshape document and opened for visual review."
+            : " Latest STEP was imported into this Onshape document; open the imported tab from Onshape if the browser blocked the new tab.";
+        } else {
+          closePendingTab(pendingCompareTab);
+          compareOpenMessage =
+            " Latest STEP was imported into this Onshape document, but Onshape did not return a direct tab URL.";
+        }
+      } else {
+        closePendingTab(pendingCompareTab);
+        if (stepPackage?.step_file?.signed_url) {
+          compareOpenMessage =
+            " Latest STEP is ready to download, but Kordyne needs an editable Onshape workspace to import it for review.";
+        }
+      }
+
       setState("connected");
       setStatus(
         payload.status.is_latest_revision
-          ? `Current Kordyne source is latest revision ${payload.current.revision ?? ""}.${stepWarning}`
-          : `Kordyne has newer revision ${payload.latest.revision ?? ""}.${stepWarning}`,
+          ? `Current Kordyne source is latest revision ${payload.current.revision ?? ""}.${stepWarning}${compareOpenMessage}`
+          : `Kordyne has newer revision ${payload.latest.revision ?? ""}.${stepWarning}${compareOpenMessage}`,
       );
     } catch (error) {
+      closePendingTab(pendingCompareTab);
       setState("error");
       setStatus(error instanceof Error ? error.message : "Compare failed.");
     }
@@ -1221,6 +1343,8 @@ export default function OnshapeDesignAppPage() {
       setStatus("Publish or link a Kordyne part before pull.");
       return;
     }
+
+    const pendingPullTab = openBlankUserTab();
 
     setState("working");
     setStatus("Preparing Kordyne pull package...");
@@ -1238,11 +1362,54 @@ export default function OnshapeDesignAppPage() {
       );
 
       setPullPackage(payload);
+
+      if (payload.open_action?.url) {
+        const opened = openUrlInTab(payload.open_action.url, pendingPullTab);
+        setState("connected");
+        setStatus(
+          opened
+            ? `Opened native Onshape source for Rev ${fieldOrDash(payload.part.revision)}. Edit there, then publish back to Kordyne as a new revision when ready.`
+            : `Native Onshape source is available for Rev ${fieldOrDash(payload.part.revision)}, but the browser blocked opening it. Use the source link in the pull package below.`,
+        );
+        return;
+      }
+
+      const primaryStep = payload.step_files[0];
+
+      if (primaryStep?.file_id) {
+        setStatus("Native Onshape source is not available. Importing STEP into a new Onshape document...");
+
+        const imported = await callOnshapeApi<ImportStepPayload>(
+          "/api/design-app/onshape/import-step",
+          {
+            method: "POST",
+            body: JSON.stringify({
+              mode: "new_document",
+              part_id: sourcePart.part_id,
+              file_id: primaryStep.file_id,
+            }),
+          },
+        );
+
+        if (imported.onshape.open_url) {
+          const opened = openUrlInTab(imported.onshape.open_url, pendingPullTab);
+          setState("connected");
+          setStatus(
+            opened
+              ? `Imported STEP for Rev ${fieldOrDash(payload.part.revision)} into a new Onshape document. Publish back to Kordyne as a new revision after edits.`
+              : `Imported STEP for Rev ${fieldOrDash(payload.part.revision)} into a new Onshape document, but the browser blocked opening it.`,
+          );
+          return;
+        }
+      }
+
+      closePendingTab(pendingPullTab);
       setState("connected");
       setStatus(
         `Pull package ready: ${payload.availability.native_count} native reference${payload.availability.native_count === 1 ? "" : "s"}, ${payload.availability.step_count} STEP exchange file${payload.availability.step_count === 1 ? "" : "s"}.`,
       );
     } catch (error) {
+      closePendingTab(pendingPullTab);
       setState("error");
       setStatus(error instanceof Error ? error.message : "Pull failed.");
     }
@@ -1930,8 +2097,8 @@ export default function OnshapeDesignAppPage() {
           <section className={`p-5 ${card}`}>
             <h2 className="text-xl font-bold">Pull from Kordyne</h2>
             <p className={`mt-3 text-sm leading-6 ${muted}`}>
-              Pull prepares the latest Kordyne package for this linked Vault
-              part: the native Onshape reference plus STEP exchange files.
+              Pull opens the native Onshape source when Kordyne has one, or
+              imports the STEP exchange file into a new Onshape document.
             </p>
             <dl className="mt-5 grid grid-cols-[96px_1fr] gap-x-3 gap-y-3 text-sm">
               <dt className={muted}>Linked part</dt>
@@ -1957,6 +2124,17 @@ export default function OnshapeDesignAppPage() {
                   {pullPackage.availability.step_count === 1 ? "" : "s"} are
                   available for Rev {fieldOrDash(pullPackage.part.revision)}.
                 </p>
+
+                {pullPackage.source_link?.open_url ? (
+                  <a
+                    href={pullPackage.source_link.open_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={`mt-4 block border p-3 text-xs font-semibold ${secondaryButton}`}
+                  >
+                    Open native Onshape source
+                  </a>
+                ) : null}
 
                 {pullPackage.native_files.length > 0 ? (
                   <div className="mt-4">
@@ -2018,7 +2196,8 @@ export default function OnshapeDesignAppPage() {
             <h2 className="text-xl font-bold">Compare with Kordyne</h2>
             <p className={`mt-3 text-sm leading-6 ${muted}`}>
               Check whether this Onshape source is linked to the latest Kordyne
-              revision and prepare the latest STEP for geometry review.
+              revision and import the latest STEP into this document for
+              geometry review.
             </p>
             <dl className="mt-5 grid grid-cols-[112px_1fr] gap-x-3 gap-y-3 text-sm">
               <dt className={muted}>Linked part</dt>
@@ -2050,7 +2229,7 @@ export default function OnshapeDesignAppPage() {
               disabled={!connected || busy || !lastPart}
               className="mt-5 h-11 w-full bg-blue-600 px-5 text-sm font-bold text-white disabled:opacity-60"
             >
-              Refresh Compare
+              Open Compare
             </button>
             {compareStepPackage?.step_file?.signed_url ? (
               <a

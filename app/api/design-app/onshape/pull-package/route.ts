@@ -73,6 +73,58 @@ type SignedFile = {
   is_assembly: boolean;
 };
 
+function metadataString(value: unknown, ...keys: string[]) {
+  if (!value || typeof value !== "object") return "";
+
+  const record = value as Record<string, unknown>;
+
+  for (const key of keys) {
+    const direct = asString(record[key]);
+    if (direct) return direct;
+  }
+
+  const onshape = record.onshape;
+
+  if (!onshape || typeof onshape !== "object") return "";
+
+  const onshapeRecord = onshape as Record<string, unknown>;
+
+  for (const key of keys) {
+    const nested = asString(onshapeRecord[key]);
+    if (nested) return nested;
+  }
+
+  return "";
+}
+
+function buildOnshapeOpenUrl(sourceLink: Record<string, unknown> | null) {
+  if (!sourceLink) return "";
+
+  const externalUrl =
+    asString(sourceLink.external_url) ||
+    metadataString(sourceLink.metadata, "external_url", "document_url", "url");
+
+  if (externalUrl) return externalUrl;
+
+  const documentId =
+    asString(sourceLink.external_document_id) ||
+    metadataString(sourceLink.metadata, "document_id");
+  const workspaceId =
+    asString(sourceLink.external_workspace_id) ||
+    metadataString(sourceLink.metadata, "workspace_id");
+  const elementId =
+    asString(sourceLink.external_item_id) ||
+    metadataString(sourceLink.metadata, "element_or_part_id", "element_id");
+
+  if (!documentId || !workspaceId || !elementId) return "";
+
+  const cadBaseUrl = (
+    process.env.ONSHAPE_BASE_URL || "https://cad.onshape.com"
+  ).replace(/\/$/, "");
+
+  return `${cadBaseUrl}/documents/${documentId}/w/${workspaceId}/e/${elementId}`;
+}
+
 async function signFiles(
   admin: ReturnType<typeof createDesignAppAdminClient>,
   files: Array<Record<string, unknown>>,
@@ -199,6 +251,42 @@ export async function POST(request: Request) {
     });
     const signedStepFiles = await signFiles(admin, stepFiles);
 
+    const { data: sourceLinks, error: sourceLinkError } = await ctx.supabase
+      .from("part_source_links")
+      .select(
+        `
+          id,
+          external_workspace_id,
+          external_document_id,
+          external_item_id,
+          external_version_id,
+          external_revision_id,
+          external_name,
+          external_url,
+          metadata,
+          updated_at,
+          created_at
+        `,
+      )
+      .eq("organization_id", ctx.organizationId)
+      .eq("provider_key", "onshape")
+      .eq("part_id", part.id)
+      .order("updated_at", { ascending: false })
+      .limit(1);
+
+    if (sourceLinkError) {
+      return NextResponse.json(
+        { ok: false, error: sourceLinkError.message },
+        { status: 500 },
+      );
+    }
+
+    const sourceLink = ((sourceLinks ?? [])[0] ?? null) as Record<
+      string,
+      unknown
+    > | null;
+    const openUrl = buildOnshapeOpenUrl(sourceLink);
+
     if (signedNativeFiles.length === 0 && signedStepFiles.length === 0) {
       return NextResponse.json(
         {
@@ -226,6 +314,25 @@ export async function POST(request: Request) {
       },
       native_files: signedNativeFiles,
       step_files: signedStepFiles,
+      source_link: sourceLink
+        ? {
+            id: sourceLink.id ?? null,
+            external_document_id: sourceLink.external_document_id ?? null,
+            external_workspace_id: sourceLink.external_workspace_id ?? null,
+            external_item_id: sourceLink.external_item_id ?? null,
+            external_revision_id: sourceLink.external_revision_id ?? null,
+            external_name: sourceLink.external_name ?? null,
+            external_url: sourceLink.external_url ?? null,
+            open_url: openUrl || null,
+          }
+        : null,
+      open_action: openUrl
+        ? {
+            mode: "native_source",
+            label: "Open native Onshape source",
+            url: openUrl,
+          }
+        : null,
       message: "Onshape pull package is ready.",
     });
   } catch (error) {
