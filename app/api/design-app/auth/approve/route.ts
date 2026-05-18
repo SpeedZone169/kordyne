@@ -6,7 +6,6 @@ import { createClient as createServerSupabaseClient } from "../../../../../lib/s
 
 type AuthContext = {
   accessToken: string;
-  supabase: ReturnType<typeof createSupabaseClient>;
   user: {
     id: string;
   };
@@ -57,7 +56,6 @@ async function getCookieAuthContext(): Promise<AuthContext | null> {
 
   return {
     accessToken,
-    supabase,
     user,
   };
 }
@@ -84,7 +82,6 @@ async function getTokenAuthContext(
 
   return {
     accessToken: token,
-    supabase,
     user,
   };
 }
@@ -119,11 +116,10 @@ export async function POST(request: Request) {
       );
     }
 
-    const userClient = authContext.supabase;
     const admin = createDesignAppAdminClient();
     const user = authContext.user;
 
-    const { data: membership, error: membershipError } = await userClient
+    const { data: membership, error: membershipError } = await admin
       .from("organization_members")
       .select("organization_id, role")
       .eq("user_id", user.id)

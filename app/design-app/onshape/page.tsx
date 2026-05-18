@@ -59,10 +59,21 @@ type PublishedPart = {
   part_family_id?: string | null;
   name?: string | null;
   part_number?: string | null;
+  description?: string | null;
+  process_type?: string | null;
+  material?: string | null;
+  category?: string | null;
   revision?: string | null;
+  revision_index?: number | null;
   status?: string | null;
   search_score?: number | null;
   revision_count?: number | null;
+  updated_at?: string | null;
+  thumbnail_url?: string | null;
+  thumbnail_signed_url?: string | null;
+  preview_url?: string | null;
+  image_url?: string | null;
+  revisions?: PublishedPart[];
 };
 
 type UploadedDesignFile = {
@@ -90,6 +101,64 @@ type ThemeMode = "light" | "dark";
 type ActiveTab = "connect" | "publish" | "library" | "pull" | "compare";
 type PublishMode = "new_family" | "new_revision";
 type PublishStatus = "idle" | "saving" | "publishing" | "published";
+type LibrarySort = "recent" | "name_asc" | "revision_desc" | "status";
+
+type PullFile = {
+  file_id?: string;
+  filename: string;
+  mime_type?: string;
+  size_bytes?: number | null;
+  storage_path?: string;
+  signed_url: string;
+  file_extension?: string | null;
+  native_format?: {
+    format?: string;
+    canonical_extension?: string;
+    feature_tree_strategy?: string;
+  } | null;
+  is_primary?: boolean;
+  is_assembly?: boolean;
+};
+
+type PullPackage = {
+  ok: boolean;
+  part: {
+    id: string;
+    name?: string | null;
+    revision?: string | null;
+    status?: string | null;
+    part_family_id?: string | null;
+  };
+  availability: {
+    has_native: boolean;
+    has_step: boolean;
+    native_count: number;
+    step_count: number;
+  };
+  native_files: PullFile[];
+  step_files: PullFile[];
+  message?: string;
+};
+
+type CompareStatusPayload = {
+  ok: boolean;
+  current: PublishedPart;
+  latest: PublishedPart;
+  revisions: PublishedPart[];
+  status: {
+    is_latest_revision: boolean;
+    current_revision_index: number;
+    latest_revision_index: number;
+    revision_count: number;
+  };
+};
+
+type CompareStepPackage = {
+  ok: boolean;
+  source: PublishedPart;
+  latest: PublishedPart;
+  step_file: PullFile;
+};
 
 const TOKEN_STORAGE_KEY = "kordyne:onshape:connection-token";
 const THEME_STORAGE_KEY = "kordyne:onshape:theme";
@@ -209,6 +278,13 @@ function nextRevisionHint(revision?: string | null) {
   return "";
 }
 
+function formatBytes(value?: number | null) {
+  if (!value || value <= 0) return "";
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 function hasPublishableOnshapeContext(context: OnshapeContext | null) {
   return Boolean(
     context?.documentId &&
@@ -248,6 +324,10 @@ export default function OnshapeDesignAppPage() {
   const [onshapeApiConnected, setOnshapeApiConnected] = useState(false);
   const [libraryItems, setLibraryItems] = useState<PublishedPart[]>([]);
   const [libraryQuery, setLibraryQuery] = useState("");
+  const [libraryStatus, setLibraryStatus] = useState("all");
+  const [libraryCategory, setLibraryCategory] = useState("all");
+  const [libraryProcess, setLibraryProcess] = useState("all");
+  const [librarySort, setLibrarySort] = useState<LibrarySort>("recent");
   const [theme, setTheme] = useState<ThemeMode>("light");
   const [activeTab, setActiveTab] = useState<ActiveTab>("connect");
   const [resolvedPart, setResolvedPart] = useState<OnshapeResolvedPart | null>(
@@ -269,6 +349,11 @@ export default function OnshapeDesignAppPage() {
   const [publishWarning, setPublishWarning] = useState("");
   const [publishMatches, setPublishMatches] = useState<PublishedPart[]>([]);
   const [selectedMatch, setSelectedMatch] = useState<PublishedPart | null>(null);
+  const [pullPackage, setPullPackage] = useState<PullPackage | null>(null);
+  const [compareSummary, setCompareSummary] =
+    useState<CompareStatusPayload | null>(null);
+  const [compareStepPackage, setCompareStepPackage] =
+    useState<CompareStepPackage | null>(null);
 
   const storageKey = useMemo(
     () => (context ? contextStorageKey(context) : ""),
@@ -461,7 +546,12 @@ export default function OnshapeDesignAppPage() {
     const timer = window.setTimeout(() => {
       const parsedContext = parseOnshapeContext();
       setContext(parsedContext);
-      setLibraryQuery(parsedContext.partNumber || "");
+      setLibraryQuery(
+        parsedContext.partNumber ||
+          parsedContext.partName ||
+          parsedContext.documentName ||
+          "",
+      );
       setPartName((current) => current || displayNameForContext(parsedContext));
       setPartNumber((current) => current || parsedContext.partNumber || "");
       setRevisionNote("Published from Onshape.");
@@ -572,6 +662,12 @@ export default function OnshapeDesignAppPage() {
     if (!storageKey || !lastPart) return;
     window.localStorage.setItem(storageKey, JSON.stringify(lastPart));
   }, [lastPart, storageKey]);
+
+  useEffect(() => {
+    setPullPackage(null);
+    setCompareSummary(null);
+    setCompareStepPackage(null);
+  }, [lastPart?.part_id]);
 
   useEffect(() => {
     setPublishStatus("idle");
@@ -1060,31 +1156,62 @@ export default function OnshapeDesignAppPage() {
     }
   }
 
-  async function compare() {
-    if (!lastPart?.part_id) {
+  function linkLibraryPart(item: PublishedPart, tab: ActiveTab = "publish") {
+    setLastPart(item);
+    setSelectedMatch(item);
+    setPublishMode("new_revision");
+    setActiveTab(tab);
+    setStatus("Linked this Onshape context to a Kordyne part.");
+  }
+
+  async function compare(sourcePart = lastPart) {
+    if (!sourcePart?.part_id) {
       setStatus("Publish or link this Onshape context before compare.");
       return;
     }
 
     setState("working");
     setStatus("Checking Kordyne revision status...");
+    setCompareSummary(null);
+    setCompareStepPackage(null);
 
     try {
-      const payload = await callOnshapeApi<{
-        ok: boolean;
-        status: { is_latest_revision: boolean };
-        current: { revision?: string | null };
-        latest: { revision?: string | null };
-      }>("/api/design-app/onshape/compare-status", {
-        method: "POST",
-        body: JSON.stringify({ part_id: lastPart.part_id }),
-      });
+      setLastPart(sourcePart);
 
+      const payload = await callOnshapeApi<CompareStatusPayload>(
+        "/api/design-app/onshape/compare-status",
+        {
+          method: "POST",
+          body: JSON.stringify({ part_id: sourcePart.part_id }),
+        },
+      );
+
+      setCompareSummary(payload);
+
+      let stepPackage: CompareStepPackage | null = null;
+      let stepWarning = "";
+
+      try {
+        stepPackage = await callOnshapeApi<CompareStepPackage>(
+          "/api/design-app/onshape/compare-step-package",
+          {
+            method: "POST",
+            body: JSON.stringify({ source_part_id: sourcePart.part_id }),
+          },
+        );
+      } catch (stepError) {
+        stepWarning =
+          stepError instanceof Error
+            ? ` ${stepError.message}`
+            : " Latest STEP package is not available.";
+      }
+
+      setCompareStepPackage(stepPackage);
       setState("connected");
       setStatus(
         payload.status.is_latest_revision
-          ? `Current Kordyne source is latest revision ${payload.current.revision ?? ""}.`
-          : `Kordyne has newer revision ${payload.latest.revision ?? ""}.`,
+          ? `Current Kordyne source is latest revision ${payload.current.revision ?? ""}.${stepWarning}`
+          : `Kordyne has newer revision ${payload.latest.revision ?? ""}.${stepWarning}`,
       );
     } catch (error) {
       setState("error");
@@ -1092,29 +1219,31 @@ export default function OnshapeDesignAppPage() {
     }
   }
 
-  async function pull() {
-    if (!lastPart?.part_id) {
+  async function pull(sourcePart = lastPart) {
+    if (!sourcePart?.part_id) {
       setStatus("Publish or link a Kordyne part before pull.");
       return;
     }
 
     setState("working");
-    setStatus("Preparing Kordyne native references...");
+    setStatus("Preparing Kordyne pull package...");
+    setPullPackage(null);
 
     try {
-      const payload = await callOnshapeApi<{
-        ok: boolean;
-        files: Array<{ filename: string; signed_url: string }>;
-      }>("/api/design-app/onshape/pull-native", {
-        method: "POST",
-        body: JSON.stringify({ part_id: lastPart.part_id }),
-      });
+      setLastPart(sourcePart);
 
+      const payload = await callOnshapeApi<PullPackage>(
+        "/api/design-app/onshape/pull-package",
+        {
+          method: "POST",
+          body: JSON.stringify({ part_id: sourcePart.part_id }),
+        },
+      );
+
+      setPullPackage(payload);
       setState("connected");
       setStatus(
-        payload.files.length === 1
-          ? `Native reference ready: ${payload.files[0].filename}.`
-          : `${payload.files.length} native references are ready.`,
+        `Pull package ready: ${payload.availability.native_count} native reference${payload.availability.native_count === 1 ? "" : "s"}, ${payload.availability.step_count} STEP exchange file${payload.availability.step_count === 1 ? "" : "s"}.`,
       );
     } catch (error) {
       setState("error");
@@ -1134,7 +1263,11 @@ export default function OnshapeDesignAppPage() {
         method: "POST",
         body: JSON.stringify({
           q: libraryQuery,
-          limit: 10,
+          limit: 25,
+          status: libraryStatus,
+          category: libraryCategory,
+          process_type: libraryProcess,
+          sort: librarySort,
         }),
       });
 
@@ -1142,7 +1275,7 @@ export default function OnshapeDesignAppPage() {
       setState("connected");
       setStatus(
         payload.items.length > 0
-          ? "Select a Kordyne part to link this Onshape context."
+          ? "Select a Kordyne part to link, pull, or compare."
           : "No Kordyne parts found for this search.",
       );
     } catch (error) {
@@ -1157,6 +1290,9 @@ export default function OnshapeDesignAppPage() {
     setProfile(null);
     setStepFile(null);
     setThumbnailFile(null);
+    setPullPackage(null);
+    setCompareSummary(null);
+    setCompareStepPackage(null);
     setOnshapeApiConnected(false);
     setPublishStatus("idle");
     setPublishWarning("");
@@ -1648,28 +1784,134 @@ export default function OnshapeDesignAppPage() {
                 Search
               </button>
             </div>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <select
+                value={libraryStatus}
+                onChange={(event) => setLibraryStatus(event.target.value)}
+                className={`h-9 border px-2 text-xs ${inputClass}`}
+              >
+                <option value="all">All statuses</option>
+                <option value="draft">Draft</option>
+                <option value="active">Active</option>
+                <option value="archived">Archived</option>
+              </select>
+              <select
+                value={librarySort}
+                onChange={(event) =>
+                  setLibrarySort(event.target.value as LibrarySort)
+                }
+                className={`h-9 border px-2 text-xs ${inputClass}`}
+              >
+                <option value="recent">Recent</option>
+                <option value="name_asc">Name A-Z</option>
+                <option value="revision_desc">Newest revision</option>
+                <option value="status">Status</option>
+              </select>
+              <select
+                value={libraryProcess}
+                onChange={(event) => setLibraryProcess(event.target.value)}
+                className={`h-9 border px-2 text-xs ${inputClass}`}
+              >
+                <option value="all">All processes</option>
+                <option>3D Printing</option>
+                <option>CNC Machining</option>
+                <option>Sheet Metal</option>
+                <option>Injection Molding</option>
+                <option>Composite Manufacturing</option>
+                <option>Casting</option>
+                <option>Fabrication</option>
+                <option>Multi Process</option>
+                <option>Other</option>
+              </select>
+              <select
+                value={libraryCategory}
+                onChange={(event) => setLibraryCategory(event.target.value)}
+                className={`h-9 border px-2 text-xs ${inputClass}`}
+              >
+                <option value="all">All categories</option>
+                <option>Part</option>
+                <option>Assembly</option>
+                <option>Spare Part</option>
+                <option>Tooling</option>
+                <option>Jig / Fixture</option>
+                <option>Prototype</option>
+                <option>Document Only</option>
+                <option>Other</option>
+              </select>
+            </div>
             {libraryItems.length > 0 ? (
-              <div className="mt-4 space-y-2">
-                {libraryItems.slice(0, 8).map((item) => (
-                  <button
-                    key={item.part_id}
-                    type="button"
-                    onClick={() => {
-                      setLastPart(item);
-                      setSelectedMatch(item);
-                      setPublishMode("new_revision");
-                      setActiveTab("publish");
-                      setStatus("Linked this Onshape context to a Kordyne part.");
-                    }}
-                    className={`block w-full border p-3 text-left text-sm ${secondaryButton}`}
-                  >
-                    <span className="block font-bold">{item.name || item.part_id}</span>
-                    <span className={muted}>
-                      {item.part_number ? `${item.part_number} - ` : ""}
-                      {item.revision ? `Revision ${item.revision}` : "No revision"}
-                    </span>
-                  </button>
-                ))}
+              <div className="mt-4 space-y-3">
+                {libraryItems.slice(0, 12).map((item) => {
+                  const imageUrl =
+                    item.thumbnail_signed_url ||
+                    item.thumbnail_url ||
+                    item.preview_url ||
+                    item.image_url ||
+                    "";
+
+                  return (
+                    <div key={item.part_id} className={`border p-3 text-sm ${panel}`}>
+                      <div className="flex gap-3">
+                        {imageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element -- Signed Vault thumbnail URLs are short-lived.
+                          <img
+                            src={imageUrl}
+                            alt=""
+                            className="h-14 w-14 border border-slate-300 object-cover"
+                          />
+                        ) : null}
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate font-bold">
+                            {item.name || item.part_id}
+                          </p>
+                          <p className={`mt-1 truncate text-xs ${muted}`}>
+                            {item.part_number ? `${item.part_number} - ` : ""}
+                            {item.revision ? `Rev ${item.revision}` : "No revision"}
+                            {item.revision_count
+                              ? ` - ${item.revision_count} revision${item.revision_count === 1 ? "" : "s"}`
+                              : ""}
+                          </p>
+                          <p className={`mt-1 truncate text-xs ${muted}`}>
+                            {[item.process_type, item.category, item.status]
+                              .filter(Boolean)
+                              .join(" - ") || "No classification"}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-3 grid grid-cols-3 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => linkLibraryPart(item, "publish")}
+                          className={`h-9 text-xs font-bold ${secondaryButton}`}
+                        >
+                          Revise
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            linkLibraryPart(item, "pull");
+                            void pull(item);
+                          }}
+                          disabled={busy}
+                          className={`h-9 text-xs font-bold disabled:opacity-60 ${secondaryButton}`}
+                        >
+                          Pull
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            linkLibraryPart(item, "compare");
+                            void compare(item);
+                          }}
+                          disabled={busy}
+                          className={`h-9 text-xs font-bold disabled:opacity-60 ${secondaryButton}`}
+                        >
+                          Compare
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             ) : null}
           </section>
@@ -1679,9 +1921,15 @@ export default function OnshapeDesignAppPage() {
           <section className={`p-5 ${card}`}>
             <h2 className="text-xl font-bold">Pull from Kordyne</h2>
             <p className={`mt-3 text-sm leading-6 ${muted}`}>
-              Pull prepares the native Onshape reference already stored against
-              the linked Vault part.
+              Pull prepares the latest Kordyne package for this linked Vault
+              part: the native Onshape reference plus STEP exchange files.
             </p>
+            <dl className="mt-5 grid grid-cols-[96px_1fr] gap-x-3 gap-y-3 text-sm">
+              <dt className={muted}>Linked part</dt>
+              <dd className="truncate">{fieldOrDash(lastPart?.name)}</dd>
+              <dt className={muted}>Revision</dt>
+              <dd>{fieldOrDash(lastPart?.revision)}</dd>
+            </dl>
             <button
               type="button"
               onClick={() => void pull()}
@@ -1690,6 +1938,69 @@ export default function OnshapeDesignAppPage() {
             >
               Pull Latest
             </button>
+            {pullPackage ? (
+              <div className={`mt-5 border p-4 ${panel}`}>
+                <h3 className="text-sm font-bold">Pull package ready</h3>
+                <p className={`mt-2 text-xs leading-5 ${muted}`}>
+                  {pullPackage.availability.native_count} native reference
+                  {pullPackage.availability.native_count === 1 ? "" : "s"} and{" "}
+                  {pullPackage.availability.step_count} STEP exchange file
+                  {pullPackage.availability.step_count === 1 ? "" : "s"} are
+                  available for Rev {fieldOrDash(pullPackage.part.revision)}.
+                </p>
+
+                {pullPackage.native_files.length > 0 ? (
+                  <div className="mt-4">
+                    <p className="text-xs font-bold">Native Onshape reference</p>
+                    <div className="mt-2 space-y-2">
+                      {pullPackage.native_files.map((file) => (
+                        <a
+                          key={file.file_id || file.filename}
+                          href={file.signed_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className={`block border p-3 text-xs font-semibold ${secondaryButton}`}
+                        >
+                          <span className="block truncate">{file.filename}</span>
+                          <span className={`mt-1 block font-normal ${muted}`}>
+                            {file.native_format?.feature_tree_strategy ||
+                              "Feature tree remains in Onshape."}
+                            {formatBytes(file.size_bytes)
+                              ? ` - ${formatBytes(file.size_bytes)}`
+                              : ""}
+                          </span>
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                {pullPackage.step_files.length > 0 ? (
+                  <div className="mt-4">
+                    <p className="text-xs font-bold">STEP exchange files</p>
+                    <div className="mt-2 space-y-2">
+                      {pullPackage.step_files.map((file) => (
+                        <a
+                          key={file.file_id || file.filename}
+                          href={file.signed_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className={`block border p-3 text-xs font-semibold ${secondaryButton}`}
+                        >
+                          <span className="block truncate">{file.filename}</span>
+                          <span className={`mt-1 block font-normal ${muted}`}>
+                            Vendor exchange geometry
+                            {formatBytes(file.size_bytes)
+                              ? ` - ${formatBytes(file.size_bytes)}`
+                              : ""}
+                          </span>
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
           </section>
         ) : null}
 
@@ -1698,13 +2009,31 @@ export default function OnshapeDesignAppPage() {
             <h2 className="text-xl font-bold">Compare with Kordyne</h2>
             <p className={`mt-3 text-sm leading-6 ${muted}`}>
               Check whether this Onshape source is linked to the latest Kordyne
-              revision.
+              revision and prepare the latest STEP for geometry review.
             </p>
             <dl className="mt-5 grid grid-cols-[112px_1fr] gap-x-3 gap-y-3 text-sm">
               <dt className={muted}>Linked part</dt>
               <dd>{fieldOrDash(lastPart?.name)}</dd>
               <dt className={muted}>Revision</dt>
               <dd>{fieldOrDash(lastPart?.revision)}</dd>
+              {compareSummary ? (
+                <>
+                  <dt className={muted}>Latest</dt>
+                  <dd>{fieldOrDash(compareSummary.latest.revision)}</dd>
+                  <dt className={muted}>Status</dt>
+                  <dd
+                    className={
+                      compareSummary.status.is_latest_revision
+                        ? "font-bold text-emerald-500"
+                        : "font-bold text-amber-500"
+                    }
+                  >
+                    {compareSummary.status.is_latest_revision
+                      ? "Current local source is latest"
+                      : "Newer Kordyne revision available"}
+                  </dd>
+                </>
+              ) : null}
             </dl>
             <button
               type="button"
@@ -1714,6 +2043,63 @@ export default function OnshapeDesignAppPage() {
             >
               Refresh Compare
             </button>
+            {compareStepPackage?.step_file?.signed_url ? (
+              <a
+                href={compareStepPackage.step_file.signed_url}
+                target="_blank"
+                rel="noreferrer"
+                className={`mt-3 block h-11 px-5 py-3 text-center text-sm font-bold ${secondaryButton}`}
+              >
+                Download latest STEP
+              </a>
+            ) : null}
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab("pull");
+                  void pull();
+                }}
+                disabled={!connected || busy || !lastPart}
+                className={`h-10 text-sm font-bold disabled:opacity-60 ${secondaryButton}`}
+              >
+                Pull Latest
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (lastPart) {
+                    setSelectedMatch(lastPart);
+                    setPublishMode("new_revision");
+                  }
+                  setActiveTab("publish");
+                }}
+                disabled={!connected || busy || !lastPart}
+                className={`h-10 text-sm font-bold disabled:opacity-60 ${secondaryButton}`}
+              >
+                Publish Rev
+              </button>
+            </div>
+            {compareSummary ? (
+              <div className={`mt-5 border p-4 ${panel}`}>
+                <h3 className="text-sm font-bold">Revision history</h3>
+                <div className="mt-3 space-y-2">
+                  {compareSummary.revisions.slice(0, 6).map((revision) => (
+                    <div
+                      key={revision.part_id}
+                      className={`border px-3 py-2 text-xs ${secondaryButton}`}
+                    >
+                      <span className="font-bold">
+                        Rev {fieldOrDash(revision.revision)}
+                      </span>
+                      <span className={`ml-2 ${muted}`}>
+                        {fieldOrDash(revision.status)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </section>
         ) : null}
       </div>
