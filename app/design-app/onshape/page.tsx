@@ -324,6 +324,7 @@ export default function OnshapeDesignAppPage() {
   const [onshapeApiConnected, setOnshapeApiConnected] = useState(false);
   const [libraryItems, setLibraryItems] = useState<PublishedPart[]>([]);
   const [libraryQuery, setLibraryQuery] = useState("");
+  const [libraryLoaded, setLibraryLoaded] = useState(false);
   const [libraryStatus, setLibraryStatus] = useState("all");
   const [libraryCategory, setLibraryCategory] = useState("all");
   const [libraryProcess, setLibraryProcess] = useState("all");
@@ -546,12 +547,7 @@ export default function OnshapeDesignAppPage() {
     const timer = window.setTimeout(() => {
       const parsedContext = parseOnshapeContext();
       setContext(parsedContext);
-      setLibraryQuery(
-        parsedContext.partNumber ||
-          parsedContext.partName ||
-          parsedContext.documentName ||
-          "",
-      );
+      setLibraryQuery("");
       setPartName((current) => current || displayNameForContext(parsedContext));
       setPartNumber((current) => current || parsedContext.partNumber || "");
       setRevisionNote("Published from Onshape.");
@@ -1142,6 +1138,7 @@ export default function OnshapeDesignAppPage() {
       setSelectedMatch(nextPart);
       setPublishMode("new_revision");
       setPublishMatches([]);
+      setLibraryLoaded(false);
       setState("connected");
       setPublishStatus("published");
       setStatus(
@@ -1263,7 +1260,7 @@ export default function OnshapeDesignAppPage() {
         method: "POST",
         body: JSON.stringify({
           q: libraryQuery,
-          limit: 25,
+          limit: 100,
           status: libraryStatus,
           category: libraryCategory,
           process_type: libraryProcess,
@@ -1272,10 +1269,11 @@ export default function OnshapeDesignAppPage() {
       });
 
       setLibraryItems(payload.items);
+      setLibraryLoaded(true);
       setState("connected");
       setStatus(
         payload.items.length > 0
-          ? "Select a Kordyne part to link, pull, or compare."
+          ? `Showing ${payload.items.length} Kordyne part${payload.items.length === 1 ? "" : "s"}. Select one to link, pull, or compare.`
           : "No Kordyne parts found for this search.",
       );
     } catch (error) {
@@ -1290,6 +1288,8 @@ export default function OnshapeDesignAppPage() {
     setProfile(null);
     setStepFile(null);
     setThumbnailFile(null);
+    setLibraryItems([]);
+    setLibraryLoaded(false);
     setPullPackage(null);
     setCompareSummary(null);
     setCompareStepPackage(null);
@@ -1352,7 +1352,12 @@ export default function OnshapeDesignAppPage() {
     return (
       <button
         type="button"
-        onClick={() => setActiveTab(tab)}
+        onClick={() => {
+          setActiveTab(tab);
+          if (tab === "library" && connected && !busy && !libraryLoaded) {
+            void searchLibrary();
+          }
+        }}
         className={`h-9 min-w-[94px] px-4 text-sm font-semibold ${
           activeTab === tab ? "bg-blue-600 text-white" : inactiveTab
         }`}
@@ -1773,7 +1778,7 @@ export default function OnshapeDesignAppPage() {
                 value={libraryQuery}
                 onChange={(event) => setLibraryQuery(event.target.value)}
                 className={`min-w-0 flex-1 border px-3 py-2 text-sm ${inputClass}`}
-                placeholder="Search Kordyne parts"
+                placeholder="Search, or leave blank for all parts"
               />
               <button
                 type="button"
@@ -1781,7 +1786,7 @@ export default function OnshapeDesignAppPage() {
                 disabled={!connected || busy}
                 className={`px-4 py-2 text-sm font-bold disabled:opacity-60 ${secondaryButton}`}
               >
-                Search
+                Search / Refresh
               </button>
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2">
@@ -1841,7 +1846,7 @@ export default function OnshapeDesignAppPage() {
             </div>
             {libraryItems.length > 0 ? (
               <div className="mt-4 space-y-3">
-                {libraryItems.slice(0, 12).map((item) => {
+                {libraryItems.map((item) => {
                   const imageUrl =
                     item.thumbnail_signed_url ||
                     item.thumbnail_url ||
@@ -1912,6 +1917,10 @@ export default function OnshapeDesignAppPage() {
                     </div>
                   );
                 })}
+              </div>
+            ) : libraryLoaded ? (
+              <div className={`mt-4 border p-4 text-sm ${panel}`}>
+                No Kordyne parts match the current library filters.
               </div>
             ) : null}
           </section>
