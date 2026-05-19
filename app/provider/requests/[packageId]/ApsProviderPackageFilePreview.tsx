@@ -153,6 +153,16 @@ function getManifestProgress(manifest: unknown): string {
   return typeof record.progress === "string" ? record.progress : "";
 }
 
+function getDisabledMessage(payload: { missing_config?: string[]; error?: string }) {
+  if (payload.missing_config?.length) {
+    return `APS is not configured for this deployment. Missing: ${payload.missing_config.join(
+      ", ",
+    )}.`;
+  }
+
+  return payload.error || "STEP preview is disabled in this environment.";
+}
+
 export default function ApsProviderPackageFilePreview({
   fileId,
   fileName,
@@ -161,9 +171,16 @@ export default function ApsProviderPackageFilePreview({
   const viewerRef = useRef<AutodeskViewerInstance | null>(null);
   const urnCacheRef = useRef<Record<string, string>>({});
   const [phase, setPhase] = useState<Phase>("idle");
-  const [message, setMessage] = useState<string>("Preparing STEP preview...");
+  const [message, setMessage] = useState<string>(
+    "STEP preview uses controlled APS translation quota. Prepare it only when the STL or image preview is not enough.",
+  );
+  const [prepareRequestId, setPrepareRequestId] = useState(0);
 
   useEffect(() => {
+    if (prepareRequestId === 0) {
+      return;
+    }
+
     let cancelled = false;
 
     async function run() {
@@ -185,17 +202,26 @@ export default function ApsProviderPackageFilePreview({
           const preparePayload = (await prepareResponse.json()) as {
             urn?: string;
             error?: string;
+            missing_config?: string[];
+            quota?: {
+              quota?: number;
+              used?: number;
+              remaining?: number;
+            };
           };
 
           if (prepareResponse.status === 503) {
             setPhase("disabled");
-            setMessage("STEP preview is disabled in this environment.");
+            setMessage(getDisabledMessage(preparePayload));
             return;
           }
 
           if (!prepareResponse.ok || !preparePayload.urn) {
             throw new Error(
-              preparePayload.error || "Failed to prepare STEP preview.",
+              preparePayload.error ||
+                (preparePayload.quota
+                  ? `Monthly STEP preview quota reached (${preparePayload.quota.used}/${preparePayload.quota.quota}).`
+                  : "Failed to prepare STEP preview."),
             );
           }
 
@@ -223,11 +249,12 @@ export default function ApsProviderPackageFilePreview({
           const manifestPayload = (await manifestResponse.json()) as {
             manifest?: unknown;
             error?: string;
+            missing_config?: string[];
           };
 
           if (manifestResponse.status === 503) {
             setPhase("disabled");
-            setMessage("STEP preview is disabled in this environment.");
+            setMessage(getDisabledMessage(manifestPayload));
             return;
           }
 
@@ -399,12 +426,12 @@ export default function ApsProviderPackageFilePreview({
         viewerRef.current = null;
       }
     };
-  }, [fileId, fileName]);
+  }, [fileId, fileName, prepareRequestId]);
 
   return (
     <div className="relative h-[560px] w-full overflow-hidden rounded-[24px] border border-slate-200 bg-[radial-gradient(circle_at_top,#f5f3ff,#f8fafc_55%,#ffffff)]">
       <div className="absolute left-4 top-4 z-10 rounded-full border border-slate-200 bg-white/90 px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm backdrop-blur">
-        STEP preview · APS viewer
+        STEP preview - APS viewer
       </div>
 
       <div ref={containerRef} className="h-full w-full" />
@@ -413,9 +440,24 @@ export default function ApsProviderPackageFilePreview({
         <div className="absolute inset-0 flex items-center justify-center p-6">
           <div className="max-w-lg rounded-[24px] border border-slate-200 bg-white/95 p-6 text-center shadow-sm backdrop-blur">
             <div className="text-sm font-semibold text-slate-900">
-              {phase === "disabled" ? "STEP preview disabled" : "Preparing model"}
+              {phase === "idle"
+                ? "STEP viewer not prepared"
+                : phase === "disabled"
+                  ? "STEP preview disabled"
+                  : phase === "error"
+                    ? "STEP preview failed"
+                    : "Preparing model"}
             </div>
             <p className="mt-2 text-sm leading-6 text-slate-600">{message}</p>
+            {phase === "idle" || phase === "error" ? (
+              <button
+                type="button"
+                onClick={() => setPrepareRequestId((value) => value + 1)}
+                className="mt-5 inline-flex rounded-full bg-slate-950 px-5 py-2 text-sm font-semibold text-white transition hover:opacity-90"
+              >
+                {phase === "error" ? "Retry viewer" : "Prepare viewer"}
+              </button>
+            ) : null}
             <p className="mt-4 text-xs text-slate-400">File: {fileName}</p>
           </div>
         </div>

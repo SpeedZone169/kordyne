@@ -2,11 +2,19 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
+  getApsStepViewerStatus,
   isApsStepViewerEnabled,
   startApsTranslation,
   toApsUrn,
   uploadObjectToAps,
 } from "@/lib/aps";
+import {
+  getApsDerivativeForPartFile,
+  isReusableApsDerivative,
+  reserveApsTranslationQuota,
+  saveApsDerivativeState,
+  upsertApsDerivativeFromLegacy,
+} from "@/lib/aps-derivatives";
 
 type MembershipRow = {
   organization_id: string;
@@ -30,15 +38,6 @@ function sanitizeObjectKey(value: string) {
   return value.replace(/[^a-zA-Z0-9._-]/g, "_");
 }
 
-function shouldReuseExistingTranslation(file: PartFileRow) {
-  return Boolean(
-    file.aps_urn &&
-      ["uploaded", "pending", "inprogress", "success"].includes(
-        (file.aps_translation_status || "").toLowerCase(),
-      ),
-  );
-}
-
 export const runtime = "nodejs";
 
 export async function POST(
@@ -48,8 +47,13 @@ export async function POST(
   const { fileId } = await params;
 
   if (!isApsStepViewerEnabled()) {
+    const viewerStatus = getApsStepViewerStatus();
+
     return NextResponse.json(
-      { error: "APS STEP viewer is disabled." },
+      {
+        error: "APS STEP viewer is disabled.",
+        missing_config: viewerStatus.missing,
+      },
       { status: 503 },
     );
   }
@@ -140,23 +144,59 @@ export async function POST(
     );
   }
 
-  if (shouldReuseExistingTranslation(file)) {
+  const legacyDerivative =
+    file.aps_urn && !file.aps_last_error
+      ? await upsertApsDerivativeFromLegacy(admin, {
+          organizationId: part.organization_id,
+          requestedBy: user.id,
+          sourceType: "part_file",
+          partFileId: file.id,
+          fileName: file.file_name,
+          storagePath: file.storage_path,
+          objectKey: file.aps_object_key,
+          objectId: file.aps_object_id,
+          urn: file.aps_urn,
+          status: file.aps_translation_status,
+          progress: file.aps_translation_progress,
+          lastError: file.aps_last_error,
+        })
+      : null;
+
+  const cachedDerivative =
+    legacyDerivative || (await getApsDerivativeForPartFile(admin, file.id));
+
+  if (isReusableApsDerivative(cachedDerivative)) {
     return NextResponse.json({
       success: true,
       fileId: file.id,
-      urn: file.aps_urn,
+      urn: cachedDerivative?.aps_urn,
       cached: true,
-      status: file.aps_translation_status || "unknown",
-      progress: file.aps_translation_progress,
+      status: cachedDerivative?.status || "unknown",
+      progress: cachedDerivative?.progress,
     });
   }
 
   const nowIso = new Date().toISOString();
+  let quotaReserved = false;
+  let objectKey = file.aps_object_key;
+  let objectId = file.aps_object_id;
+  let urn = file.aps_urn;
 
   try {
-    let objectKey = file.aps_object_key;
-    let objectId = file.aps_object_id;
-    let urn = file.aps_urn;
+    const quota = await reserveApsTranslationQuota(admin, part.organization_id);
+
+    if (!quota.allowed) {
+      return NextResponse.json(
+        {
+          error:
+            "This organization has reached its monthly STEP preview translation quota.",
+          quota,
+        },
+        { status: 429 },
+      );
+    }
+
+    quotaReserved = true;
 
     if (!objectId || !urn) {
       const download = await admin.storage
@@ -196,6 +236,20 @@ export async function POST(
           aps_last_error: null,
         })
         .eq("id", file.id);
+
+      await saveApsDerivativeState(admin, {
+        organizationId: part.organization_id,
+        requestedBy: user.id,
+        sourceType: "part_file",
+        partFileId: file.id,
+        fileName: file.file_name,
+        storagePath: file.storage_path,
+        objectKey,
+        objectId,
+        urn,
+        status: "uploaded",
+        progress: "Uploaded to APS",
+      });
     }
 
     await startApsTranslation(urn);
@@ -213,6 +267,20 @@ export async function POST(
       })
       .eq("id", file.id);
 
+    await saveApsDerivativeState(admin, {
+      organizationId: part.organization_id,
+      requestedBy: user.id,
+      sourceType: "part_file",
+      partFileId: file.id,
+      fileName: file.file_name,
+      storagePath: file.storage_path,
+      objectKey,
+      objectId,
+      urn,
+      status: "translating",
+      progress: "Translation requested",
+    });
+
     return NextResponse.json({
       success: true,
       fileId: file.id,
@@ -220,6 +288,7 @@ export async function POST(
       cached: false,
       status: "inprogress",
       progress: "Translation requested",
+      quota_reserved: quotaReserved,
     });
   } catch (prepareError) {
     const message =
@@ -235,6 +304,21 @@ export async function POST(
         aps_last_error: message,
       })
       .eq("id", file.id);
+
+    await saveApsDerivativeState(admin, {
+      organizationId: part.organization_id,
+      requestedBy: user.id,
+      sourceType: "part_file",
+      partFileId: file.id,
+      fileName: file.file_name,
+      storagePath: file.storage_path,
+      objectKey,
+      objectId,
+      urn,
+      status: "failed",
+      progress: null,
+      lastError: message,
+    }).catch(() => null);
 
     return NextResponse.json({ error: message }, { status: 500 });
   }

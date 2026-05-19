@@ -104,13 +104,19 @@ function validateStoragePathPrefix(
 
 function inferAssetCategory(role: string) {
   if (role === "step") return "cad_3d";
+  if (role === "stl") return "cad_3d";
   if (role === "native") return "cad_3d";
   if (role === "thumbnail") return "image";
   return "other";
 }
 
 function isAllowedFileRole(role: string) {
-  return role === "step" || role === "native" || role === "thumbnail";
+  return (
+    role === "step" ||
+    role === "stl" ||
+    role === "native" ||
+    role === "thumbnail"
+  );
 }
 
 function isValidIdempotencyKey(value: string) {
@@ -332,7 +338,7 @@ export async function POST(request: Request) {
           {
             ok: false,
             error:
-              "Only STEP, Onshape document reference and preview thumbnail files can be published from this flow.",
+              "Only STEP, STL, Onshape document reference and preview thumbnail files can be published from this flow.",
           },
           { status: 400 },
         );

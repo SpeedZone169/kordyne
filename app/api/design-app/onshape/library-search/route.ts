@@ -194,6 +194,7 @@ export async function POST(request: Request) {
       status?: string;
       category?: string;
       process_type?: string;
+      project_id?: string;
       sort?: string;
     };
 
@@ -202,14 +203,77 @@ export async function POST(request: Request) {
     const statusFilter = asString(body.status).toLowerCase();
     const categoryFilter = asString(body.category).toLowerCase();
     const processFilter = asString(body.process_type).toLowerCase();
+    const projectFilter = asString(body.project_id);
     const sort = asString(body.sort) || "recent";
 
-    const { data: parts, error: partsError } = await ctx.supabase
+    const { data: projectsRaw, error: projectsError } = await ctx.supabase
+      .from("projects")
+      .select("id, name, project_type, status")
+      .eq("organization_id", ctx.organizationId)
+      .order("updated_at", { ascending: false });
+
+    if (projectsError) {
+      return NextResponse.json(
+        { ok: false, error: projectsError.message },
+        { status: 500 },
+      );
+    }
+
+    const projects = ((projectsRaw ?? []) as Array<Record<string, unknown>>).map(
+      (project) => ({
+        id: String(project.id ?? ""),
+        name: asString(project.name) || "Untitled project",
+        project_type: asString(project.project_type) || "multi_part_project",
+        status: asString(project.status) || null,
+      }),
+    );
+
+    let projectPartIds: string[] | null = null;
+
+    if (projectFilter && projectFilter !== "all" && projectFilter !== "none") {
+      const { data: projectLinks, error: projectLinksError } = await ctx.supabase
+        .from("project_part_links")
+        .select("part_id")
+        .eq("project_id", projectFilter);
+
+      if (projectLinksError) {
+        return NextResponse.json(
+          { ok: false, error: projectLinksError.message },
+          { status: 500 },
+        );
+      }
+
+      projectPartIds = (projectLinks ?? [])
+        .map((link) => String((link as Record<string, unknown>).part_id ?? ""))
+        .filter(Boolean);
+
+      if (projectPartIds.length === 0) {
+        return NextResponse.json({
+          ok: true,
+          items: [],
+          projects,
+          debug: {
+            query: q,
+            returned: 0,
+            thumbnails_returned: 0,
+            note: "Selected project has no linked parts.",
+          },
+        });
+      }
+    }
+
+    let partsQuery = ctx.supabase
       .from("parts")
       .select("*")
       .eq("organization_id", ctx.organizationId)
       .order("updated_at", { ascending: false })
       .limit(limit * 12);
+
+    if (projectPartIds) {
+      partsQuery = partsQuery.in("id", projectPartIds);
+    }
+
+    const { data: parts, error: partsError } = await partsQuery;
 
     if (partsError) {
       return NextResponse.json(
@@ -242,6 +306,7 @@ export async function POST(request: Request) {
     );
 
     const sourceLinksByFamily = new Map<string, Record<string, unknown>>();
+    const projectLinksByPartId = new Map<string, typeof projects>();
 
     if (familyIds.length > 0) {
       const { data: sourceLinks } = await ctx.supabase
@@ -259,6 +324,29 @@ export async function POST(request: Request) {
         if (familyId && !sourceLinksByFamily.has(familyId)) {
           sourceLinksByFamily.set(familyId, link as Record<string, unknown>);
         }
+      }
+    }
+
+    if (partIds.length > 0) {
+      const { data: projectLinks } = await ctx.supabase
+        .from("project_part_links")
+        .select("part_id, project_id")
+        .in("part_id", partIds);
+
+      const projectById = new Map(projects.map((project) => [project.id, project]));
+
+      for (const link of projectLinks ?? []) {
+        const partId = String((link as Record<string, unknown>).part_id ?? "");
+        const projectId = String(
+          (link as Record<string, unknown>).project_id ?? "",
+        );
+        const project = projectById.get(projectId);
+
+        if (!partId || !project) continue;
+
+        const current = projectLinksByPartId.get(partId) ?? [];
+        current.push(project);
+        projectLinksByPartId.set(partId, current);
       }
     }
 
@@ -310,10 +398,18 @@ export async function POST(request: Request) {
             latest?.thumbnail_url ?? familyThumbnail?.thumbnail_url ?? null,
           preview_url: latest?.thumbnail_url ?? familyThumbnail?.thumbnail_url ?? null,
           image_url: latest?.thumbnail_url ?? familyThumbnail?.thumbnail_url ?? null,
+          linked_projects:
+            latest?.part_id && projectLinksByPartId.has(latest.part_id)
+              ? projectLinksByPartId.get(latest.part_id)
+              : [],
           revisions,
         };
       })
       .filter((item) => {
+        if (projectFilter === "none" && item.linked_projects?.length) {
+          return false;
+        }
+
         return (
           matchesFilter(item.status, statusFilter) &&
           matchesFilter(item.category, categoryFilter) &&
@@ -346,6 +442,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ok: true,
       items,
+      projects,
       debug: {
         query: q,
         returned: items.length,

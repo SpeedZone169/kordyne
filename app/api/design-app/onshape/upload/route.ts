@@ -8,7 +8,7 @@ const ONSHAPE_NATIVE_MANIFEST_EXTENSION = ".onshape.json";
 const ONSHAPE_NATIVE_MANIFEST_MIME_TYPE =
   "application/vnd.kordyne.onshape-manifest+json";
 
-const ALLOWED_ROLES = new Set(["step", "native", "thumbnail"]);
+const ALLOWED_ROLES = new Set(["step", "stl", "native", "thumbnail"]);
 const MAX_DESIGN_FILE_SIZE_BYTES = 250 * 1024 * 1024;
 const MAX_THUMBNAIL_FILE_SIZE_BYTES = 15 * 1024 * 1024;
 
@@ -36,6 +36,10 @@ function isAllowedExtensionForRole(
     return extension === ".step" || extension === ".stp";
   }
 
+  if (role === "stl") {
+    return extension === ".stl";
+  }
+
   if (role === "native") {
     const lower = fileName.toLowerCase();
     return (
@@ -59,6 +63,7 @@ function isAllowedExtensionForRole(
 
 function defaultContentTypeForRole(role: string, extension = "") {
   if (role === "step") return "application/step";
+  if (role === "stl") return "model/stl";
   if (role === "native") return ONSHAPE_NATIVE_MANIFEST_MIME_TYPE;
 
   if (role === "thumbnail") {
@@ -78,6 +83,7 @@ function maxFileSizeForRole(role: string) {
 
 function uploadMessageForRole(role: string) {
   if (role === "native") return "Onshape document reference uploaded successfully.";
+  if (role === "stl") return "Onshape STL file uploaded successfully.";
   if (role === "thumbnail") return "Onshape preview thumbnail uploaded successfully.";
   return "Onshape STEP file uploaded successfully.";
 }
@@ -92,6 +98,10 @@ function invalidExtensionMessageForRole(role: string) {
 
   if (role === "thumbnail") {
     return "Only PNG, JPG, JPEG and WebP files are allowed for preview thumbnail upload.";
+  }
+
+  if (role === "stl") {
+    return "Only STL files are allowed for browser viewer upload.";
   }
 
   return "Only STEP files are allowed for STEP upload.";

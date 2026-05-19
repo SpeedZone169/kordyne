@@ -73,7 +73,20 @@ type PublishedPart = {
   thumbnail_signed_url?: string | null;
   preview_url?: string | null;
   image_url?: string | null;
+  linked_projects?: Array<{
+    id: string;
+    name: string;
+    project_type: string;
+    status: string | null;
+  }>;
   revisions?: PublishedPart[];
+};
+
+type LibraryProject = {
+  id: string;
+  name: string;
+  project_type: string;
+  status: string | null;
 };
 
 type UploadedDesignFile = {
@@ -81,7 +94,7 @@ type UploadedDesignFile = {
   mime_type: string;
   size_bytes: number;
   storage_path: string;
-  role: "step" | "native" | "thumbnail";
+  role: "step" | "stl" | "native" | "thumbnail";
   file_extension?: string | null;
 };
 
@@ -325,41 +338,6 @@ function formatBytes(value?: number | null) {
   return `${(value / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function openBlankUserTab() {
-  try {
-    return window.open("about:blank", "_blank");
-  } catch {
-    return null;
-  }
-}
-
-function openUrlInTab(url: string, tab: Window | null) {
-  if (!url) return false;
-
-  try {
-    if (tab && !tab.closed) {
-      tab.location.href = url;
-      return true;
-    }
-  } catch {
-    // Fall through to opening a fresh tab below.
-  }
-
-  try {
-    return Boolean(window.open(url, "_blank", "noopener,noreferrer"));
-  } catch {
-    return false;
-  }
-}
-
-function closePendingTab(tab: Window | null) {
-  try {
-    if (tab && !tab.closed) tab.close();
-  } catch {
-    // Some browsers block scripted close; leaving a blank tab is better than failing the workflow.
-  }
-}
-
 function hasPublishableOnshapeContext(context: OnshapeContext | null) {
   return Boolean(
     context?.documentId &&
@@ -393,6 +371,7 @@ export default function OnshapeDesignAppPage() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [lastPart, setLastPart] = useState<PublishedPart | null>(null);
   const [stepFile, setStepFile] = useState<UploadedDesignFile | null>(null);
+  const [stlFile, setStlFile] = useState<UploadedDesignFile | null>(null);
   const [thumbnailFile, setThumbnailFile] = useState<UploadedDesignFile | null>(
     null,
   );
@@ -403,6 +382,8 @@ export default function OnshapeDesignAppPage() {
   const [libraryStatus, setLibraryStatus] = useState("all");
   const [libraryCategory, setLibraryCategory] = useState("all");
   const [libraryProcess, setLibraryProcess] = useState("all");
+  const [libraryProjectId, setLibraryProjectId] = useState("all");
+  const [libraryProjects, setLibraryProjects] = useState<LibraryProject[]>([]);
   const [librarySort, setLibrarySort] = useState<LibrarySort>("recent");
   const [theme, setTheme] = useState<ThemeMode>("light");
   const [activeTab, setActiveTab] = useState<ActiveTab>("connect");
@@ -956,6 +937,69 @@ export default function OnshapeDesignAppPage() {
     }
   }
 
+  async function exportStlFromOnshape(silent = false) {
+    if (!context || !token) return null;
+
+    if (!silent) {
+      setState("working");
+      setStatus("Exporting STL viewer geometry from Onshape...");
+    }
+
+    try {
+      const response = await fetch("/api/design-app/onshape/export-stl", {
+        method: "POST",
+        headers: getAuthHeaders(token),
+        body: JSON.stringify({
+          ...context,
+          partNumber: partNumber || context.partNumber,
+          externalName: partName || displayNameForContext(context),
+        }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        ok?: boolean;
+        needs_onshape_oauth?: boolean;
+        file?: UploadedDesignFile;
+        message?: string;
+        error?: string;
+      };
+
+      if (response.status === 401) {
+        window.localStorage.removeItem(TOKEN_STORAGE_KEY);
+        setToken("");
+        setProfile(null);
+        setOnshapeApiConnected(false);
+        setPublishStatus("idle");
+        setPublishWarning("");
+        setState("not_connected");
+        setStatus("Kordyne session expired. Connect to Kordyne again.");
+        return null;
+      }
+
+      if (payload.needs_onshape_oauth) {
+        setOnshapeApiConnected(false);
+        setState("connected");
+        setStatus(payload.error || "Reconnect Onshape API access before exporting STL.");
+        return null;
+      }
+
+      if (!response.ok || !payload.ok || !payload.file) {
+        throw new Error(payload.error || "Onshape STL export failed.");
+      }
+
+      setStlFile(payload.file);
+      setOnshapeApiConnected(true);
+      setState("connected");
+      setStatus(payload.message || "Onshape STL viewer export attached.");
+      return payload.file;
+    } catch (error) {
+      setState("error");
+      setStatus(
+        error instanceof Error ? error.message : "Onshape STL export failed.",
+      );
+      return null;
+    }
+  }
+
   async function exportThumbnailFromOnshape(silent = false) {
     if (!context || !token) return null;
 
@@ -1126,6 +1170,20 @@ export default function OnshapeDesignAppPage() {
         return;
       }
 
+      let publishStlFile = stlFile;
+      if (!publishStlFile) {
+        setStatus("Saving package: exporting STL viewer geometry...");
+        publishStlFile = await exportStlFromOnshape(true);
+      }
+
+      if (!publishStlFile) {
+        setPublishWarning(
+          onshapeApiConnected
+            ? "Onshape did not return STL viewer geometry. Kordyne will still publish the package, but browser preview may fall back to controlled STEP preparation."
+            : "Reconnect Onshape API access so Kordyne can export STL viewer geometry automatically.",
+        );
+      }
+
       let publishThumbnailFile = thumbnailFile;
       if (!publishThumbnailFile) {
         setStatus("Saving package: capturing Onshape preview...");
@@ -1149,8 +1207,12 @@ export default function OnshapeDesignAppPage() {
       );
 
       const publishFiles = publishThumbnailFile
-        ? [publishStepFile, publishThumbnailFile]
-        : [publishStepFile];
+        ? [
+            publishStepFile,
+            ...(publishStlFile ? [publishStlFile] : []),
+            publishThumbnailFile,
+          ]
+        : [publishStepFile, ...(publishStlFile ? [publishStlFile] : [])];
 
       const payload = await callOnshapeApi<{
         ok: boolean;
@@ -1192,6 +1254,7 @@ export default function OnshapeDesignAppPage() {
               resolved_part: resolvedPart,
               native_source: "onshape_document_reference",
               step_storage_path: publishStepFile.storage_path,
+              stl_storage_path: publishStlFile?.storage_path ?? null,
               thumbnail_storage_path: publishThumbnailFile?.storage_path ?? null,
               thumbnail_filename: publishThumbnailFile?.filename ?? null,
             },
@@ -1245,8 +1308,6 @@ export default function OnshapeDesignAppPage() {
     const editableWorkspaceId =
       onshapeWorkspaceId ||
       (onshapeWorkspaceOrVersion === "w" ? onshapeWorkspaceOrVersionId : "");
-    const pendingCompareTab =
-      onshapeDocumentId && editableWorkspaceId ? openBlankUserTab() : null;
 
     setState("working");
     setStatus("Checking Kordyne revision status...");
@@ -1308,17 +1369,13 @@ export default function OnshapeDesignAppPage() {
         );
 
         if (imported.onshape.open_url) {
-          const opened = openUrlInTab(imported.onshape.open_url, pendingCompareTab);
-          compareOpenMessage = opened
-            ? " Latest STEP was imported into this Onshape document and opened for visual review."
-            : " Latest STEP was imported into this Onshape document; open the imported tab from Onshape if the browser blocked the new tab.";
+          compareOpenMessage =
+            " Latest STEP was imported into this Onshape document for visual review.";
         } else {
-          closePendingTab(pendingCompareTab);
           compareOpenMessage =
             " Latest STEP was imported into this Onshape document, but Onshape did not return a direct tab URL.";
         }
       } else {
-        closePendingTab(pendingCompareTab);
         if (stepPackage?.step_file?.signed_url) {
           compareOpenMessage =
             " Latest STEP is ready to download, but Kordyne needs an editable Onshape workspace to import it for review.";
@@ -1332,7 +1389,6 @@ export default function OnshapeDesignAppPage() {
           : `Kordyne has newer revision ${payload.latest.revision ?? ""}.${stepWarning}${compareOpenMessage}`,
       );
     } catch (error) {
-      closePendingTab(pendingCompareTab);
       setState("error");
       setStatus(error instanceof Error ? error.message : "Compare failed.");
     }
@@ -1343,8 +1399,6 @@ export default function OnshapeDesignAppPage() {
       setStatus("Publish or link a Kordyne part before pull.");
       return;
     }
-
-    const pendingPullTab = openBlankUserTab();
 
     setState("working");
     setStatus("Preparing Kordyne pull package...");
@@ -1364,52 +1418,57 @@ export default function OnshapeDesignAppPage() {
       setPullPackage(payload);
 
       if (payload.open_action?.url) {
-        const opened = openUrlInTab(payload.open_action.url, pendingPullTab);
+        const isCurrentOnshapeDocument =
+          payload.source_link?.external_document_id &&
+          payload.source_link.external_document_id === onshapeDocumentId;
+
         setState("connected");
         setStatus(
-          opened
-            ? `Opened native Onshape source for Rev ${fieldOrDash(payload.part.revision)}. Edit there, then publish back to Kordyne as a new revision when ready.`
-            : `Native Onshape source is available for Rev ${fieldOrDash(payload.part.revision)}, but the browser blocked opening it. Use the source link in the pull package below.`,
+          isCurrentOnshapeDocument
+            ? `Native Onshape source for Rev ${fieldOrDash(payload.part.revision)} is already the active document.`
+            : `Native Onshape source is available for Rev ${fieldOrDash(payload.part.revision)}. Use the source link below if you need to open that document.`,
         );
         return;
       }
 
       const primaryStep = payload.step_files[0];
+      const editableWorkspaceId =
+        onshapeWorkspaceId ||
+        (onshapeWorkspaceOrVersion === "w" ? onshapeWorkspaceOrVersionId : "");
 
-      if (primaryStep?.file_id) {
-        setStatus("Native Onshape source is not available. Importing STEP into a new Onshape document...");
+      if (primaryStep?.file_id && onshapeDocumentId && editableWorkspaceId) {
+        setStatus("Native Onshape source is not available. Importing STEP into this Onshape document...");
 
         const imported = await callOnshapeApi<ImportStepPayload>(
           "/api/design-app/onshape/import-step",
           {
             method: "POST",
             body: JSON.stringify({
-              mode: "new_document",
+              mode: "current_document",
               part_id: sourcePart.part_id,
               file_id: primaryStep.file_id,
+              documentId: onshapeDocumentId,
+              workspaceId: editableWorkspaceId,
+              workspaceOrVersion: onshapeWorkspaceOrVersion,
+              workspaceOrVersionId: onshapeWorkspaceOrVersionId,
             }),
           },
         );
 
         if (imported.onshape.open_url) {
-          const opened = openUrlInTab(imported.onshape.open_url, pendingPullTab);
           setState("connected");
           setStatus(
-            opened
-              ? `Imported STEP for Rev ${fieldOrDash(payload.part.revision)} into a new Onshape document. Publish back to Kordyne as a new revision after edits.`
-              : `Imported STEP for Rev ${fieldOrDash(payload.part.revision)} into a new Onshape document, but the browser blocked opening it.`,
+            `Imported STEP for Rev ${fieldOrDash(payload.part.revision)} into this Onshape document. Use the new Onshape tab for edits, then publish back as a new revision.`,
           );
           return;
         }
       }
 
-      closePendingTab(pendingPullTab);
       setState("connected");
       setStatus(
         `Pull package ready: ${payload.availability.native_count} native reference${payload.availability.native_count === 1 ? "" : "s"}, ${payload.availability.step_count} STEP exchange file${payload.availability.step_count === 1 ? "" : "s"}.`,
       );
     } catch (error) {
-      closePendingTab(pendingPullTab);
       setState("error");
       setStatus(error instanceof Error ? error.message : "Pull failed.");
     }
@@ -1423,6 +1482,7 @@ export default function OnshapeDesignAppPage() {
       const payload = await callOnshapeApi<{
         ok: boolean;
         items: Array<PublishedPart>;
+        projects?: LibraryProject[];
       }>("/api/design-app/onshape/library-search", {
         method: "POST",
         body: JSON.stringify({
@@ -1431,11 +1491,13 @@ export default function OnshapeDesignAppPage() {
           status: libraryStatus,
           category: libraryCategory,
           process_type: libraryProcess,
+          project_id: libraryProjectId,
           sort: librarySort,
         }),
       });
 
       setLibraryItems(payload.items);
+      setLibraryProjects(payload.projects ?? []);
       setLibraryLoaded(true);
       setState("connected");
       setStatus(
@@ -1454,6 +1516,7 @@ export default function OnshapeDesignAppPage() {
     setToken("");
     setProfile(null);
     setStepFile(null);
+    setStlFile(null);
     setThumbnailFile(null);
     setLibraryItems([]);
     setLibraryLoaded(false);
@@ -1621,8 +1684,6 @@ export default function OnshapeDesignAppPage() {
           {navButton("connect", "Connect")}
           {navButton("publish", "Publish")}
           {navButton("library", "Library")}
-          {navButton("pull", "Pull")}
-          {navButton("compare", "Compare")}
         </div>
 
         {activeTab === "connect" ? (
@@ -1855,15 +1916,25 @@ export default function OnshapeDesignAppPage() {
             <div className={`mt-5 border p-4 ${panel}`}>
               <h3 className="text-sm font-bold">Publish package</h3>
               <p className={`mt-2 text-xs leading-5 ${muted}`}>
-                Publish exports STEP automatically and stores an Onshape native
-                reference so the feature tree stays editable in Onshape.
+                Publish exports STL for browser viewing, STEP for exchange, and
+                stores an Onshape native reference so the feature tree stays
+                editable in Onshape.
               </p>
-              {stepFile ? (
+              {stlFile ? (
                 <p className="mt-3 truncate text-xs font-bold text-emerald-500">
-                  STEP ready: {stepFile.filename}
+                  STL viewer ready: {stlFile.filename}
                 </p>
               ) : (
                 <p className={`mt-3 text-xs ${muted}`}>
+                  STL viewer geometry will be exported during publish.
+                </p>
+              )}
+              {stepFile ? (
+                <p className="mt-2 truncate text-xs font-bold text-emerald-500">
+                  STEP ready: {stepFile.filename}
+                </p>
+              ) : (
+                <p className={`mt-2 text-xs ${muted}`}>
                   STEP will be exported during publish.
                 </p>
               )}
@@ -1916,6 +1987,14 @@ export default function OnshapeDesignAppPage() {
                 className={`h-11 px-5 text-sm font-bold disabled:opacity-60 ${publishButtonClass}`}
               >
                 {publishButtonText}
+              </button>
+              <button
+                type="button"
+                onClick={() => void exportStlFromOnshape()}
+                disabled={!connected || busy || !publishableContext}
+                className={`h-10 text-sm font-bold disabled:opacity-60 ${secondaryButton}`}
+              >
+                Export STL viewer only
               </button>
               <button
                 type="button"
@@ -2010,6 +2089,22 @@ export default function OnshapeDesignAppPage() {
                 <option>Document Only</option>
                 <option>Other</option>
               </select>
+              <select
+                value={libraryProjectId}
+                onChange={(event) => setLibraryProjectId(event.target.value)}
+                className={`col-span-2 h-9 border px-2 text-xs ${inputClass}`}
+              >
+                <option value="all">All explicit projects/workspaces</option>
+                <option value="none">Standalone vault parts only</option>
+                {libraryProjects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.project_type === "single_part_workspace"
+                      ? "Part Workspace"
+                      : "Project"}{" "}
+                    - {project.name}
+                  </option>
+                ))}
+              </select>
             </div>
             {libraryItems.length > 0 ? (
               <div className="mt-4 space-y-3">
@@ -2048,6 +2143,13 @@ export default function OnshapeDesignAppPage() {
                               .filter(Boolean)
                               .join(" - ") || "No classification"}
                           </p>
+                          {item.linked_projects?.length ? (
+                            <p className={`mt-1 truncate text-xs ${muted}`}>
+                              {item.linked_projects
+                                .map((project) => project.name)
+                                .join(" - ")}
+                            </p>
+                          ) : null}
                         </div>
                       </div>
                       <div className="mt-3 grid grid-cols-3 gap-2">
@@ -2061,7 +2163,7 @@ export default function OnshapeDesignAppPage() {
                         <button
                           type="button"
                           onClick={() => {
-                            linkLibraryPart(item, "pull");
+                            linkLibraryPart(item, "library");
                             void pull(item);
                           }}
                           disabled={busy}
@@ -2072,7 +2174,7 @@ export default function OnshapeDesignAppPage() {
                         <button
                           type="button"
                           onClick={() => {
-                            linkLibraryPart(item, "compare");
+                            linkLibraryPart(item, "library");
                             void compare(item);
                           }}
                           disabled={busy}
@@ -2088,6 +2190,53 @@ export default function OnshapeDesignAppPage() {
             ) : libraryLoaded ? (
               <div className={`mt-4 border p-4 text-sm ${panel}`}>
                 No Kordyne parts match the current library filters.
+              </div>
+            ) : null}
+
+            {pullPackage ? (
+              <div className={`mt-4 border p-4 text-sm ${panel}`}>
+                <h3 className="font-bold">Pull package</h3>
+                <p className={`mt-2 text-xs leading-5 ${muted}`}>
+                  {pullPackage.availability.native_count} native reference
+                  {pullPackage.availability.native_count === 1 ? "" : "s"} and{" "}
+                  {pullPackage.availability.step_count} STEP exchange file
+                  {pullPackage.availability.step_count === 1 ? "" : "s"} for
+                  Rev {fieldOrDash(pullPackage.part.revision)}.
+                </p>
+                {pullPackage.source_link?.open_url ? (
+                  <a
+                    href={pullPackage.source_link.open_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={`mt-3 block border p-3 text-xs font-semibold ${secondaryButton}`}
+                  >
+                    Open native Onshape source
+                  </a>
+                ) : null}
+              </div>
+            ) : null}
+
+            {compareSummary ? (
+              <div className={`mt-4 border p-4 text-sm ${panel}`}>
+                <h3 className="font-bold">Compare status</h3>
+                <dl className="mt-3 grid grid-cols-[92px_1fr] gap-x-3 gap-y-2 text-xs">
+                  <dt className={muted}>Current</dt>
+                  <dd>{fieldOrDash(compareSummary.current.revision)}</dd>
+                  <dt className={muted}>Latest</dt>
+                  <dd>{fieldOrDash(compareSummary.latest.revision)}</dd>
+                  <dt className={muted}>State</dt>
+                  <dd
+                    className={
+                      compareSummary.status.is_latest_revision
+                        ? "font-bold text-emerald-500"
+                        : "font-bold text-amber-500"
+                    }
+                  >
+                    {compareSummary.status.is_latest_revision
+                      ? "Current source is latest"
+                      : "Newer Kordyne revision available"}
+                  </dd>
+                </dl>
               </div>
             ) : null}
           </section>

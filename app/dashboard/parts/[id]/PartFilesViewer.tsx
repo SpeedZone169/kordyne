@@ -66,9 +66,13 @@ function getCategoryLabel(category: string | null) {
 }
 
 function getTypeBadgeLabel(file: PreviewFile) {
+  const extension = getFileExtension(file.fileName);
+
+  if (extension === "step" || extension === "stp") return "Live STEP";
+  if (extension === "stl") return "Live STL";
   if (file.previewKind === "image") return "Image preview";
   if (file.previewKind === "pdf") return "PDF preview";
-  if (file.previewKind === "cad") return "3D/CAD";
+  if (file.previewKind === "cad") return "CAD preview";
   return "Download only";
 }
 
@@ -112,6 +116,14 @@ function buildGroupedFiles(files: PreviewFile[]) {
 
 function getFileExtension(fileName: string) {
   return fileName.split(".").pop()?.toLowerCase() ?? "";
+}
+
+function shouldShowCategoryBadge(file: PreviewFile) {
+  if (!file.assetCategory) return false;
+  if (file.previewKind === "cad" && file.assetCategory === "cad_3d") return false;
+  if (file.previewKind === "image" && file.assetCategory === "image") return false;
+  if (file.previewKind === "pdf" && file.assetCategory === "drawing_2d") return false;
+  return true;
 }
 
 function OpenWithMenu({ file }: { file: PreviewFile }) {
@@ -168,7 +180,10 @@ export default function PartFilesViewer({ files }: Props) {
   const groupedFiles = useMemo(() => buildGroupedFiles(files), [files]);
 
   const initialSelected =
-    files.find((file) => file.previewKind !== "other") ?? files[0] ?? null;
+    files.find((file) => getFileExtension(file.fileName) === "stl") ??
+    files.find((file) => file.previewKind !== "other") ??
+    files[0] ??
+    null;
 
   const [selectedFileId, setSelectedFileId] = useState<string | null>(
     initialSelected?.id ?? null,
@@ -190,7 +205,7 @@ export default function PartFilesViewer({ files }: Props) {
   const isStepSelected = selectedExtension === "step" || selectedExtension === "stp";
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[300px_minmax(0,1fr)]">
+    <div className="grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
       <div className="rounded-[12px] border border-slate-200 bg-slate-50/70 p-3">
         <div className="mb-4 flex items-center justify-between gap-4 px-2">
           <div>
@@ -227,9 +242,6 @@ export default function PartFilesViewer({ files }: Props) {
                 <div className="space-y-2">
                   {categoryFiles.map((file) => {
                     const isSelected = selectedFile?.id === file.id;
-                    const extension = getFileExtension(file.fileName);
-                    const isStl = extension === "stl";
-                    const isStep = extension === "step" || extension === "stp";
 
                     return (
                       <button
@@ -257,21 +269,11 @@ export default function PartFilesViewer({ files }: Props) {
                                 {getTypeBadgeLabel(file)}
                               </span>
 
-                              {isStl ? (
-                                <span className="inline-flex rounded-full bg-sky-100 px-2.5 py-1 text-[11px] font-medium text-sky-700">
-                                  Live STL
+                              {shouldShowCategoryBadge(file) ? (
+                                <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-700">
+                                  {getCategoryLabel(file.assetCategory)}
                                 </span>
                               ) : null}
-
-                              {isStep ? (
-                                <span className="inline-flex rounded-full bg-violet-100 px-2.5 py-1 text-[11px] font-medium text-violet-700">
-                                  Live STEP
-                                </span>
-                              ) : null}
-
-                              <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-700">
-                                {getCategoryLabel(file.assetCategory)}
-                              </span>
                             </div>
 
                             <div className="mt-3 text-xs text-slate-500">
@@ -317,15 +319,9 @@ export default function PartFilesViewer({ files }: Props) {
                     {getTypeBadgeLabel(selectedFile)}
                   </span>
 
-                  {isStlSelected ? (
-                    <span className="inline-flex rounded-full bg-sky-100 px-2.5 py-1 text-xs font-medium text-sky-700">
-                      Live STL viewer
-                    </span>
-                  ) : null}
-
-                  {isStepSelected ? (
-                    <span className="inline-flex rounded-full bg-violet-100 px-2.5 py-1 text-xs font-medium text-violet-700">
-                      Live STEP viewer
+                  {shouldShowCategoryBadge(selectedFile) ? (
+                    <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">
+                      {getCategoryLabel(selectedFile.assetCategory)}
                     </span>
                   ) : null}
                 </div>
@@ -362,7 +358,7 @@ export default function PartFilesViewer({ files }: Props) {
               </div>
             </div>
 
-            <div className="mt-5 mx-auto w-full max-w-[920px]">
+            <div className="mt-5 w-full">
               <div className="min-h-[560px] overflow-hidden rounded-[24px] border border-slate-200 bg-slate-50">
                 {selectedFile.previewKind === "image" && selectedFile.previewUrl ? (
                   <div className="flex h-full min-h-[560px] items-center justify-center bg-[radial-gradient(circle_at_top,#f8fafc,#eef2f7)] p-6">
@@ -370,7 +366,7 @@ export default function PartFilesViewer({ files }: Props) {
                     <img
                       src={selectedFile.previewUrl}
                       alt={selectedFile.fileName}
-                      className="max-h-[520px] w-auto max-w-full rounded-2xl border border-slate-200 bg-white object-contain shadow-sm"
+                      className="h-full max-h-[520px] w-full rounded-2xl border border-slate-200 bg-white object-contain shadow-sm"
                     />
                   </div>
                 ) : null}

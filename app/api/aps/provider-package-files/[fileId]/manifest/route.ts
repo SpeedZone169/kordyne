@@ -1,7 +1,18 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getApsManifest, isApsStepViewerEnabled } from "@/lib/aps";
+import {
+  getApsManifest,
+  getApsStepViewerStatus,
+  isApsStepViewerEnabled,
+} from "@/lib/aps";
+import {
+  getApsDerivativeForProviderPackageFile,
+  normalizeApsDerivativeStatus,
+  saveApsDerivativeState,
+  toLegacyApsStatus,
+  upsertApsDerivativeFromLegacy,
+} from "@/lib/aps-derivatives";
 
 type MembershipRow = {
   organization_id: string;
@@ -10,9 +21,16 @@ type MembershipRow = {
 type ProviderPackageFileRow = {
   id: string;
   provider_request_package_id: string;
+  file_name: string;
+  storage_path: string;
+  provider_uploaded: boolean | null;
+  aps_object_key: string | null;
+  aps_object_id: string | null;
   aps_urn: string | null;
   aps_translation_status: string | null;
   aps_translation_progress: string | null;
+  aps_manifest_json: unknown | null;
+  aps_last_error: string | null;
 };
 
 function getManifestStatus(manifest: unknown): string | null {
@@ -42,8 +60,13 @@ export async function GET(
   const { fileId } = await params;
 
   if (!isApsStepViewerEnabled()) {
+    const viewerStatus = getApsStepViewerStatus();
+
     return NextResponse.json(
-      { error: "APS STEP viewer is disabled." },
+      {
+        error: "APS STEP viewer is disabled.",
+        missing_config: viewerStatus.missing,
+      },
       { status: 503 },
     );
   }
@@ -89,9 +112,16 @@ export async function GET(
       `
         id,
         provider_request_package_id,
+        file_name,
+        storage_path,
+        provider_uploaded,
+        aps_object_key,
+        aps_object_id,
         aps_urn,
         aps_translation_status,
-        aps_translation_progress
+        aps_translation_progress,
+        aps_manifest_json,
+        aps_last_error
       `,
     )
     .eq("id", fileId)
@@ -131,13 +161,51 @@ export async function GET(
   }
 
   const url = new URL(request.url);
-  const urn = file.aps_urn || url.searchParams.get("urn")?.trim() || "";
+  const ownerOrgId = file.provider_uploaded
+    ? pkg.provider_org_id
+    : pkg.customer_org_id;
+
+  const legacyDerivative =
+    file.aps_urn && !file.aps_last_error
+      ? await upsertApsDerivativeFromLegacy(admin, {
+          organizationId: ownerOrgId,
+          requestedBy: user.id,
+          sourceType: "provider_package_file",
+          providerPackageFileId: file.id,
+          fileName: file.file_name,
+          storagePath: file.storage_path,
+          objectKey: file.aps_object_key,
+          objectId: file.aps_object_id,
+          urn: file.aps_urn,
+          status: file.aps_translation_status,
+          progress: file.aps_translation_progress,
+          manifestJson: file.aps_manifest_json,
+          lastError: file.aps_last_error,
+        })
+      : null;
+
+  const derivative =
+    legacyDerivative ||
+    (await getApsDerivativeForProviderPackageFile(admin, file.id));
+  const urn =
+    derivative?.aps_urn || file.aps_urn || url.searchParams.get("urn")?.trim() || "";
 
   if (!urn) {
     return NextResponse.json(
       { error: "This STEP file has not been prepared yet." },
       { status: 400 },
     );
+  }
+
+  if (derivative?.status === "ready" && derivative.manifest_json) {
+    return NextResponse.json({
+      success: true,
+      urn,
+      manifest: derivative.manifest_json,
+      status: "success",
+      progress: derivative.progress,
+      cached: true,
+    });
   }
 
   try {
@@ -156,6 +224,21 @@ export async function GET(
         })
         .eq("id", file.id);
 
+      await saveApsDerivativeState(admin, {
+        organizationId: ownerOrgId,
+        requestedBy: user.id,
+        sourceType: "provider_package_file",
+        providerPackageFileId: file.id,
+        fileName: file.file_name,
+        storagePath: file.storage_path,
+        objectKey: derivative?.aps_object_key || file.aps_object_key,
+        objectId: derivative?.aps_object_id || file.aps_object_id,
+        urn,
+        status: "translating",
+        progress: "Manifest not ready yet",
+        manifestJson: null,
+      });
+
       return NextResponse.json({
         success: true,
         urn,
@@ -167,24 +250,43 @@ export async function GET(
 
     const status = getManifestStatus(manifest) || "unknown";
     const progress = getManifestProgress(manifest);
+    const derivativeStatus = normalizeApsDerivativeStatus(status);
 
     await admin
       .from("provider_package_files")
       .update({
         aps_urn: urn,
-        aps_translation_status: status,
+        aps_translation_status: toLegacyApsStatus(derivativeStatus),
         aps_translation_progress: progress,
         aps_manifest_json: manifest,
-        aps_last_translated_at: status === "success" ? nowIso : null,
-        aps_last_error: status === "failed" ? "APS translation failed." : null,
+        aps_last_translated_at: derivativeStatus === "ready" ? nowIso : null,
+        aps_last_error:
+          derivativeStatus === "failed" ? "APS translation failed." : null,
       })
       .eq("id", file.id);
+
+    await saveApsDerivativeState(admin, {
+      organizationId: ownerOrgId,
+      requestedBy: user.id,
+      sourceType: "provider_package_file",
+      providerPackageFileId: file.id,
+      fileName: file.file_name,
+      storagePath: file.storage_path,
+      objectKey: derivative?.aps_object_key || file.aps_object_key,
+      objectId: derivative?.aps_object_id || file.aps_object_id,
+      urn,
+      status: derivativeStatus,
+      progress,
+      manifestJson: manifest,
+      lastError:
+        derivativeStatus === "failed" ? "APS translation failed." : null,
+    });
 
     return NextResponse.json({
       success: true,
       urn,
       manifest,
-      status,
+      status: derivativeStatus === "ready" ? "success" : status,
       progress,
     });
   } catch (manifestError) {
@@ -201,6 +303,21 @@ export async function GET(
         aps_last_error: message,
       })
       .eq("id", file.id);
+
+    await saveApsDerivativeState(admin, {
+      organizationId: ownerOrgId,
+      requestedBy: user.id,
+      sourceType: "provider_package_file",
+      providerPackageFileId: file.id,
+      fileName: file.file_name,
+      storagePath: file.storage_path,
+      objectKey: derivative?.aps_object_key || file.aps_object_key,
+      objectId: derivative?.aps_object_id || file.aps_object_id,
+      urn,
+      status: "failed",
+      progress: null,
+      lastError: message,
+    }).catch(() => null);
 
     return NextResponse.json({ error: message }, { status: 500 });
   }

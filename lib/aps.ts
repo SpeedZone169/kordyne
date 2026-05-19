@@ -21,12 +21,27 @@ function requireEnv(name: string) {
 }
 
 export function isApsStepViewerEnabled() {
-  return (
-    getEnv("APS_STEP_VIEWER_ENABLED").toLowerCase() === "true" &&
-    Boolean(getEnv("APS_CLIENT_ID")) &&
-    Boolean(getEnv("APS_CLIENT_SECRET")) &&
-    Boolean(getEnv("APS_BUCKET_KEY"))
-  );
+  return getApsStepViewerStatus().enabled;
+}
+
+export function getApsStepViewerStatus() {
+  const missing: string[] = [];
+
+  if (getEnv("APS_STEP_VIEWER_ENABLED").toLowerCase() !== "true") {
+    missing.push("APS_STEP_VIEWER_ENABLED=true");
+  }
+
+  for (const name of ["APS_CLIENT_ID", "APS_CLIENT_SECRET", "APS_BUCKET_KEY"]) {
+    if (!getEnv(name)) {
+      missing.push(name);
+    }
+  }
+
+  return {
+    enabled: missing.length === 0,
+    missing,
+    region: getRegion(),
+  };
 }
 
 export function assertApsStepViewerEnabled() {

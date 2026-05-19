@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getApsViewerToken, isApsStepViewerEnabled } from "@/lib/aps";
+import { getApsStepViewerStatus, getApsViewerToken } from "@/lib/aps";
 
 export const runtime = "nodejs";
 
@@ -16,9 +16,14 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
 
-  if (!isApsStepViewerEnabled()) {
+  const viewerStatus = getApsStepViewerStatus();
+
+  if (!viewerStatus.enabled) {
     return NextResponse.json(
-      { error: "APS STEP viewer is disabled." },
+      {
+        error: "APS STEP viewer is disabled.",
+        missing_config: viewerStatus.missing,
+      },
       { status: 503 },
     );
   }

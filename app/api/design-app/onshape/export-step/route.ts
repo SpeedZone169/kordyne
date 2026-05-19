@@ -11,7 +11,8 @@ import {
 const DESIGN_UPLOAD_BUCKET =
   process.env.NEXT_PUBLIC_SUPABASE_DESIGN_UPLOAD_BUCKET || "part-files";
 
-type ExportStepInput = {
+type ExportCadInput = {
+  formatName?: string | null;
   documentId?: string | null;
   workspaceOrVersion?: string | null;
   workspaceOrVersionId?: string | null;
@@ -46,7 +47,7 @@ function sanitizeFileName(name: string) {
   return name.replace(/[^a-zA-Z0-9._-]/g, "_");
 }
 
-function normalizeWv(input: ExportStepInput) {
+function normalizeWv(input: ExportCadInput) {
   const workspaceOrVersion =
     asString(input.workspaceOrVersion).toLowerCase() ||
     (asString(input.versionId) ? "v" : "w");
@@ -113,6 +114,7 @@ async function pollTranslation(
   translationId: string,
   accessToken: string,
   requestUrl: string,
+  formatName: "STEP" | "STL",
 ) {
   const config = getOnshapeOAuthConfig(requestUrl);
   const delays = [1000, 1500, 2500, 4000, 6000, 8000, 10000, 12000];
@@ -129,20 +131,20 @@ async function pollTranslation(
     if (latest.requestState === "DONE") return latest;
 
     if (latest.requestState === "FAILED") {
-      throw new Error(latest.failureReason || "Onshape STEP export failed.");
+      throw new Error(latest.failureReason || `Onshape ${formatName} export failed.`);
     }
   }
 
   throw new Error(
     latest?.requestState
-      ? `Onshape STEP export is still ${latest.requestState.toLowerCase()}. Try again in a moment.`
-      : "Onshape STEP export timed out.",
+      ? `Onshape ${formatName} export is still ${latest.requestState.toLowerCase()}. Try again in a moment.`
+      : `Onshape ${formatName} export timed out.`,
   );
 }
 
 async function downloadTranslationResult(
   translation: TranslationStartResponse,
-  input: ExportStepInput,
+  input: ExportCadInput,
   accessToken: string,
 ) {
   const externalDataId = translation.resultExternalDataIds?.[0];
@@ -173,10 +175,13 @@ async function downloadTranslationResult(
     );
   }
 
-  throw new Error("Onshape did not return a downloadable STEP result.");
+  throw new Error("Onshape did not return a downloadable CAD export result.");
 }
 
-export async function POST(request: Request) {
+export async function handleOnshapeCadExport(
+  request: Request,
+  defaultFormatName: "STEP" | "STL" = "STEP",
+) {
   try {
     const ctx = await getDesignAppRequestContext(request, {
       providerKey: "onshape",
@@ -186,17 +191,26 @@ export async function POST(request: Request) {
 
     if ("error" in ctx) return ctx.error;
 
-    const input = (await request.json()) as ExportStepInput;
+    const input = (await request.json()) as ExportCadInput;
     const documentId = asString(input.documentId);
     const elementId = asString(input.elementId);
     const { wv, wvid } = normalizeWv(input);
+    const requestedFormat = asString(input.formatName).toUpperCase();
+    const formatName: "STEP" | "STL" =
+      requestedFormat === "STL" || requestedFormat === "STEP"
+        ? requestedFormat
+        : defaultFormatName;
+    const role = formatName === "STL" ? "stl" : "step";
+    const extension = formatName === "STL" ? ".stl" : ".step";
+    const defaultContentType =
+      formatName === "STL" ? "model/stl" : "application/step";
 
     if (!documentId || !elementId || !wvid) {
       return NextResponse.json(
         {
           ok: false,
           error:
-            "Onshape STEP export requires documentId, workspace/version id, and elementId.",
+            `Onshape ${formatName} export requires documentId, workspace/version id, and elementId.`,
         },
         { status: 400 },
       );
@@ -232,7 +246,7 @@ export async function POST(request: Request) {
         {
           ok: false,
           needs_onshape_oauth: true,
-          error: "Connect Onshape API access before exporting STEP.",
+          error: `Connect Onshape API access before exporting ${formatName}.`,
         },
         { status: 409 },
       );
@@ -259,7 +273,7 @@ export async function POST(request: Request) {
           "Content-Type": "application/json;charset=UTF-8; qs=0.09",
         },
         body: JSON.stringify({
-          formatName: "STEP",
+          formatName,
           storeInDocument: false,
           translate: true,
           ...(asString(input.partId) ? { partIds: asString(input.partId) } : {}),
@@ -276,7 +290,12 @@ export async function POST(request: Request) {
     const completed =
       translation.requestState === "DONE"
         ? translation
-        : await pollTranslation(translationId, storedToken.accessToken, request.url);
+        : await pollTranslation(
+            translationId,
+            storedToken.accessToken,
+            request.url,
+            formatName,
+          );
 
     const downloadResponse = await downloadTranslationResult(
       completed,
@@ -286,7 +305,7 @@ export async function POST(request: Request) {
 
     if (!downloadResponse.ok) {
       throw new Error(
-        `Onshape STEP download failed (${downloadResponse.status}).`,
+        `Onshape ${formatName} download failed (${downloadResponse.status}).`,
       );
     }
 
@@ -299,16 +318,17 @@ export async function POST(request: Request) {
       completed.name ||
       "onshape-export";
     const filename = sanitizeFileName(
-      responseFilename || `${baseName.replace(/\.(step|stp)$/i, "")}.step`,
+      responseFilename ||
+        `${baseName.replace(/\.(step|stp|stl)$/i, "")}${extension}`,
     );
     const storagePath = [
       "design-app",
       ctx.organizationId,
       ctx.user.id,
-      `${Date.now()}-step-${filename}`,
+      `${Date.now()}-${role}-${filename}`,
     ].join("/");
     const contentType =
-      downloadResponse.headers.get("content-type") || "application/step";
+      downloadResponse.headers.get("content-type") || defaultContentType;
 
     const { error: uploadError } = await admin.storage
       .from(DESIGN_UPLOAD_BUCKET)
@@ -331,15 +351,20 @@ export async function POST(request: Request) {
         mime_type: contentType,
         size_bytes: bytes.byteLength,
         storage_path: storagePath,
-        role: "step",
-        file_extension: filename.toLowerCase().endsWith(".stp") ? ".stp" : ".step",
+        role,
+        file_extension:
+          formatName === "STL"
+            ? ".stl"
+            : filename.toLowerCase().endsWith(".stp")
+              ? ".stp"
+              : ".step",
         organization_id: ctx.organizationId,
         uploaded_by_user_id: ctx.user.id,
         bucket: DESIGN_UPLOAD_BUCKET,
         onshape_translation_id: translationId,
         onshape_credential_profile_id: storedToken.profileId,
       },
-      message: "Onshape STEP export attached.",
+      message: `Onshape ${formatName} export attached.`,
     });
   } catch (error) {
     return NextResponse.json(
@@ -350,4 +375,8 @@ export async function POST(request: Request) {
       { status: 500 },
     );
   }
+}
+
+export async function POST(request: Request) {
+  return handleOnshapeCadExport(request, "STEP");
 }

@@ -9,6 +9,7 @@ import ServiceRequestHistory from "./ServiceRequestHistory";
 import CreateRevisionButton from "./CreateRevisionButton";
 import PartFilesViewer from "./PartFilesViewer";
 import PartCollaborationPanel from "./PartCollaborationPanel";
+import PartProjectActions from "./PartProjectActions";
 import { getPartCategoryLabel, getProcessTypeLabel } from "@/lib/parts";
 
 type PageProps = {
@@ -56,6 +57,7 @@ type ProfileRow = {
   user_id: string;
   full_name: string | null;
   email: string | null;
+  avatar_url: string | null;
 };
 
 type RevisionRow = {
@@ -107,6 +109,18 @@ type PartCollaborationMessageRow = {
   sender_org_id: string;
   message_body: string;
   created_at: string;
+};
+
+type ProjectRow = {
+  id: string;
+  name: string;
+  project_type: string;
+  status: string | null;
+};
+
+type ProjectPartLinkRow = {
+  project_id: string;
+  is_primary_part: boolean;
 };
 
 function groupFilesByCategory(files: PartFileWithUrls[]) {
@@ -256,7 +270,7 @@ export default async function PartDetailPage({ params }: PageProps) {
     profileIds.length > 0
       ? await supabase
           .from("profiles")
-          .select("user_id, full_name, email")
+          .select("user_id, full_name, email, avatar_url")
           .in("user_id", profileIds)
       : { data: [] as ProfileRow[] };
 
@@ -376,7 +390,7 @@ export default async function PartDetailPage({ params }: PageProps) {
     collaborationSenderIds.length > 0
       ? await supabase
           .from("profiles")
-          .select("user_id, full_name, email")
+          .select("user_id, full_name, email, avatar_url")
           .in("user_id", collaborationSenderIds)
       : { data: [] as ProfileRow[] };
 
@@ -397,6 +411,7 @@ export default async function PartDetailPage({ params }: PageProps) {
       createdAt: message.created_at,
       senderName: getDisplayName(senderProfile),
       senderEmail: senderProfile?.email ?? null,
+      senderAvatarUrl: senderProfile?.avatar_url ?? null,
     };
   });
 
@@ -419,6 +434,45 @@ export default async function PartDetailPage({ params }: PageProps) {
     assetCategory: file.asset_category,
     fileType: file.file_type,
   }));
+
+  const { data: linkedProjectRowsRaw } = await supabase
+    .from("project_part_links")
+    .select("project_id, is_primary_part")
+    .eq("part_id", part.id);
+
+  const linkedProjectRows =
+    (linkedProjectRowsRaw as ProjectPartLinkRow[] | null) ?? [];
+  const linkedProjectIds = linkedProjectRows.map((row) => row.project_id);
+
+  const { data: projectsRaw } = await supabase
+    .from("projects")
+    .select("id, name, project_type, status")
+    .eq("organization_id", part.organization_id)
+    .order("updated_at", { ascending: false });
+
+  const projectRows = (projectsRaw as ProjectRow[] | null) ?? [];
+  const linkedProjectMap = new Map(
+    linkedProjectRows.map((row) => [row.project_id, row] as const),
+  );
+
+  const projectOptions = projectRows
+    .filter((project) => project.status !== "archived")
+    .map((project) => ({
+      id: project.id,
+      name: project.name,
+      projectType: project.project_type,
+      status: project.status,
+    }));
+
+  const linkedProjects = projectRows
+    .filter((project) => linkedProjectIds.includes(project.id))
+    .map((project) => ({
+      id: project.id,
+      name: project.name,
+      projectType: project.project_type,
+      status: project.status,
+      isPrimaryPart: linkedProjectMap.get(project.id)?.is_primary_part ?? false,
+    }));
 
   const revisionSourceFiles = familyFilesForRevisionPicker.map((file) => ({
     id: file.id,
@@ -490,6 +544,18 @@ export default async function PartDetailPage({ params }: PageProps) {
             </div>
           ) : null}
         </div>
+      </div>
+
+      <div className="mt-5">
+        <PartProjectActions
+          partId={part.id}
+          partName={part.name}
+          partNumber={part.part_number}
+          canManage={canEditPart}
+          projects={projectOptions}
+          linkedProjects={linkedProjects}
+          files={requestFileOptions}
+        />
       </div>
 
       <div className="mt-5 rounded-[12px] border border-slate-200 bg-white p-4 shadow-sm">
@@ -588,7 +654,7 @@ export default async function PartDetailPage({ params }: PageProps) {
         )}
       </div>
 
-      <div className="mt-5 max-w-2xl">
+      <div id="part-workspace" className="mt-5 max-w-3xl">
         <PartCollaborationPanel
           partId={part.id}
           revisionPartId={part.id}
