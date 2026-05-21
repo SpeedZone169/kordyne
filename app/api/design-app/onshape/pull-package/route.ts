@@ -85,16 +85,50 @@ function metadataString(value: unknown, ...keys: string[]) {
 
   const onshape = record.onshape;
 
-  if (!onshape || typeof onshape !== "object") return "";
+  if (onshape && typeof onshape === "object") {
+    const onshapeRecord = onshape as Record<string, unknown>;
 
-  const onshapeRecord = onshape as Record<string, unknown>;
+    for (const key of keys) {
+      const nested = asString(onshapeRecord[key]);
+      if (nested) return nested;
+    }
+  }
 
-  for (const key of keys) {
-    const nested = asString(onshapeRecord[key]);
-    if (nested) return nested;
+  const cadMetadata = record.cad_metadata;
+
+  if (cadMetadata && typeof cadMetadata === "object") {
+    const cadMetadataRecord = cadMetadata as Record<string, unknown>;
+
+    for (const key of keys) {
+      const nested = asString(cadMetadataRecord[key]);
+      if (nested) return nested;
+    }
   }
 
   return "";
+}
+
+function getFocusElementId(sourceLink: Record<string, unknown> | null) {
+  if (!sourceLink) return "";
+
+  return (
+    metadataString(
+      sourceLink.metadata,
+      "elementId",
+      "tabElementId",
+      "element_id",
+      "tab_element_id",
+      "eid",
+    ) ||
+    asString(sourceLink.external_item_id) ||
+    metadataString(
+      sourceLink.metadata,
+      "element_or_part_id",
+      "partId",
+      "part_id",
+      "pid",
+    )
+  );
 }
 
 function buildOnshapeOpenUrl(sourceLink: Record<string, unknown> | null) {
@@ -108,13 +142,11 @@ function buildOnshapeOpenUrl(sourceLink: Record<string, unknown> | null) {
 
   const documentId =
     asString(sourceLink.external_document_id) ||
-    metadataString(sourceLink.metadata, "document_id");
+    metadataString(sourceLink.metadata, "documentId", "document_id", "did");
   const workspaceId =
     asString(sourceLink.external_workspace_id) ||
-    metadataString(sourceLink.metadata, "workspace_id");
-  const elementId =
-    asString(sourceLink.external_item_id) ||
-    metadataString(sourceLink.metadata, "element_or_part_id", "element_id");
+    metadataString(sourceLink.metadata, "workspaceId", "workspace_id", "wid");
+  const elementId = getFocusElementId(sourceLink);
 
   if (!documentId || !workspaceId || !elementId) return "";
 
@@ -286,6 +318,7 @@ export async function POST(request: Request) {
       unknown
     > | null;
     const openUrl = buildOnshapeOpenUrl(sourceLink);
+    const focusElementId = getFocusElementId(sourceLink);
 
     if (signedNativeFiles.length === 0 && signedStepFiles.length === 0) {
       return NextResponse.json(
@@ -320,6 +353,7 @@ export async function POST(request: Request) {
             external_document_id: sourceLink.external_document_id ?? null,
             external_workspace_id: sourceLink.external_workspace_id ?? null,
             external_item_id: sourceLink.external_item_id ?? null,
+            focus_element_id: focusElementId || null,
             external_revision_id: sourceLink.external_revision_id ?? null,
             external_name: sourceLink.external_name ?? null,
             external_url: sourceLink.external_url ?? null,

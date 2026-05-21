@@ -155,6 +155,7 @@ type PullPackage = {
     external_document_id?: string | null;
     external_workspace_id?: string | null;
     external_item_id?: string | null;
+    focus_element_id?: string | null;
     external_revision_id?: string | null;
     external_name?: string | null;
     external_url?: string | null;
@@ -211,6 +212,20 @@ type CompareStepPackage = {
   source: PublishedPart;
   latest: PublishedPart;
   step_file: PullFile;
+};
+
+type LibraryCompareResult = {
+  left: {
+    part: PublishedPart;
+    stepFile: PullFile;
+    imported: ImportStepPayload;
+  };
+  right: {
+    part: PublishedPart;
+    stepFile: PullFile;
+    imported: ImportStepPayload;
+  };
+  fileSizeDeltaBytes: number | null;
 };
 
 const TOKEN_STORAGE_KEY = "kordyne:onshape:connection-token";
@@ -338,6 +353,19 @@ function formatBytes(value?: number | null) {
   return `${(value / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function partDisplayName(part?: PublishedPart | null) {
+  if (!part) return "Kordyne part";
+  return part.name || part.part_number || part.part_id || "Kordyne part";
+}
+
+function revisionDisplay(part?: PublishedPart | null) {
+  return part?.revision ? `Rev ${part.revision}` : "No revision";
+}
+
+function primaryStepFile(files: PullFile[]) {
+  return files.find((file) => file.is_primary) ?? files[0] ?? null;
+}
+
 function hasPublishableOnshapeContext(context: OnshapeContext | null) {
   return Boolean(
     context?.documentId &&
@@ -385,6 +413,14 @@ export default function OnshapeDesignAppPage() {
   const [libraryProjectId, setLibraryProjectId] = useState("all");
   const [libraryProjects, setLibraryProjects] = useState<LibraryProject[]>([]);
   const [librarySort, setLibrarySort] = useState<LibrarySort>("recent");
+  const [expandedLibraryPartIds, setExpandedLibraryPartIds] = useState<string[]>(
+    [],
+  );
+  const [libraryCompareSelection, setLibraryCompareSelection] = useState<
+    PublishedPart[]
+  >([]);
+  const [libraryCompareResult, setLibraryCompareResult] =
+    useState<LibraryCompareResult | null>(null);
   const [theme, setTheme] = useState<ThemeMode>("light");
   const [activeTab, setActiveTab] = useState<ActiveTab>("connect");
   const [resolvedPart, setResolvedPart] = useState<OnshapeResolvedPart | null>(
@@ -423,6 +459,38 @@ export default function OnshapeDesignAppPage() {
   const onshapeWorkspaceId = context?.workspaceId ?? "";
   const onshapeWorkspaceOrVersion = context?.workspaceOrVersion ?? "";
   const onshapeWorkspaceOrVersionId = context?.workspaceOrVersionId ?? "";
+  const onshapeOrigin = useMemo(() => {
+    try {
+      return new URL(onshapeServer).origin;
+    } catch {
+      return "https://cad.onshape.com";
+    }
+  }, [onshapeServer]);
+  const editableWorkspaceId =
+    onshapeWorkspaceId ||
+    (onshapeWorkspaceOrVersion === "w" ? onshapeWorkspaceOrVersionId : "");
+  const focusOnshapeElement = useCallback(
+    function focusOnshapeElement(elementId?: string | null) {
+      const nextElementId = elementId?.trim();
+      if (!nextElementId || typeof window === "undefined") return false;
+
+      const message = {
+        documentId: onshapeDocumentId,
+        workspaceId: editableWorkspaceId,
+        elementId: onshapeElementId,
+        messageName: "openAnotherElementInCurrentWorkspace",
+        anotherElementId: nextElementId,
+      };
+
+      window.parent.postMessage(message, onshapeOrigin);
+      window.setTimeout(() => {
+        window.parent.postMessage(message, onshapeOrigin);
+      }, 600);
+
+      return true;
+    },
+    [editableWorkspaceId, onshapeDocumentId, onshapeElementId, onshapeOrigin],
+  );
 
   useEffect(() => {
     const savedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
@@ -719,6 +787,7 @@ export default function OnshapeDesignAppPage() {
     setPullPackage(null);
     setCompareSummary(null);
     setCompareStepPackage(null);
+    setLibraryCompareResult(null);
   }, [lastPart?.part_id]);
 
   useEffect(() => {
@@ -1232,7 +1301,7 @@ export default function OnshapeDesignAppPage() {
           external_project_id: context.companyId || null,
           external_document_id: context.documentId || null,
           external_item_id:
-            context.partId || context.elementId || context.tabElementId || null,
+            context.elementId || context.tabElementId || context.partId || null,
           external_version_id:
             context.microversionId || context.versionId || null,
           external_revision_id: context.revision || null,
@@ -1291,6 +1360,111 @@ export default function OnshapeDesignAppPage() {
     }
   }
 
+  function toggleLibraryRevisionList(partId: string) {
+    setExpandedLibraryPartIds((current) =>
+      current.includes(partId)
+        ? current.filter((id) => id !== partId)
+        : [...current, partId],
+    );
+  }
+
+  function toggleLibraryCompareSelection(part: PublishedPart) {
+    setLibraryCompareResult(null);
+    setLibraryCompareSelection((current) => {
+      if (current.some((item) => item.part_id === part.part_id)) {
+        return current.filter((item) => item.part_id !== part.part_id);
+      }
+
+      return [...current.slice(-1), part];
+    });
+  }
+
+  async function importLibraryComparePart(part: PublishedPart) {
+    const payload = await callOnshapeApi<PullPackage>(
+      "/api/design-app/onshape/pull-package",
+      {
+        method: "POST",
+        body: JSON.stringify({ part_id: part.part_id }),
+      },
+    );
+    const stepFile = primaryStepFile(payload.step_files);
+
+    if (!stepFile?.file_id) {
+      throw new Error(
+        `${partDisplayName(part)} ${revisionDisplay(part)} does not have a STEP file available for Onshape comparison.`,
+      );
+    }
+
+    const imported = await callOnshapeApi<ImportStepPayload>(
+      "/api/design-app/onshape/import-step",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          mode: "current_document",
+          part_id: part.part_id,
+          file_id: stepFile.file_id,
+          documentId: onshapeDocumentId,
+          workspaceId: editableWorkspaceId,
+          workspaceOrVersion: onshapeWorkspaceOrVersion,
+          workspaceOrVersionId: onshapeWorkspaceOrVersionId,
+        }),
+      },
+    );
+
+    return { part, stepFile, imported };
+  }
+
+  async function compareLibrarySelection() {
+    if (libraryCompareSelection.length !== 2) {
+      setStatus("Select two library revisions to compare.");
+      return;
+    }
+
+    if (!onshapeDocumentId || !editableWorkspaceId) {
+      setStatus(
+        "Open this app from an editable Onshape workspace before running a library-to-library compare.",
+      );
+      return;
+    }
+
+    const [leftPart, rightPart] = libraryCompareSelection;
+
+    setState("working");
+    setLibraryCompareResult(null);
+    setStatus("Importing both Kordyne STEP files into this Onshape document...");
+
+    try {
+      const left = await importLibraryComparePart(leftPart);
+      const right = await importLibraryComparePart(rightPart);
+      const leftSize = left.stepFile.size_bytes;
+      const rightSize = right.stepFile.size_bytes;
+      const fileSizeDeltaBytes =
+        typeof leftSize === "number" && typeof rightSize === "number"
+          ? Math.abs(leftSize - rightSize)
+          : null;
+
+      setLibraryCompareResult({ left, right, fileSizeDeltaBytes });
+      setState("connected");
+
+      const switched =
+        focusOnshapeElement(right.imported.onshape.element_id) ||
+        focusOnshapeElement(left.imported.onshape.element_id);
+
+      setStatus(
+        switched
+          ? "Imported both selected library revisions and switched to the newest comparison tab."
+          : "Imported both selected library revisions into this Onshape document for side-by-side comparison.",
+      );
+    } catch (error) {
+      setState("error");
+      setStatus(
+        error instanceof Error
+          ? error.message
+          : "Library comparison import failed.",
+      );
+    }
+  }
+
   function linkLibraryPart(item: PublishedPart, tab: ActiveTab = "publish") {
     setLastPart(item);
     setSelectedMatch(item);
@@ -1304,10 +1478,6 @@ export default function OnshapeDesignAppPage() {
       setStatus("Publish or link this Onshape context before compare.");
       return;
     }
-
-    const editableWorkspaceId =
-      onshapeWorkspaceId ||
-      (onshapeWorkspaceOrVersion === "w" ? onshapeWorkspaceOrVersionId : "");
 
     setState("working");
     setStatus("Checking Kordyne revision status...");
@@ -1368,9 +1538,13 @@ export default function OnshapeDesignAppPage() {
           },
         );
 
+        const switchedToImport = focusOnshapeElement(imported.onshape.element_id);
+
         if (imported.onshape.open_url) {
           compareOpenMessage =
-            " Latest STEP was imported into this Onshape document for visual review.";
+            switchedToImport
+              ? " Latest STEP was imported and Onshape is switching to the comparison tab."
+              : " Latest STEP was imported into this Onshape document for visual review.";
         } else {
           compareOpenMessage =
             " Latest STEP was imported into this Onshape document, but Onshape did not return a direct tab URL.";
@@ -1421,20 +1595,25 @@ export default function OnshapeDesignAppPage() {
         const isCurrentOnshapeDocument =
           payload.source_link?.external_document_id &&
           payload.source_link.external_document_id === onshapeDocumentId;
+        const switchedToNative =
+          isCurrentOnshapeDocument &&
+          focusOnshapeElement(
+            payload.source_link?.focus_element_id ||
+              payload.source_link?.external_item_id,
+          );
 
         setState("connected");
         setStatus(
-          isCurrentOnshapeDocument
-            ? `Native Onshape source for Rev ${fieldOrDash(payload.part.revision)} is already the active document.`
+          switchedToNative
+            ? `Switched to the native Onshape tab for Rev ${fieldOrDash(payload.part.revision)}.`
+            : isCurrentOnshapeDocument
+              ? `Native Onshape source for Rev ${fieldOrDash(payload.part.revision)} is in this document, but Kordyne could not identify the exact Onshape tab to focus.`
             : `Native Onshape source is available for Rev ${fieldOrDash(payload.part.revision)}. Use the source link below if you need to open that document.`,
         );
         return;
       }
 
       const primaryStep = payload.step_files[0];
-      const editableWorkspaceId =
-        onshapeWorkspaceId ||
-        (onshapeWorkspaceOrVersion === "w" ? onshapeWorkspaceOrVersionId : "");
 
       if (primaryStep?.file_id && onshapeDocumentId && editableWorkspaceId) {
         setStatus("Native Onshape source is not available. Importing STEP into this Onshape document...");
@@ -1455,10 +1634,14 @@ export default function OnshapeDesignAppPage() {
           },
         );
 
+        const switchedToImport = focusOnshapeElement(imported.onshape.element_id);
+
         if (imported.onshape.open_url) {
           setState("connected");
           setStatus(
-            `Imported STEP for Rev ${fieldOrDash(payload.part.revision)} into this Onshape document. Use the new Onshape tab for edits, then publish back as a new revision.`,
+            switchedToImport
+              ? `Imported STEP for Rev ${fieldOrDash(payload.part.revision)} and switched to the new Onshape tab. Edit there, then publish back as a new revision.`
+              : `Imported STEP for Rev ${fieldOrDash(payload.part.revision)} into this Onshape document. Use the new Onshape tab for edits, then publish back as a new revision.`,
           );
           return;
         }
@@ -1498,6 +1681,9 @@ export default function OnshapeDesignAppPage() {
 
       setLibraryItems(payload.items);
       setLibraryProjects(payload.projects ?? []);
+      setExpandedLibraryPartIds([]);
+      setLibraryCompareSelection([]);
+      setLibraryCompareResult(null);
       setLibraryLoaded(true);
       setState("connected");
       setStatus(
@@ -1520,6 +1706,9 @@ export default function OnshapeDesignAppPage() {
     setThumbnailFile(null);
     setLibraryItems([]);
     setLibraryLoaded(false);
+    setExpandedLibraryPartIds([]);
+    setLibraryCompareSelection([]);
+    setLibraryCompareResult(null);
     setPullPackage(null);
     setCompareSummary(null);
     setCompareStepPackage(null);
@@ -2106,6 +2295,66 @@ export default function OnshapeDesignAppPage() {
                 ))}
               </select>
             </div>
+            {libraryLoaded ? (
+              <div className={`mt-3 border p-3 text-xs ${panel}`}>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-bold">Library compare</p>
+                    <p className={`mt-1 leading-5 ${muted}`}>
+                      Select any two parts or revisions to import them into this
+                      Onshape document as comparison tabs.
+                    </p>
+                  </div>
+                  <span className="shrink-0 font-bold">
+                    {libraryCompareSelection.length}/2
+                  </span>
+                </div>
+                {libraryCompareSelection.length > 0 ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {libraryCompareSelection.map((part) => (
+                      <button
+                        key={part.part_id}
+                        type="button"
+                        onClick={() => toggleLibraryCompareSelection(part)}
+                        className={`max-w-full truncate px-2 py-1 font-semibold ${secondaryButton}`}
+                      >
+                        {partDisplayName(part)} - {revisionDisplay(part)} x
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => void compareLibrarySelection()}
+                  disabled={!connected || busy || libraryCompareSelection.length !== 2}
+                  className="mt-3 h-9 w-full bg-blue-600 px-4 text-xs font-bold text-white disabled:opacity-60"
+                >
+                  Compare selected parts
+                </button>
+                {libraryCompareResult ? (
+                  <dl className="mt-3 grid grid-cols-[84px_1fr] gap-x-3 gap-y-2 border-t pt-3">
+                    <dt className={muted}>Left</dt>
+                    <dd className="truncate">
+                      {partDisplayName(libraryCompareResult.left.part)} -{" "}
+                      {revisionDisplay(libraryCompareResult.left.part)}
+                    </dd>
+                    <dt className={muted}>Right</dt>
+                    <dd className="truncate">
+                      {partDisplayName(libraryCompareResult.right.part)} -{" "}
+                      {revisionDisplay(libraryCompareResult.right.part)}
+                    </dd>
+                    <dt className={muted}>File delta</dt>
+                    <dd>
+                      {libraryCompareResult.fileSizeDeltaBytes === null
+                        ? "-"
+                        : libraryCompareResult.fileSizeDeltaBytes === 0
+                          ? "0 B"
+                          : formatBytes(libraryCompareResult.fileSizeDeltaBytes)}
+                    </dd>
+                  </dl>
+                ) : null}
+              </div>
+            ) : null}
             {libraryItems.length > 0 ? (
               <div className="mt-4 space-y-3">
                 {libraryItems.map((item) => {
@@ -2115,6 +2364,12 @@ export default function OnshapeDesignAppPage() {
                     item.preview_url ||
                     item.image_url ||
                     "";
+                  const revisions = item.revisions ?? [];
+                  const hasRevisionList = revisions.length > 1;
+                  const expanded = expandedLibraryPartIds.includes(item.part_id);
+                  const selectedForCompare = libraryCompareSelection.some(
+                    (part) => part.part_id === item.part_id,
+                  );
 
                   return (
                     <div key={item.part_id} className={`border p-3 text-sm ${panel}`}>
@@ -2151,8 +2406,20 @@ export default function OnshapeDesignAppPage() {
                             </p>
                           ) : null}
                         </div>
+                        {hasRevisionList ? (
+                          <button
+                            type="button"
+                            onClick={() => toggleLibraryRevisionList(item.part_id)}
+                            className={`h-8 w-8 shrink-0 text-base font-bold ${secondaryButton}`}
+                            aria-label={
+                              expanded ? "Collapse revisions" : "Expand revisions"
+                            }
+                          >
+                            {expanded ? "-" : "+"}
+                          </button>
+                        ) : null}
                       </div>
-                      <div className="mt-3 grid grid-cols-3 gap-2">
+                      <div className="mt-3 grid grid-cols-4 gap-2">
                         <button
                           type="button"
                           onClick={() => linkLibraryPart(item, "publish")}
@@ -2182,7 +2449,88 @@ export default function OnshapeDesignAppPage() {
                         >
                           Compare
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => toggleLibraryCompareSelection(item)}
+                          className={`h-9 text-xs font-bold ${selectedForCompare ? "bg-blue-600 text-white" : secondaryButton}`}
+                        >
+                          {selectedForCompare ? "Selected" : "Select"}
+                        </button>
                       </div>
+                      {expanded ? (
+                        <div className="mt-3 border-t pt-3">
+                          <p className={`text-xs font-bold ${muted}`}>
+                            Available revisions
+                          </p>
+                          <div className="mt-2 space-y-2">
+                            {revisions.map((revision) => {
+                              const revisionSelected = libraryCompareSelection.some(
+                                (part) => part.part_id === revision.part_id,
+                              );
+
+                              return (
+                                <div
+                                  key={revision.part_id}
+                                  className="grid gap-2 border-t pt-2 text-xs"
+                                >
+                                  <div className="min-w-0">
+                                    <p className="truncate font-bold">
+                                      {revisionDisplay(revision)}
+                                    </p>
+                                    <p className={`mt-1 truncate ${muted}`}>
+                                      {[revision.status, revision.updated_at]
+                                        .filter(Boolean)
+                                        .join(" - ") || "No status"}
+                                    </p>
+                                  </div>
+                                  <div className="grid grid-cols-4 gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        linkLibraryPart(revision, "publish")
+                                      }
+                                      className={`h-8 px-2 font-bold ${secondaryButton}`}
+                                    >
+                                      Revise
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        linkLibraryPart(revision, "library");
+                                        void pull(revision);
+                                      }}
+                                      disabled={busy}
+                                      className={`h-8 px-2 font-bold disabled:opacity-60 ${secondaryButton}`}
+                                    >
+                                      Pull
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        linkLibraryPart(revision, "library");
+                                        void compare(revision);
+                                      }}
+                                      disabled={busy}
+                                      className={`h-8 px-2 font-bold disabled:opacity-60 ${secondaryButton}`}
+                                    >
+                                      Compare
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        toggleLibraryCompareSelection(revision)
+                                      }
+                                      className={`h-8 px-2 font-bold ${revisionSelected ? "bg-blue-600 text-white" : secondaryButton}`}
+                                    >
+                                      {revisionSelected ? "A/B" : "Select"}
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
                   );
                 })}
@@ -2247,7 +2595,7 @@ export default function OnshapeDesignAppPage() {
             <h2 className="text-xl font-bold">Pull from Kordyne</h2>
             <p className={`mt-3 text-sm leading-6 ${muted}`}>
               Pull opens the native Onshape source when Kordyne has one, or
-              imports the STEP exchange file into a new Onshape document.
+              imports the STEP exchange file into this Onshape document.
             </p>
             <dl className="mt-5 grid grid-cols-[96px_1fr] gap-x-3 gap-y-3 text-sm">
               <dt className={muted}>Linked part</dt>
@@ -2387,7 +2735,7 @@ export default function OnshapeDesignAppPage() {
                 rel="noreferrer"
                 className={`mt-3 block h-11 px-5 py-3 text-center text-sm font-bold ${secondaryButton}`}
               >
-                Download latest STEP
+                Download latest STEP fallback
               </a>
             ) : null}
             <div className="mt-3 grid grid-cols-2 gap-2">

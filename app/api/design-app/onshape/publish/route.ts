@@ -230,7 +230,17 @@ export async function POST(request: Request) {
       null;
     const externalItemId =
       asString(input.external_item_id) ||
-      metadataString(cadMetadata, "element_id", "part_id", "eid", "pid") ||
+      metadataString(
+        cadMetadata,
+        "elementId",
+        "tabElementId",
+        "element_id",
+        "tab_element_id",
+        "eid",
+        "partId",
+        "part_id",
+        "pid",
+      ) ||
       null;
     const externalVersionId =
       asString(input.external_version_id) ||
