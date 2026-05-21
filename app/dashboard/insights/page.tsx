@@ -934,14 +934,15 @@ export default async function InsightsPage({
 
         <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
           <p className="text-sm font-medium text-gray-500">
-            Cost and time savings
+            Commercial baseline coverage
           </p>
           <p className="mt-3 text-2xl font-bold text-gray-900">
-            Ready for next phase
+            {formatPercent(quoteCoverageRate)}
           </p>
           <p className="mt-2 text-sm text-gray-600">
-            This page is ready to show validated savings later, once baseline
-            cost and lead-time fields are added to your request model.
+            Automatic savings should be shown only where a request has both
+            baseline and quoted values. For now this tracks how much of the
+            filtered queue has commercial data.
           </p>
         </div>
       </section>

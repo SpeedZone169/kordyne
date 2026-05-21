@@ -285,16 +285,27 @@ export default async function DesignConnectorsPage() {
         </div>
       </section>
 
-      <section className="rounded-3xl border border-gray-200 bg-white p-2 shadow-sm">
-        <Client
-          initialConnectors={connectors}
-          initialProfiles={profiles}
-          initialRuns={recentRuns}
-          organizationId={membership.organization_id}
-          currentUserId={user.id}
-          isOrgAdmin={membership.role === "admin"}
-        />
-      </section>
+      <details className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
+        <summary className="cursor-pointer text-lg font-semibold text-gray-900">
+          Advanced connector administration
+        </summary>
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
+          Day-to-day users should not need this. Kordyne handles normal publish,
+          pull, and sync flows automatically; keep the setup console available
+          for admins when credentials or scopes need review.
+        </p>
+
+        <div className="mt-5 rounded-2xl border border-gray-200 bg-gray-50 p-2">
+          <Client
+            initialConnectors={connectors}
+            initialProfiles={profiles}
+            initialRuns={recentRuns}
+            organizationId={membership.organization_id}
+            currentUserId={user.id}
+            isOrgAdmin={membership.role === "admin"}
+          />
+        </div>
+      </details>
     </div>
   );
 }

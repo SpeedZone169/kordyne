@@ -561,31 +561,31 @@ export default function Client({ data }: Props) {
 
   return (
     <div className="space-y-8">
-      <section className="rounded-[34px] border border-zinc-200 bg-white p-8 shadow-sm">
+      <section className="rounded-[14px] border border-slate-900 bg-[#0b1524] p-6 text-white shadow-sm lg:p-7">
         <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-300">
               Internal scheduling
             </p>
-            <h2 className="mt-3 text-4xl font-semibold tracking-tight text-slate-950 lg:text-5xl">
-              Internal factory schedule
+            <h2 className="mt-3 text-4xl font-semibold tracking-tight text-white lg:text-5xl">
+              Factory schedule
             </h2>
-            <p className="mt-4 max-w-3xl text-base leading-7 text-slate-600">
-              Visualise internal resource lanes, monitor assignment pressure, and
-              plan unscheduled internal work before routing externally.
+            <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-300">
+              Visualise machine lanes, maintenance windows, assignment pressure,
+              and near-term delivery risk before routing work externally.
             </p>
           </div>
 
           <div className="flex flex-wrap gap-3">
             <Link
               href="/dashboard/internal-manufacturing"
-              className="rounded-full border border-zinc-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-900 transition hover:bg-zinc-50"
+              className="rounded-full border border-white/10 bg-white/[0.06] px-5 py-2.5 text-sm font-medium text-white transition hover:bg-white/[0.1]"
             >
               Back to overview
             </Link>
             <Link
               href="/dashboard/internal-manufacturing/setup"
-              className="rounded-full bg-slate-950 px-5 py-2.5 text-sm font-medium text-white transition hover:opacity-90"
+              className="rounded-full bg-white px-5 py-2.5 text-sm font-bold text-slate-950 transition hover:bg-slate-100"
             >
               Open setup
             </Link>

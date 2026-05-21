@@ -12,8 +12,9 @@ const primaryNavItems = [
   { href: "/dashboard/parts", label: "Part Vault" },
   { href: "/dashboard/projects", label: "Projects" },
   { href: "/dashboard/requests", label: "Requests" },
+  { href: "/dashboard/internal-manufacturing/schedule", label: "Schedule" },
   { href: "/dashboard/insights", label: "Insights" },
-  { href: "/dashboard/collaboration", label: "Network" },
+  { href: "/dashboard/collaboration", label: "Collaboration" },
 ];
 
 const railNavItems = [
@@ -21,7 +22,7 @@ const railNavItems = [
   { href: "/dashboard/parts", label: "Part Vault", icon: "vault" },
   { href: "/dashboard/projects", label: "Projects", icon: "projects" },
   { href: "/dashboard/requests", label: "Requests", icon: "requests" },
-  { href: "/dashboard/collaboration", label: "Network", icon: "network" },
+  { href: "/dashboard/collaboration", label: "Collaboration", icon: "network" },
   { href: "/dashboard/insights", label: "Insights", icon: "insights" },
   { href: "/dashboard/internal-manufacturing", label: "Internal manufacturing", icon: "manufacturing" },
   { href: "/dashboard/internal-manufacturing/connectors", label: "Machine connectors", icon: "machine" },
@@ -43,10 +44,10 @@ export default async function DashboardLayout({
   return (
     <div className="min-h-screen bg-[var(--shell-bg)] text-[var(--foreground)]">
       <header className="sticky top-0 z-50 border-b border-black/10 bg-[#1c2430] text-white shadow-[0_10px_30px_rgba(2,8,23,0.18)]">
-        <div className="flex min-h-[72px] items-center gap-4 px-4 lg:px-6">
+        <div className="flex min-h-[60px] items-center gap-4 px-4 lg:px-5">
           <Link
             href="/"
-            className="flex min-w-[174px] items-center rounded-[10px] bg-white/95 px-3 py-2 shadow-sm transition hover:bg-white"
+            className="flex min-w-[148px] items-center rounded-[10px] bg-white/95 px-3 py-1.5 shadow-sm transition hover:bg-white"
             aria-label="Kordyne home"
           >
             <Image
@@ -55,7 +56,7 @@ export default async function DashboardLayout({
               width={172}
               height={44}
               priority
-              className="h-10 w-auto object-contain"
+              className="h-8 w-auto object-contain"
             />
           </Link>
 
@@ -64,7 +65,7 @@ export default async function DashboardLayout({
               <Link
                 key={item.href}
                 href={item.href}
-                className="whitespace-nowrap border-b-2 border-transparent px-4 py-6 text-sm font-semibold text-slate-300 transition hover:border-[#e08a49] hover:text-white"
+                className="whitespace-nowrap border-b-2 border-transparent px-3 py-5 text-sm font-semibold text-slate-300 transition hover:border-[#e08a49] hover:text-white"
               >
                 {item.label}
               </Link>
@@ -106,9 +107,9 @@ export default async function DashboardLayout({
         </div>
       </header>
 
-      <div className="grid min-h-[calc(100vh-72px)] lg:grid-cols-[64px_minmax(0,1fr)]">
+      <div className="grid min-h-[calc(100vh-60px)] lg:grid-cols-[64px_minmax(0,1fr)]">
         <aside className="hidden border-r border-[var(--shell-border)] bg-[var(--shell-surface)] lg:block">
-          <div className="sticky top-[72px] flex h-[calc(100vh-72px)] flex-col items-center gap-3 py-4">
+          <div className="sticky top-[60px] flex h-[calc(100vh-60px)] flex-col items-center gap-3 py-4">
             {railNavItems.map((item) => (
               <Link
                 key={item.href}

@@ -48,6 +48,16 @@ type PartFileRow = {
   file_type: string | null;
 };
 
+type RequestThumbnailFileRow = {
+  id: string;
+  part_id: string;
+  file_name: string;
+  file_type: string | null;
+  asset_category: string | null;
+  storage_path: string;
+  created_at: string;
+};
+
 type RequestPartRow = {
   id: string;
   name: string;
@@ -209,6 +219,19 @@ function isOverdue(request: Pick<ServiceRequestRow, "due_date" | "status">) {
   due.setHours(23, 59, 59, 999);
 
   return due.getTime() < now.getTime();
+}
+
+function isImageFile(
+  file: Pick<RequestThumbnailFileRow, "file_name" | "file_type" | "asset_category">,
+) {
+  const mime = (file.file_type || "").toLowerCase();
+  const extension = file.file_name.split(".").pop()?.toLowerCase() || "";
+
+  return (
+    file.asset_category === "image" ||
+    mime.startsWith("image/") ||
+    ["png", "jpg", "jpeg", "webp", "gif"].includes(extension)
+  );
 }
 
 function getDaysBetween(start: string, end: string) {
@@ -546,6 +569,37 @@ export default async function RequestsPage({
 
   const { data: requests, error } = await query;
   const requestRows = (requests as ServiceRequestRow[] | null) ?? [];
+  const requestPartIds = Array.from(
+    new Set(requestRows.map((request) => request.part_id).filter(Boolean)),
+  ) as string[];
+
+  const { data: requestPartFilesRaw } =
+    requestPartIds.length > 0
+      ? await supabase
+          .from("part_files")
+          .select("id, part_id, file_name, file_type, asset_category, storage_path, created_at")
+          .in("part_id", requestPartIds)
+          .order("created_at", { ascending: false })
+      : { data: [] as RequestThumbnailFileRow[] };
+
+  const thumbnailByPartId = new Map<string, RequestThumbnailFileRow>();
+  for (const file of (requestPartFilesRaw as RequestThumbnailFileRow[] | null) ?? []) {
+    if (!isImageFile(file) || thumbnailByPartId.has(file.part_id)) continue;
+    thumbnailByPartId.set(file.part_id, file);
+  }
+
+  const signedThumbnailUrls = new Map<string, string>();
+  await Promise.all(
+    Array.from(thumbnailByPartId.values()).map(async (file) => {
+      const { data } = await supabase.storage
+        .from("part-files")
+        .createSignedUrl(file.storage_path, 60 * 10);
+
+      if (data?.signedUrl) {
+        signedThumbnailUrls.set(file.id, data.signedUrl);
+      }
+    }),
+  );
 
   const requesterIds = Array.from(
     new Set(
@@ -1270,7 +1324,22 @@ export default async function RequestsPage({
                       </div>
 
                       {part ? (
-                        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                          {(() => {
+                            const thumbnail = thumbnailByPartId.get(part.id);
+                            const thumbnailUrl = thumbnail
+                              ? signedThumbnailUrls.get(thumbnail.id)
+                              : null;
+
+                            return thumbnailUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element -- Signed storage URLs are short-lived and permissioned.
+                              <img
+                                src={thumbnailUrl}
+                                alt=""
+                                className="mb-3 h-28 w-full rounded-xl border border-slate-200 bg-white object-contain"
+                              />
+                            ) : null;
+                          })()}
                           <div className="font-medium text-slate-900">
                             {part.name}
                           </div>

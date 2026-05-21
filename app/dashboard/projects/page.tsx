@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createProjectAction } from "./actions";
 
 type ProjectsPageProps = {
   searchParams: Promise<{
@@ -244,35 +245,81 @@ export default async function ProjectsPage({
   );
 
   return (
-    <section className="mx-auto max-w-[1540px]">
-      <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <h1 className="text-3xl font-black uppercase tracking-[-0.01em] text-slate-950">
-            Projects
-          </h1>
-          <p className="mt-1 max-w-3xl text-sm text-slate-600">
-            Explicit project and part-workspace records only. Parts remain in
-            the Vault unless an owner shares them or links them here.
-          </p>
-        </div>
+    <section className="mx-auto max-w-[1540px] space-y-5">
+      <div className="rounded-[14px] border border-slate-900 bg-[#0b1524] p-6 text-white shadow-sm lg:p-7">
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px] xl:items-start">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.22em] text-sky-300">
+              Project spaces
+            </p>
+            <h1 className="mt-3 text-4xl font-semibold tracking-tight lg:text-5xl">
+              Build with partners without turning every part into a project.
+            </h1>
+            <p className="mt-4 max-w-4xl text-sm leading-7 text-slate-300">
+              Projects are intentional workspaces for multi-part programs,
+              documentation, partner discussion, and milestones. The Parts Vault
+              remains the source of truth until an owner explicitly links a
+              revision here.
+            </p>
 
-        <div className="flex flex-wrap gap-2">
-          <Link
-            href="/dashboard/parts"
-            className="rounded-[10px] bg-[#1f6fb2] px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#185d98]"
+            <div className="mt-6 flex flex-wrap gap-2">
+              <Link
+                href="/dashboard/parts"
+                className="rounded-[10px] bg-[#1f6fb2] px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#185d98]"
+              >
+                Parts Vault
+              </Link>
+              <Link
+                href="/dashboard/collaboration"
+                className="rounded-[10px] border border-white/10 bg-white/[0.06] px-4 py-2.5 text-sm font-bold text-slate-100 transition hover:bg-white/[0.1]"
+              >
+                Collaboration
+              </Link>
+            </div>
+          </div>
+
+          <form
+            action={createProjectAction}
+            className="rounded-[12px] border border-white/10 bg-white/[0.06] p-4"
           >
-            Parts Vault
-          </Link>
-          <Link
-            href="/dashboard/parts/new"
-            className="rounded-[10px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-900 shadow-sm transition hover:bg-slate-50"
-          >
-            Import part
-          </Link>
+            <h2 className="text-base font-bold text-white">Create project</h2>
+            <p className="mt-1 text-sm leading-6 text-slate-300">
+              Start a workspace such as Build Machine X, then add vault parts,
+              milestones, and discussion inside it.
+            </p>
+            <div className="mt-4 space-y-3">
+              <input
+                name="name"
+                required
+                placeholder="Build Machine X"
+                className="w-full rounded-[10px] border border-white/10 bg-[#07111d] px-3 py-3 text-sm text-white outline-none placeholder:text-slate-500"
+              />
+              <textarea
+                name="description"
+                rows={3}
+                placeholder="R&D scope, partner context, or manufacturing goal"
+                className="w-full resize-none rounded-[10px] border border-white/10 bg-[#07111d] px-3 py-3 text-sm text-white outline-none placeholder:text-slate-500"
+              />
+              <select
+                name="project_type"
+                defaultValue="multi_part_project"
+                className="w-full rounded-[10px] border border-white/10 bg-[#07111d] px-3 py-3 text-sm text-white outline-none"
+              >
+                <option value="multi_part_project">Multi-part project</option>
+                <option value="single_part_workspace">Single-part workspace</option>
+              </select>
+              <button
+                type="submit"
+                className="w-full rounded-[10px] bg-white px-4 py-2.5 text-sm font-bold text-slate-950 transition hover:bg-slate-100"
+              >
+                Create workspace
+              </button>
+            </div>
+          </form>
         </div>
       </div>
 
-      <div className="mb-5 flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2">
         {FILTERS.map((item) => (
           <Link
             key={item.value}
@@ -316,7 +363,7 @@ export default async function ProjectsPage({
       </div>
 
       {projectCards.length > 0 ? (
-        <div className="mt-5 grid gap-4 xl:grid-cols-2">
+        <div className="grid gap-4 xl:grid-cols-2">
           {projectCards.map((project) => (
             <article
               key={project.id}
@@ -329,9 +376,12 @@ export default async function ProjectsPage({
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-xl font-black text-slate-950">
+                    <Link
+                      href={`/dashboard/projects/${project.id}`}
+                      className="text-xl font-black text-slate-950 transition hover:text-slate-700"
+                    >
                       {project.name}
-                    </h2>
+                    </Link>
                     <span className="rounded-full bg-blue-100 px-2.5 py-1 text-xs font-bold text-blue-800">
                       {getProjectTypeLabel(project.projectType)}
                     </span>
@@ -397,14 +447,12 @@ export default async function ProjectsPage({
               ) : null}
 
               <div className="mt-5 flex flex-wrap gap-2">
-                {project.primaryPart ? (
-                  <Link
-                    href={`/dashboard/parts/${project.primaryPart.id}`}
-                    className="rounded-[10px] bg-slate-950 px-4 py-2 text-sm font-bold text-white transition hover:opacity-90"
-                  >
-                    Open primary part
-                  </Link>
-                ) : null}
+                <Link
+                  href={`/dashboard/projects/${project.id}`}
+                  className="rounded-[10px] bg-slate-950 px-4 py-2 text-sm font-bold text-white transition hover:opacity-90"
+                >
+                  Open project
+                </Link>
                 <Link
                   href="/dashboard/parts"
                   className="rounded-[10px] border border-slate-200 px-4 py-2 text-sm font-bold text-slate-900 transition hover:bg-slate-50"

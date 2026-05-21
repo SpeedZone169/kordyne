@@ -69,6 +69,67 @@ function SnapshotCard({
   );
 }
 
+const vaultFlowSteps = [
+  { label: "Project", href: "/dashboard/projects" },
+  { label: "CAD <-> Vault", href: "/dashboard/parts" },
+  { label: "Part collaboration", href: "/dashboard/collaboration" },
+  { label: "External review", href: "/dashboard/requests" },
+  { label: "Manufacturing route", href: "/dashboard/internal-manufacturing/schedule" },
+];
+
+function VaultWorkflowBand() {
+  return (
+    <section className="overflow-hidden rounded-[12px] border border-slate-200 bg-[#101823] text-white shadow-sm">
+      <div className="relative p-4 lg:p-5">
+        <div className="absolute inset-0 kordyne-grid-bg opacity-45" />
+        <div className="relative grid gap-4 xl:grid-cols-[1fr_0.72fr] xl:items-center">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.12em] text-[#e08a49]">
+              Vault to production
+            </p>
+            <div className="mt-3 grid gap-2 md:grid-cols-5">
+              {vaultFlowSteps.map((step) => (
+                <Link
+                  key={step.href}
+                  href={step.href}
+                  className="rounded-[8px] border border-white/12 bg-white/[0.07] px-3 py-2 text-xs font-black text-white transition hover:bg-white/[0.12]"
+                >
+                  {step.label}
+                </Link>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Link
+              href="/dashboard/internal-manufacturing/schedule"
+              className="rounded-[8px] border border-emerald-300/20 bg-emerald-400/10 p-3 transition hover:bg-emerald-400/15"
+            >
+              <p className="text-xs font-black uppercase text-emerald-200">
+                Internal
+              </p>
+              <p className="mt-1 text-sm font-bold text-white">
+                Machines, utilisation, scheduling
+              </p>
+            </Link>
+            <Link
+              href="/dashboard/requests"
+              className="rounded-[8px] border border-[#e08a49]/30 bg-[#e08a49]/10 p-3 transition hover:bg-[#e08a49]/15"
+            >
+              <p className="text-xs font-black uppercase text-[#ffd9bd]">
+                External
+              </p>
+              <p className="mt-1 text-sm font-bold text-white">
+                Quotes, invoices, returned files
+              </p>
+            </Link>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function ActionCard({
   title,
   description,
@@ -168,6 +229,22 @@ export default async function DashboardPage() {
         .eq("organization_id", organizationId)
     : { count: 0 };
 
+  const { count: projectCount } = organizationId
+    ? await supabase
+        .from("projects")
+        .select("*", { count: "exact", head: true })
+        .eq("organization_id", organizationId)
+        .eq("project_type", "multi_part_project")
+        .neq("status", "archived")
+    : { count: 0 };
+
+  const { count: resourceCount } = organizationId
+    ? await supabase
+        .from("internal_resources")
+        .select("*", { count: "exact", head: true })
+        .eq("organization_id", organizationId)
+    : { count: 0 };
+
   const partRows = (parts as PartRow[] | null) ?? [];
   const familyCount = new Set(
     partRows.map((part) => part.part_family_id).filter(Boolean),
@@ -176,7 +253,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <section className="kordyne-dark-panel overflow-hidden rounded-[18px]">
+      <section className="kordyne-dark-panel overflow-hidden rounded-[16px]">
         <div className="grid gap-8 p-6 lg:grid-cols-[minmax(0,1.2fr)_420px] lg:p-7">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-300">
@@ -184,12 +261,12 @@ export default async function DashboardPage() {
             </p>
 
             <h1 className="mt-3 text-3xl font-semibold tracking-tight text-white lg:text-4xl">
-              Manufacturing command center
+              Command center
             </h1>
 
             <p className="mt-4 max-w-4xl text-sm leading-7 text-slate-300">
-              Part control, service requests, quotes, invoices, and connector activity
-              are organized as one operational workspace.
+              Move from controlled parts to project rooms, partner collaboration,
+              manufacturing requests, scheduling, and commercial follow-through.
             </p>
 
             <div className="mt-6 flex flex-wrap items-center gap-2">
@@ -221,10 +298,7 @@ export default async function DashboardPage() {
 
           <div className="rounded-[16px] border border-white/10 bg-white/[0.05] p-5">
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-              Signed in
-            </p>
-            <p className="mt-2 truncate text-sm font-medium text-white">
-              {user.email}
+              Workspace state
             </p>
             <div className="mt-5 grid grid-cols-2 gap-3">
               <div className="rounded-[12px] border border-white/10 bg-[#07111d] p-4">
@@ -239,17 +313,36 @@ export default async function DashboardPage() {
                   {serviceRequestCount ?? 0}
                 </p>
               </div>
+              <div className="rounded-[12px] border border-white/10 bg-[#07111d] p-4">
+                <p className="text-xs text-slate-500">Projects</p>
+                <p className="mt-2 text-2xl font-semibold text-white">
+                  {projectCount ?? 0}
+                </p>
+              </div>
+              <div className="rounded-[12px] border border-white/10 bg-[#07111d] p-4">
+                <p className="text-xs text-slate-500">Resources</p>
+                <p className="mt-2 text-2xl font-semibold text-white">
+                  {resourceCount ?? 0}
+                </p>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
+      <VaultWorkflowBand />
+
       <section className="grid gap-4 lg:grid-cols-2 xl:grid-cols-5">
         <ActionCard
-          title="Open Parts Vault"
-          description="Browse part families, revision history, and attached vault files."
-          href="/dashboard/parts"
+          title="Projects"
+          description="Open project spaces for linked parts, milestones, and partner discussion."
+          href="/dashboard/projects"
           primary
+        />
+        <ActionCard
+          title="Part Vault"
+          description="Browse part families, revision history, and controlled files."
+          href="/dashboard/parts"
         />
         <ActionCard
           title="Service Requests"
@@ -257,19 +350,32 @@ export default async function DashboardPage() {
           href="/dashboard/requests"
         />
         <ActionCard
+          title="Collaboration"
+          description="Continue project, part, provider, and reviewer conversations."
+          href="/dashboard/collaboration"
+        />
+        <ActionCard
+          title="Schedule"
+          description="Plan internal resources, machine capacity, and manufacturing work."
+          href="/dashboard/internal-manufacturing/schedule"
+        />
+      </section>
+
+      <section className="grid gap-4 md:grid-cols-3">
+        <ActionCard
+          title="Insights"
+          description="Review queue health, turnaround, and quoted value."
+          href="/dashboard/insights"
+        />
+        <ActionCard
           title="Design Connectors"
-          description="Manage connector setup, publishing, and pull flows."
+          description="Monitor automated CAD connector rollout and sync health."
           href="/dashboard/design-connectors"
         />
         <ActionCard
           title="Organization"
           description="Manage members, roles, invitations, and settings."
           href="/dashboard/organization"
-        />
-        <ActionCard
-          title="Insights"
-          description="Review queue health, turnaround, and quoted value."
-          href="/dashboard/insights"
         />
       </section>
 

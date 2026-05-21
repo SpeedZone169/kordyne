@@ -124,7 +124,7 @@ export default function PartProjectActions({
     }
 
     setDialogMode(null);
-    router.push(`/dashboard/projects?project=${data}`);
+    router.push(`/dashboard/projects/${data}`);
     router.refresh();
   }
 
@@ -244,7 +244,7 @@ export default function PartProjectActions({
             {linkedProjects.map((project) => (
               <Link
                 key={project.id}
-                href={`/dashboard/projects?project=${project.id}`}
+                href={`/dashboard/projects/${project.id}`}
                 className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 transition hover:bg-white"
               >
                 {getProjectLabel(project.projectType)}: {project.name}
