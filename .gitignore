@@ -48,3 +48,5 @@ supabase/migrations_local_backup/
 *_dump.txt
 *-dump.txt
 /kordyne-code-review-updated.zip
+
+.vercel

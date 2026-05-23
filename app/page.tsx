@@ -129,8 +129,8 @@ export default function Home() {
         <div className="relative mx-auto max-w-7xl px-5 py-20 sm:px-6 lg:px-8 lg:py-24">
           <div className="max-w-4xl">
             <Eyebrow>Advanced manufacturing digital thread</Eyebrow>
-            <h1 className="mt-5 text-6xl font-black leading-none text-white sm:text-7xl lg:text-8xl">
-              Kordyne
+            <h1 className="mt-5 max-w-4xl text-5xl font-black leading-tight text-white sm:text-6xl lg:text-7xl">
+              Controlled part collaboration from CAD to manufacturing.
             </h1>
             <p className="mt-7 max-w-3xl text-xl leading-9 text-slate-200">
               One controlled workspace for part vaults, revision history,
