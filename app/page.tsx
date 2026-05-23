@@ -125,16 +125,16 @@ export default function Home() {
 
         <div className="relative mx-auto max-w-7xl px-5 py-16 sm:px-6 lg:px-8 lg:py-20">
           <div className="max-w-5xl">
-            <Eyebrow>Advanced manufacturing digital thread</Eyebrow>
+            <Eyebrow>CAD-to-manufacturing workspace</Eyebrow>
             <h1 className="mt-5 max-w-5xl text-4xl font-black leading-tight text-white sm:text-5xl lg:text-6xl">
-              Your part vault, project workspace, and manufacturing handoff in
-              one controlled place.
+              From CAD software to manufacturing handoff, in one controlled
+              place.
             </h1>
             <p className="mt-7 max-w-4xl text-lg leading-8 text-slate-200 sm:text-xl">
-              Kordyne keeps CAD files, revisions, project discussion, supplier
-              packages, and production decisions tied to the part, instead of
-              scattered across inboxes, shared folders, and disconnected
-              portals.
+              Kordyne connects CAD release, part vault, revision control,
+              project collaboration, file previews, supplier quotes, and
+              internal or external manufacturing packages so teams can move
+              from design to production without losing context.
             </p>
 
             <div className="mt-9 flex flex-wrap gap-3">
@@ -156,16 +156,16 @@ export default function Home() {
           <div className="mt-12 grid gap-4 border-t border-white/12 pt-6 md:grid-cols-3">
             {[
               [
-                "Part truth",
-                "Files, previews, revisions, and manufacturing evidence stay attached to the correct part.",
+                "Publish from CAD",
+                "Move files, thumbnails, STEP/STL, drawings, and metadata from design tools into the vault.",
               ],
               [
-                "Project context",
-                "Create a workspace only when a part becomes part of a real project or collaboration.",
+                "Control the part",
+                "Keep revisions, previews, project links, comments, and selected shares tied to the right record.",
               ],
               [
-                "External control",
-                "Share selected files and discussions without exposing the full vault or organization.",
+                "Hand off to manufacture",
+                "Package selected files for internal machines, external providers, quotes, schedules, and returned evidence.",
               ],
             ].map(([title, body]) => (
               <div key={title} className="max-w-sm">
