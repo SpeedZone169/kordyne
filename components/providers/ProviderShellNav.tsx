@@ -1,5 +1,5 @@
-import Image from "next/image";
 import Link from "next/link";
+import BrandLogo from "@/components/BrandLogo";
 
 const links = [
   { href: "/provider", label: "Overview" },
@@ -10,14 +10,7 @@ export default function ProviderShellNav() {
   return (
     <aside className="w-full rounded-3xl border border-slate-200 bg-white p-5 shadow-sm lg:w-72">
       <Link href="/provider" className="flex items-center gap-3">
-        <Image
-          src="/kordyne-logo.svg"
-          alt="Kordyne"
-          width={40}
-          height={40}
-          className="h-10 w-auto"
-          priority
-        />
+        <BrandLogo priority heightClassName="h-10" />
         <div>
           <p className="text-sm font-medium text-slate-500">Kordyne</p>
           <h2 className="text-xl font-semibold text-slate-900">

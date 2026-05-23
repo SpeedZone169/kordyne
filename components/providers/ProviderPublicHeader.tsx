@@ -1,20 +1,13 @@
-import Image from "next/image";
 import Link from "next/link";
 import { buildProviderLoginHref } from "@/lib/auth/provider-access";
+import BrandLogo from "@/components/BrandLogo";
 
 export default function ProviderPublicHeader() {
   return (
     <header className="border-b border-slate-200 bg-white">
       <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-4 lg:px-6">
         <Link href="/providers" className="flex items-center gap-3">
-          <Image
-            src="/kordyne-logo.svg"
-            alt="Kordyne"
-            width={40}
-            height={40}
-            className="h-10 w-auto"
-            priority
-          />
+          <BrandLogo priority heightClassName="h-10" />
           <div>
             <p className="text-sm font-medium text-slate-500">Kordyne</p>
             <p className="text-lg font-semibold text-slate-900">

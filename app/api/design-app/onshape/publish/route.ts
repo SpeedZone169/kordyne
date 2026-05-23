@@ -115,7 +115,8 @@ function isAllowedFileRole(role: string) {
     role === "step" ||
     role === "stl" ||
     role === "native" ||
-    role === "thumbnail"
+    role === "thumbnail" ||
+    role === "properties"
   );
 }
 
@@ -348,7 +349,7 @@ export async function POST(request: Request) {
           {
             ok: false,
             error:
-              "Only STEP, STL, Onshape document reference and preview thumbnail files can be published from this flow.",
+              "Only STEP, STL, Onshape document reference, properties text, and preview thumbnail files can be published from this flow.",
           },
           { status: 400 },
         );

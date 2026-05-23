@@ -1,10 +1,10 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { createClient } from "../lib/supabase/client";
 import { usePathname, useRouter } from "next/navigation";
+import BrandLogo from "./BrandLogo";
 
 type AuthUser = {
   email?: string;
@@ -79,14 +79,7 @@ export default function Navbar() {
             href="/"
             className="flex shrink-0 items-center rounded-[8px] px-1 py-1.5 transition"
           >
-            <Image
-              src="/kordyne-logo.svg"
-              alt="Kordyne"
-              width={260}
-              height={64}
-              priority
-              className="h-11 w-auto object-contain sm:h-12"
-            />
+            <BrandLogo priority heightClassName="h-11 sm:h-12" />
           </Link>
 
           <nav className="hidden items-center gap-7 text-[14px] font-bold md:flex">

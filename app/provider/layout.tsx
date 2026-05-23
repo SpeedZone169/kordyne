@@ -1,11 +1,11 @@
 import type { ReactNode } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { requireProviderUser } from "@/lib/auth/provider-access";
 import { enforceMfaOrRedirect } from "@/lib/auth/mfa";
 import ShellIcon from "@/components/ShellIcon";
 import ProviderLogoutButton from "@/components/providers/ProviderLogoutButton";
 import ThemeToggle from "@/components/ThemeToggle";
+import BrandLogo from "@/components/BrandLogo";
 
 const providerNavItems = [
   { href: "/provider", label: "Dashboard" },
@@ -66,17 +66,10 @@ export default async function ProviderLayout({
         <div className="flex min-h-[72px] items-center gap-4 px-4 lg:px-6">
           <Link
             href="/"
-            className="flex min-w-[174px] items-center rounded-[10px] bg-white/95 px-3 py-2 shadow-sm transition hover:bg-white"
+            className="flex min-w-[174px] items-center rounded-[10px] px-2 py-2 transition hover:bg-white/5"
             aria-label="Kordyne home"
           >
-            <Image
-              src="/kordyne-logo.svg"
-              alt="Kordyne"
-              width={172}
-              height={44}
-              priority
-              className="h-10 w-auto object-contain"
-            />
+            <BrandLogo mode="white" priority heightClassName="h-10" />
           </Link>
 
           <nav className="hidden min-w-0 flex-1 items-center gap-1 overflow-x-auto md:flex">

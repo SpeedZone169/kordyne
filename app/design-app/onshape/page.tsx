@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type ConnectionState =
   | "checking"
@@ -94,7 +94,7 @@ type UploadedDesignFile = {
   mime_type: string;
   size_bytes: number;
   storage_path: string;
-  role: "step" | "stl" | "native" | "thumbnail";
+  role: "step" | "stl" | "native" | "thumbnail" | "properties";
   file_extension?: string | null;
 };
 
@@ -115,6 +115,20 @@ type ActiveTab = "connect" | "publish" | "library" | "pull" | "compare";
 type PublishMode = "new_family" | "new_revision";
 type PublishStatus = "idle" | "saving" | "publishing" | "published";
 type LibrarySort = "recent" | "name_asc" | "revision_desc" | "status";
+type PublishStepId =
+  | "checkpoint"
+  | "stl"
+  | "step"
+  | "properties"
+  | "preview"
+  | "package";
+type PublishStepStatus = "pending" | "active" | "done" | "warning" | "error";
+type PublishStep = {
+  id: PublishStepId;
+  label: string;
+  status: PublishStepStatus;
+  detail?: string;
+};
 
 type PullFile = {
   file_id?: string;
@@ -393,6 +407,17 @@ function formatDeltaPercent(left?: number | null, right?: number | null) {
   return `${prefix}${delta.toFixed(2)}%`;
 }
 
+function initialPublishSteps(): PublishStep[] {
+  return [
+    { id: "checkpoint", label: "Onshape state", status: "pending" },
+    { id: "stl", label: "STL viewer", status: "pending" },
+    { id: "step", label: "STEP exchange", status: "pending" },
+    { id: "properties", label: "Part properties", status: "pending" },
+    { id: "preview", label: "Preview image", status: "pending" },
+    { id: "package", label: "Kordyne package", status: "pending" },
+  ];
+}
+
 function partDisplayName(part?: PublishedPart | null) {
   if (!part) return "Kordyne part";
   return part.name || part.part_number || part.part_id || "Kordyne part";
@@ -443,6 +468,8 @@ export default function OnshapeDesignAppPage() {
   const [thumbnailFile, setThumbnailFile] = useState<UploadedDesignFile | null>(
     null,
   );
+  const [propertiesFile, setPropertiesFile] =
+    useState<UploadedDesignFile | null>(null);
   const [onshapeApiConnected, setOnshapeApiConnected] = useState(false);
   const [libraryItems, setLibraryItems] = useState<PublishedPart[]>([]);
   const [libraryQuery, setLibraryQuery] = useState("");
@@ -480,6 +507,8 @@ export default function OnshapeDesignAppPage() {
   const [publishMode, setPublishMode] = useState<PublishMode>("new_family");
   const [publishStatus, setPublishStatus] = useState<PublishStatus>("idle");
   const [publishWarning, setPublishWarning] = useState("");
+  const [publishSteps, setPublishSteps] = useState<PublishStep[]>([]);
+  const [lastPublishedFingerprint, setLastPublishedFingerprint] = useState("");
   const [publishMatches, setPublishMatches] = useState<PublishedPart[]>([]);
   const [selectedMatch, setSelectedMatch] = useState<PublishedPart | null>(null);
   const [pullPackage, setPullPackage] = useState<PullPackage | null>(null);
@@ -489,6 +518,7 @@ export default function OnshapeDesignAppPage() {
     useState<CompareStepPackage | null>(null);
   const [compareWorkspace, setCompareWorkspace] =
     useState<CompareWorkspacePayload | null>(null);
+  const publishInFlightRef = useRef(false);
 
   const storageKey = useMemo(
     () => (context ? contextStorageKey(context) : ""),
@@ -532,6 +562,33 @@ export default function OnshapeDesignAppPage() {
       return true;
     },
     [editableWorkspaceId, onshapeDocumentId, onshapeElementId, onshapeOrigin],
+  );
+  const publishFingerprint = useMemo(
+    () =>
+      [
+        context?.documentId ?? "",
+        context?.elementId ?? "",
+        context?.microversionId ?? "",
+        publishMode,
+        selectedMatch?.part_id ?? "",
+        partName.trim(),
+        partNumber.trim(),
+        material.trim(),
+        processType,
+        category,
+      ].join("|"),
+    [
+      category,
+      context?.documentId,
+      context?.elementId,
+      context?.microversionId,
+      material,
+      partName,
+      partNumber,
+      processType,
+      publishMode,
+      selectedMatch?.part_id,
+    ],
   );
 
   useEffect(() => {
@@ -752,6 +809,24 @@ export default function OnshapeDesignAppPage() {
     ],
   );
 
+  function updatePublishStep(
+    id: PublishStepId,
+    status: PublishStepStatus,
+    detail?: string,
+  ) {
+    setPublishSteps((current) =>
+      current.map((step) =>
+        step.id === id
+          ? {
+              ...step,
+              status,
+              detail,
+            }
+          : step,
+      ),
+    );
+  }
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
       const parsedContext = parseOnshapeContext();
@@ -879,6 +954,7 @@ export default function OnshapeDesignAppPage() {
   useEffect(() => {
     setPublishStatus("idle");
     setPublishWarning("");
+    setPublishSteps([]);
   }, [context?.documentId, context?.elementId, partName, partNumber]);
 
   useEffect(() => {
@@ -1226,6 +1302,77 @@ export default function OnshapeDesignAppPage() {
     }
   }
 
+  async function exportPropertiesFromOnshape(silent = false) {
+    if (!context || !token) return null;
+
+    if (!silent) {
+      setState("working");
+      setStatus("Saving Onshape part properties...");
+    }
+
+    try {
+      const response = await fetch("/api/design-app/onshape/export-properties", {
+        method: "POST",
+        headers: getAuthHeaders(token),
+        body: JSON.stringify({
+          ...context,
+          partNumber: partNumber || context.partNumber,
+          externalName: partName || displayNameForContext(context),
+        }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        ok?: boolean;
+        needs_onshape_oauth?: boolean;
+        file?: UploadedDesignFile;
+        message?: string;
+        error?: string;
+      };
+
+      if (response.status === 401) {
+        window.localStorage.removeItem(TOKEN_STORAGE_KEY);
+        setToken("");
+        setProfile(null);
+        setOnshapeApiConnected(false);
+        setPublishStatus("idle");
+        setPublishWarning("");
+        setState("not_connected");
+        setStatus("Kordyne session expired. Connect to Kordyne again.");
+        return null;
+      }
+
+      if (payload.needs_onshape_oauth) {
+        setOnshapeApiConnected(false);
+        setState("connected");
+        setStatus(
+          payload.error ||
+            "Reconnect Onshape API access before saving part properties.",
+        );
+        return null;
+      }
+
+      if (!response.ok || !payload.ok || !payload.file) {
+        throw new Error(payload.error || "Onshape property export failed.");
+      }
+
+      setPropertiesFile(payload.file);
+      setOnshapeApiConnected(true);
+      setState("connected");
+      setStatus(payload.message || "Onshape properties text file attached.");
+      return payload.file;
+    } catch (error) {
+      if (!silent) {
+        setState("error");
+        setStatus(
+          error instanceof Error
+            ? error.message
+            : "Onshape property export failed.",
+        );
+      }
+
+      return null;
+    }
+  }
+
   async function findPotentialPublishMatches() {
     if (!token) return [];
 
@@ -1262,10 +1409,18 @@ export default function OnshapeDesignAppPage() {
 
   async function publish() {
     if (!context || !token) return;
+    if (publishInFlightRef.current) return;
 
+    if (lastPublishedFingerprint && lastPublishedFingerprint === publishFingerprint) {
+      setStatus("This package was already saved to Kordyne.");
+      return;
+    }
+
+    publishInFlightRef.current = true;
     setState("working");
     setPublishStatus("saving");
     setPublishWarning("");
+    setPublishSteps(initialPublishSteps());
     setStatus("Saving package: checking Onshape and Kordyne data...");
 
     try {
@@ -1276,7 +1431,9 @@ export default function OnshapeDesignAppPage() {
         return;
       }
 
+      updatePublishStep("checkpoint", "active", "Confirming latest cloud state");
       await prepareOnshapeCheckpoint("Publish");
+      updatePublishStep("checkpoint", "done", "Latest state confirmed");
 
       let targetMatch =
         publishMode === "new_revision"
@@ -1304,19 +1461,40 @@ export default function OnshapeDesignAppPage() {
       }
 
       if (publishMode === "new_revision" && !targetMatch?.part_id) {
+        updatePublishStep("package", "error", "No revision target selected");
         setPublishStatus("idle");
         setState("error");
         setStatus("Select an existing Kordyne part before publishing a revision.");
         return;
       }
 
+      let publishStlFile = stlFile;
+      if (!publishStlFile) {
+        updatePublishStep("stl", "active", "Exporting viewer geometry");
+        setStatus("Saving package: exporting STL viewer geometry...");
+        publishStlFile = await exportStlFromOnshape(true);
+      }
+
+      if (!publishStlFile) {
+        updatePublishStep("stl", "warning", "STL was not returned");
+        setPublishWarning(
+          onshapeApiConnected
+            ? "Onshape did not return STL viewer geometry. Kordyne will still publish the package, but browser preview may fall back to controlled STEP preparation."
+            : "Reconnect Onshape API access so Kordyne can export STL viewer geometry automatically.",
+        );
+      } else {
+        updatePublishStep("stl", "done", publishStlFile.filename);
+      }
+
       let publishStepFile = stepFile;
       if (!publishStepFile) {
+        updatePublishStep("step", "active", "Converting exchange file");
         setStatus("Saving package: exporting STEP from Onshape...");
         publishStepFile = await exportStepFromOnshape(true);
       }
 
       if (!publishStepFile) {
+        updatePublishStep("step", "error", "STEP export failed");
         setPublishStatus("idle");
         setState("connected");
         setStatus(
@@ -1326,37 +1504,42 @@ export default function OnshapeDesignAppPage() {
         );
         return;
       }
+      updatePublishStep("step", "done", publishStepFile.filename);
 
-      let publishStlFile = stlFile;
-      if (!publishStlFile) {
-        setStatus("Saving package: exporting STL viewer geometry...");
-        publishStlFile = await exportStlFromOnshape(true);
+      let publishPropertiesFile = propertiesFile;
+      if (!publishPropertiesFile) {
+        updatePublishStep("properties", "active", "Saving mass properties");
+        setStatus("Saving package: exporting part properties...");
+        publishPropertiesFile = await exportPropertiesFromOnshape(true);
       }
 
-      if (!publishStlFile) {
-        setPublishWarning(
-          onshapeApiConnected
-            ? "Onshape did not return STL viewer geometry. Kordyne will still publish the package, but browser preview may fall back to controlled STEP preparation."
-            : "Reconnect Onshape API access so Kordyne can export STL viewer geometry automatically.",
-        );
+      if (!publishPropertiesFile) {
+        updatePublishStep("properties", "warning", "Properties unavailable");
+      } else {
+        updatePublishStep("properties", "done", publishPropertiesFile.filename);
       }
 
       let publishThumbnailFile = thumbnailFile;
       if (!publishThumbnailFile) {
+        updatePublishStep("preview", "active", "Capturing thumbnail");
         setStatus("Saving package: capturing Onshape preview...");
         publishThumbnailFile = await exportThumbnailFromOnshape(true);
       }
 
       if (!publishThumbnailFile) {
+        updatePublishStep("preview", "warning", "Preview unavailable");
         setPublishWarning(
           onshapeApiConnected
             ? "Onshape did not return a preview image. Kordyne will publish the CAD package now and the thumbnail can be refreshed later."
             : "Onshape API access needs reconnecting before Kordyne can refresh the preview thumbnail.",
         );
+      } else {
+        updatePublishStep("preview", "done", publishThumbnailFile.filename);
       }
 
       setState("working");
       setPublishStatus("publishing");
+      updatePublishStep("package", "active", "Creating Vault record");
       setStatus(
         publishMode === "new_revision"
           ? "Publishing package: creating next Kordyne revision..."
@@ -1367,9 +1550,14 @@ export default function OnshapeDesignAppPage() {
         ? [
             publishStepFile,
             ...(publishStlFile ? [publishStlFile] : []),
+            ...(publishPropertiesFile ? [publishPropertiesFile] : []),
             publishThumbnailFile,
           ]
-        : [publishStepFile, ...(publishStlFile ? [publishStlFile] : [])];
+        : [
+            publishStepFile,
+            ...(publishStlFile ? [publishStlFile] : []),
+            ...(publishPropertiesFile ? [publishPropertiesFile] : []),
+          ];
 
       const payload = await callOnshapeApi<{
         ok: boolean;
@@ -1412,6 +1600,8 @@ export default function OnshapeDesignAppPage() {
               native_source: "onshape_document_reference",
               step_storage_path: publishStepFile.storage_path,
               stl_storage_path: publishStlFile?.storage_path ?? null,
+              properties_storage_path:
+                publishPropertiesFile?.storage_path ?? null,
               thumbnail_storage_path: publishThumbnailFile?.storage_path ?? null,
               thumbnail_filename: publishThumbnailFile?.filename ?? null,
             },
@@ -1436,15 +1626,29 @@ export default function OnshapeDesignAppPage() {
       setLibraryLoaded(false);
       setState("connected");
       setPublishStatus("published");
+      setLastPublishedFingerprint(publishFingerprint);
+      updatePublishStep("package", "done", "Package saved in Kordyne");
       setStatus(
         payload.revision
-          ? `Part published to Kordyne as revision ${payload.revision}.`
-          : "Part published to Kordyne.",
+          ? `Package saved in Kordyne as revision ${payload.revision}.`
+          : "Package saved in Kordyne.",
       );
+      window.setTimeout(() => {
+        setPublishSteps([]);
+      }, 3500);
     } catch (error) {
       setPublishStatus("idle");
       setState("error");
+      setPublishSteps((current) =>
+        current.map((step) =>
+          step.status === "active"
+            ? { ...step, status: "error", detail: "Stopped" }
+            : step,
+        ),
+      );
       setStatus(error instanceof Error ? error.message : "Publish failed.");
+    } finally {
+      publishInFlightRef.current = false;
     }
   }
 
@@ -1942,6 +2146,7 @@ export default function OnshapeDesignAppPage() {
     setStepFile(null);
     setStlFile(null);
     setThumbnailFile(null);
+    setPropertiesFile(null);
     setLibraryItems([]);
     setLibraryLoaded(false);
     setExpandedLibraryPartIds([]);
@@ -1985,20 +2190,23 @@ export default function OnshapeDesignAppPage() {
   const inactiveTab = isDark
     ? "rounded-md border border-cyan-200/20 bg-[#0b3f4f] text-white"
     : "rounded-md border border-[#c9dce3] bg-white text-[#003040]";
-  const activePartId = context?.partId || resolvedPart?.partId || "";
   const activePartRevision = context?.revision || resolvedPart?.revision || "";
   const activePartName =
     resolvedPart?.name ||
     (partName && !partName.startsWith("Onshape element") ? partName : "") ||
     contextName;
   const publishButtonText =
-    publishStatus === "published"
-      ? "Part published"
-      : publishStatus === "publishing"
-        ? "Publishing..."
-        : publishStatus === "saving"
-          ? "Saving package..."
-          : "Publish to Kordyne";
+    lastPublishedFingerprint && lastPublishedFingerprint === publishFingerprint
+      ? "Package saved in Kordyne"
+      : publishInFlightRef.current
+        ? "Publishing package..."
+        : publishStatus === "published"
+          ? "Package saved"
+          : publishStatus === "publishing"
+            ? "Publishing package..."
+            : publishStatus === "saving"
+              ? "Preparing package..."
+              : "Publish package to Kordyne";
   const publishButtonClass =
     publishStatus === "published"
       ? "rounded-md bg-emerald-600 text-white"
@@ -2009,6 +2217,35 @@ export default function OnshapeDesignAppPage() {
       : publishMatches.length > 0
         ? "Target: new Kordyne part family - duplicate intentionally allowed"
         : "Target: new Kordyne part family";
+  const sourceLocation =
+    context?.documentName ||
+    context?.elementName ||
+    (context?.documentId ? "Current Onshape document" : "No Onshape document");
+  const activePartNumber =
+    context?.partNumber || resolvedPart?.partNumber || partNumber || "";
+  const revisionPlan =
+    publishMode === "new_revision"
+      ? selectedMatch?.revision
+        ? `Next after Rev ${selectedMatch.revision}`
+        : lastPart?.revision
+          ? `Next after Rev ${lastPart.revision}`
+          : "Existing part revision"
+      : revisionScheme === "numeric"
+        ? "New part family, Rev 1"
+        : "New part family, Rev A";
+  const publishProgressPercent =
+    publishSteps.length === 0
+      ? 0
+      : Math.round(
+          (publishSteps.filter((step) =>
+            ["done", "warning"].includes(step.status),
+          ).length /
+            publishSteps.length) *
+            100,
+        );
+  const duplicatePublishBlocked =
+    Boolean(lastPublishedFingerprint) &&
+    lastPublishedFingerprint === publishFingerprint;
 
   function navButton(tab: ActiveTab, label: string) {
     return (
@@ -2041,7 +2278,7 @@ export default function OnshapeDesignAppPage() {
             aria-label="Open Kordyne website"
           >
             <Image
-              src="/kordyne-logo.svg"
+              src={isDark ? "/kordyne-logo-white.svg" : "/kordyne-logo.svg"}
               alt="Kordyne"
               width={260}
               height={72}
@@ -2065,14 +2302,6 @@ export default function OnshapeDesignAppPage() {
           {connected ? "Connected" : "Not connected"}
         </div>
 
-        <section className={`p-5 ${card}`}>
-          <h1 className="text-lg font-bold">Onshape design-to-vault workspace</h1>
-          <p className={`mt-2 text-sm leading-6 ${muted}`}>
-            Connect once, publish cleanly, and move from Onshape design context
-            to Kordyne with fewer clicks.
-          </p>
-        </section>
-
         <dl className="grid grid-cols-[120px_1fr] gap-x-3 gap-y-3 text-sm">
           <dt className={`font-bold ${muted}`}>User</dt>
           <dd>{fieldOrDash(profile?.user?.full_name || profile?.user?.email)}</dd>
@@ -2085,7 +2314,7 @@ export default function OnshapeDesignAppPage() {
         <section className={`p-5 ${card}`}>
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 className="text-base font-bold">Active Onshape context</h2>
+              <h2 className="text-base font-bold">Active design context</h2>
               <p className="mt-3 text-sm font-bold">{activePartName}</p>
             </div>
             {onshapeApiConnected ? (
@@ -2093,17 +2322,17 @@ export default function OnshapeDesignAppPage() {
             ) : null}
           </div>
 
-          <dl className="mt-5 grid grid-cols-[92px_1fr] gap-x-3 gap-y-3 text-sm">
-            <dt className={muted}>Document</dt>
-            <dd className="truncate">{fieldOrDash(context?.documentId)}</dd>
-            <dt className={muted}>Element</dt>
-            <dd className="truncate">{fieldOrDash(context?.elementId)}</dd>
-            <dt className={muted}>Part</dt>
-            <dd className="truncate">{fieldOrDash(activePartId)}</dd>
+          <dl className="mt-5 grid grid-cols-[112px_1fr] gap-x-3 gap-y-3 text-sm">
+            <dt className={muted}>Source</dt>
+            <dd className="truncate">{fieldOrDash(sourceLocation)}</dd>
+            <dt className={muted}>CAD part</dt>
+            <dd className="truncate">{fieldOrDash(activePartName)}</dd>
             <dt className={muted}>Part no.</dt>
-            <dd className="truncate">{fieldOrDash(context?.partNumber || resolvedPart?.partNumber || partNumber)}</dd>
-            <dt className={muted}>Revision</dt>
-            <dd>{fieldOrDash(activePartRevision)}</dd>
+            <dd className="truncate">{fieldOrDash(activePartNumber)}</dd>
+            <dt className={muted}>Kordyne target</dt>
+            <dd className="truncate">{fieldOrDash(selectedMatch?.name || lastPart?.name)}</dd>
+            <dt className={muted}>Revision plan</dt>
+            <dd>{revisionPlan}</dd>
           </dl>
 
           {context && !publishableContext ? (
@@ -2353,68 +2582,67 @@ export default function OnshapeDesignAppPage() {
               </div>
             ) : null}
 
-            <div className={`mt-5 border p-4 ${panel}`}>
-              <h3 className="text-sm font-bold">Publish package</h3>
-              <p className={`mt-2 text-xs leading-5 ${muted}`}>
-                Publish exports STL for browser viewing, STEP for exchange, and
-                stores an Onshape native reference so the feature tree stays
-                editable in Onshape.
-              </p>
-              {stlFile ? (
-                <p className="mt-3 truncate text-xs font-bold text-emerald-500">
-                  STL viewer ready: {stlFile.filename}
-                </p>
-              ) : (
-                <p className={`mt-3 text-xs ${muted}`}>
-                  STL viewer geometry will be exported during publish.
-                </p>
-              )}
-              {stepFile ? (
-                <p className="mt-2 truncate text-xs font-bold text-emerald-500">
-                  STEP ready: {stepFile.filename}
-                </p>
-              ) : (
-                <p className={`mt-2 text-xs ${muted}`}>
-                  STEP will be exported during publish.
-                </p>
-              )}
-              {thumbnailFile ? (
-                <p className="mt-2 truncate text-xs font-bold text-emerald-500">
-                  Preview ready: {thumbnailFile.filename}
-                </p>
-              ) : (
-                <p className={`mt-2 text-xs ${muted}`}>
-                  Preview will be captured during publish.
-                </p>
-              )}
-              {publishWarning ? (
-                <p className="mt-3 text-xs font-semibold text-amber-500">
-                  {publishWarning}
-                </p>
-              ) : null}
-              <p className={`mt-3 text-xs ${muted}`}>
-                Onshape API:{" "}
-                <span
-                  className={
-                    onshapeApiConnected ? "font-bold text-emerald-500" : "font-bold"
-                  }
-                >
-                  {onshapeApiConnected ? "connected" : "reconnect needed"}
-                </span>
-              </p>
+            {publishSteps.length > 0 ? (
+              <div className={`mt-5 border p-4 ${panel}`}>
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-sm font-bold">Publishing package</h3>
+                  <span className={`text-xs font-bold ${muted}`}>
+                    {publishProgressPercent}%
+                  </span>
+                </div>
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200/70">
+                  <div
+                    className="h-full rounded-full bg-[#00bdde] transition-all"
+                    style={{ width: `${publishProgressPercent}%` }}
+                  />
+                </div>
+                <div className="mt-4 space-y-2">
+                  {publishSteps.map((step) => (
+                    <div
+                      key={step.id}
+                      className="grid grid-cols-[18px_1fr] items-start gap-2 text-xs"
+                    >
+                      <span
+                        className={`mt-0.5 h-3.5 w-3.5 rounded-full border ${
+                          step.status === "done"
+                            ? "border-emerald-500 bg-emerald-500"
+                            : step.status === "active"
+                              ? "border-[#00bdde] bg-[#00bdde]"
+                              : step.status === "warning"
+                                ? "border-amber-500 bg-amber-500"
+                                : step.status === "error"
+                                  ? "border-red-500 bg-red-500"
+                                  : "border-slate-400/60"
+                        }`}
+                      />
+                      <p>
+                        <span className="font-bold">{step.label}</span>
+                        {step.detail ? (
+                          <span className={`ml-1 ${muted}`}>{step.detail}</span>
+                        ) : null}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            <div className="mt-5 grid gap-3">
               {!onshapeApiConnected ? (
                 <button
                   type="button"
                   onClick={() => void connectOnshapeApi()}
                   disabled={!connected || busy}
-                  className={`mt-3 h-10 w-full text-sm font-bold disabled:opacity-60 ${primaryButton}`}
+                  className={`h-10 w-full text-sm font-bold disabled:opacity-60 ${primaryButton}`}
                 >
                   Reconnect Onshape API
                 </button>
               ) : null}
-            </div>
-
-            <div className="mt-5 grid gap-3">
+              {publishWarning ? (
+                <p className="text-xs font-semibold text-amber-500">
+                  {publishWarning}
+                </p>
+              ) : null}
               <button
                 type="button"
                 onClick={() => void publish()}
@@ -2422,35 +2650,11 @@ export default function OnshapeDesignAppPage() {
                   !connected ||
                   busy ||
                   !publishableContext ||
-                  publishStatus === "published"
+                  duplicatePublishBlocked
                 }
                 className={`h-11 px-5 text-sm font-bold disabled:opacity-60 ${publishButtonClass}`}
               >
                 {publishButtonText}
-              </button>
-              <button
-                type="button"
-                onClick={() => void exportStlFromOnshape()}
-                disabled={!connected || busy || !publishableContext}
-                className={`h-10 text-sm font-bold disabled:opacity-60 ${secondaryButton}`}
-              >
-                Export STL viewer only
-              </button>
-              <button
-                type="button"
-                onClick={() => void exportStepFromOnshape()}
-                disabled={!connected || busy || !publishableContext}
-                className={`h-10 text-sm font-bold disabled:opacity-60 ${secondaryButton}`}
-              >
-                Export STEP only
-              </button>
-              <button
-                type="button"
-                onClick={() => void exportThumbnailFromOnshape()}
-                disabled={!connected || busy || !publishableContext}
-                className={`h-10 text-sm font-bold disabled:opacity-60 ${secondaryButton}`}
-              >
-                Capture preview only
               </button>
             </div>
           </section>

@@ -1,11 +1,11 @@
 import type { ReactNode } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getProviderContext, isProviderOnlyUser } from "@/lib/auth/provider-access";
 import ShellIcon from "@/components/ShellIcon";
 import ThemeToggle from "@/components/ThemeToggle";
 import LogoutButton from "./LogoutButton";
+import BrandLogo from "@/components/BrandLogo";
 
 const primaryNavItems = [
   { href: "/dashboard", label: "Dashboard" },
@@ -47,17 +47,10 @@ export default async function DashboardLayout({
         <div className="flex min-h-[60px] items-center gap-4 px-4 lg:px-5">
           <Link
             href="/"
-            className="flex min-w-[148px] items-center rounded-[10px] bg-white/95 px-3 py-1.5 shadow-sm transition hover:bg-white"
+            className="flex min-w-[148px] items-center rounded-[10px] px-2 py-1.5 transition hover:bg-white/5"
             aria-label="Kordyne home"
           >
-            <Image
-              src="/kordyne-logo.svg"
-              alt="Kordyne"
-              width={172}
-              height={44}
-              priority
-              className="h-8 w-auto object-contain"
-            />
+            <BrandLogo mode="white" priority heightClassName="h-8" />
           </Link>
 
           <nav className="hidden min-w-0 flex-1 items-center gap-1 overflow-x-auto md:flex">
