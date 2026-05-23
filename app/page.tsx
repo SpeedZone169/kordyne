@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
-import { WorkflowShowcase, WorkflowStrip } from "@/components/MarketingShowcase";
+import { WorkflowShowcase } from "@/components/MarketingShowcase";
 
 function Eyebrow({ children }: { children: React.ReactNode }) {
   return (
@@ -11,7 +11,27 @@ function Eyebrow({ children }: { children: React.ReactNode }) {
   );
 }
 
-function CapabilityCard({
+function SectionIntro({
+  eyebrow,
+  title,
+  body,
+}: {
+  eyebrow: string;
+  title: string;
+  body: string;
+}) {
+  return (
+    <div className="max-w-3xl">
+      <Eyebrow>{eyebrow}</Eyebrow>
+      <h2 className="mt-4 text-4xl font-black leading-tight text-slate-950 sm:text-5xl">
+        {title}
+      </h2>
+      <p className="mt-5 text-lg leading-8 text-slate-600">{body}</p>
+    </div>
+  );
+}
+
+function FeatureCard({
   title,
   body,
 }: {
@@ -26,92 +46,74 @@ function CapabilityCard({
   );
 }
 
-const flowSteps = [
-  "Project",
-  "CAD <-> Kordyne Vault",
-  "Collaboration Space",
-  "External Collaboration",
+const heroProofPoints = [
+  [
+    "Publish from CAD",
+    "Move files, thumbnails, STEP/STL, drawings, and metadata from design tools into the vault.",
+  ],
+  [
+    "Control the part",
+    "Keep revisions, previews, project links, comments, and selected shares tied to the right record.",
+  ],
+  [
+    "Hand off to manufacture",
+    "Package selected files for internal machines, external providers, quotes, schedules, and returned evidence.",
+  ],
 ];
 
-const internalFlow = [
-  "Internal Manufacturing",
-  "Machine Utilisation",
-  "Scheduling",
+const painPoints = [
+  "CAD files live in one place, screenshots in another, and the actual manufacturing decision happens in email.",
+  "A part becomes a project too early, or never gets a proper project space when collaboration actually starts.",
+  "Suppliers receive file packs without the revision, discussion, access limits, and returned evidence staying connected.",
 ];
 
-const externalFlow = [
-  "External Manufacturing",
-  "Supplier Quote",
-  "Invoicing",
-  "Inventory Update",
-  "Project Update",
+const workflowSteps = [
+  {
+    number: "01",
+    title: "Release from CAD",
+    body: "Publish the part, revision, preview image, STEP/STL, drawing, and metadata from design tools into Kordyne.",
+  },
+  {
+    number: "02",
+    title: "Work from the vault",
+    body: "Review files, manage revisions, keep notes attached, and decide whether the part stays standalone or joins a project.",
+  },
+  {
+    number: "03",
+    title: "Create the handoff",
+    body: "Send selected files to internal manufacturing, external providers, quote workflows, schedules, and returned-file tracking.",
+  },
 ];
 
-function FlowPill({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="rounded-[8px] border border-white/12 bg-white/[0.07] px-4 py-3 text-sm font-black text-white shadow-sm">
-      {children}
-    </div>
-  );
-}
+const workspaceTypes = [
+  {
+    title: "Parts Vault",
+    body: "The source of truth for every part, revision, file, thumbnail, metadata field, and manufacturing evidence.",
+  },
+  {
+    title: "Part Workspace",
+    body: "A focused place for one part or revision when it needs notes, internal discussion, or controlled external sharing.",
+  },
+  {
+    title: "Project Workspace",
+    body: "An intentional collaboration space for a customer program, R&D build, machine package, or multi-part manufacturing effort.",
+  },
+];
 
-function WorkflowRouteMap() {
-  return (
-    <section className="bg-[#003040] py-16 text-white lg:py-20">
-      <div className="mx-auto max-w-7xl px-5 sm:px-6 lg:px-8">
-        <div className="grid gap-10 lg:grid-cols-[0.85fr_1.15fr] lg:items-start">
-          <div>
-            <Eyebrow>Operating flow</Eyebrow>
-            <h2 className="mt-4 text-4xl font-black leading-tight text-white sm:text-5xl">
-              A finished workflow from project context to manufacturing
-              execution.
-            </h2>
-            <p className="mt-5 text-lg leading-8 text-slate-300">
-              Kordyne keeps the part record alive as it moves through CAD,
-              vault control, collaboration, provider routing, production,
-              commercial response, inventory, and project status.
-            </p>
-          </div>
-
-          <div className="relative overflow-hidden rounded-[8px] border border-white/12 bg-white/[0.05] p-5">
-            <div className="absolute inset-0 kordyne-grid-bg opacity-50" />
-            <div className="relative space-y-5">
-              <div className="grid gap-3 md:grid-cols-4">
-                {flowSteps.map((step) => (
-                  <FlowPill key={step}>{step}</FlowPill>
-                ))}
-              </div>
-
-              <div className="grid gap-4 lg:grid-cols-2">
-                <div className="rounded-[8px] border border-[#00bdde]/25 bg-[#00bdde]/10 p-4">
-                  <p className="text-xs font-black uppercase text-[#8ceeff]">
-                    Internal route
-                  </p>
-                  <div className="mt-3 grid gap-3">
-                    {internalFlow.map((step) => (
-                      <FlowPill key={step}>{step}</FlowPill>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="rounded-[8px] border border-white/15 bg-white/[0.06] p-4">
-                  <p className="text-xs font-black uppercase text-white/75">
-                    External route
-                  </p>
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                    {externalFlow.map((step) => (
-                      <FlowPill key={step}>{step}</FlowPill>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
+const handoffRoutes = [
+  {
+    title: "Internal manufacturing",
+    body: "Route work to internal machines, schedules, capabilities, and factory resources without losing the source part context.",
+  },
+  {
+    title: "External providers",
+    body: "Share selected files for quotes and manufacturing review while keeping vault access, downloads, and returned files controlled.",
+  },
+  {
+    title: "Project collaboration",
+    body: "Bring customers, vendors, consultants, and internal teams into the right project or part workspace instead of the full vault.",
+  },
+];
 
 export default function Home() {
   return (
@@ -154,20 +156,7 @@ export default function Home() {
           </div>
 
           <div className="mt-12 grid gap-4 border-t border-white/12 pt-6 md:grid-cols-3">
-            {[
-              [
-                "Publish from CAD",
-                "Move files, thumbnails, STEP/STL, drawings, and metadata from design tools into the vault.",
-              ],
-              [
-                "Control the part",
-                "Keep revisions, previews, project links, comments, and selected shares tied to the right record.",
-              ],
-              [
-                "Hand off to manufacture",
-                "Package selected files for internal machines, external providers, quotes, schedules, and returned evidence.",
-              ],
-            ].map(([title, body]) => (
+            {heroProofPoints.map(([title, body]) => (
               <div key={title} className="max-w-sm">
                 <p className="text-sm font-black text-[#8ceeff]">{title}</p>
                 <p className="mt-2 text-sm leading-6 text-white/72">{body}</p>
@@ -178,154 +167,167 @@ export default function Home() {
       </section>
 
       <section className="border-b border-slate-200 bg-white">
-        <div className="mx-auto max-w-7xl px-5 py-5 sm:px-6 lg:px-8">
-          <WorkflowStrip />
-        </div>
-      </section>
-
-      <WorkflowRouteMap />
-
-      <section className="mx-auto max-w-7xl px-5 py-16 sm:px-6 lg:px-8 lg:py-24">
-        <div className="grid gap-10 lg:grid-cols-[0.82fr_1.18fr] lg:items-start">
+        <div className="mx-auto grid max-w-7xl gap-8 px-5 py-14 sm:px-6 lg:grid-cols-[0.78fr_1.22fr] lg:px-8 lg:py-16">
           <div>
-            <Eyebrow>What Kordyne coordinates</Eyebrow>
-            <h2 className="mt-4 text-4xl font-black leading-tight text-slate-950 sm:text-5xl">
-              From CAD release to manufacturing execution, without losing the
-              thread.
-            </h2>
-            <p className="mt-5 text-lg leading-8 text-slate-600">
-              Kordyne is shaped around the way real hardware work moves:
-              designs leave Inventor or Fusion, part records collect files and
-              revisions, teams review the live model, then controlled packages
-              move to internal machines, providers, and external reviewers.
-            </p>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <CapabilityCard
-              title="Part Vault"
-              body="Keep STEP, STL, drawings, PDFs, images, manufacturing docs, and quality evidence attached to the correct part revision."
-            />
-            <CapabilityCard
-              title="Live Review"
-              body="Give the viewer the space it deserves: inspect 3D files, drawings, and revision context before routing work."
-            />
-            <CapabilityCard
-              title="Requests"
-              body="Create manufacturing, CAD, and optimization workflows from the exact revision and selected files."
-            />
-            <CapabilityCard
-              title="Collaboration"
-              body="Keep customer, vendor, internal, external viewer, and consultant messages linked to the part or request context."
-            />
-          </div>
-        </div>
-      </section>
-
-      <section className="bg-[#002532] py-16 text-white lg:py-24">
-        <div className="mx-auto max-w-7xl px-5 sm:px-6 lg:px-8">
-          <div className="grid gap-8 lg:grid-cols-[1fr_1fr] lg:items-center">
-            <WorkflowShowcase variant="enterprise" compact />
-
-            <div>
-              <Eyebrow>Competitive edge</Eyebrow>
-              <h2 className="mt-4 text-4xl font-black leading-tight text-white sm:text-5xl">
-                A collaboration layer built around permissioned part truth.
-              </h2>
-              <p className="mt-5 text-lg leading-8 text-slate-300">
-                Two customer teams can work with multiple providers and outside
-                consultants while keeping the vault controlled. External
-                viewers can be mentioned into a specific thread without being
-                handed the whole workspace.
-              </p>
-              <div className="mt-7 grid gap-3 sm:grid-cols-3">
-                {["Scoped access", "Revision evidence", "Provider routing"].map(
-                  (item) => (
-                    <div
-                      key={item}
-                      className="rounded-[8px] border border-white/10 bg-white/[0.06] p-4 text-sm font-bold text-white"
-                    >
-                      {item}
-                    </div>
-                  ),
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="mx-auto max-w-7xl px-5 py-16 sm:px-6 lg:px-8 lg:py-24">
-        <div className="grid gap-4 md:grid-cols-3">
-          <CapabilityCard
-            title="Machine connectors"
-            body="Bring printers, CNC cells, and factory resources into the same operational surface as the parts and requests they support."
-          />
-          <CapabilityCard
-            title="Internal scheduling"
-            body="See internal capacity alongside external provider options so teams can route work with better context."
-          />
-          <CapabilityCard
-            title="Provider workspace"
-            body="Give manufacturers a focused place to review packages, clarify technical questions, quote, and return files."
-          />
-        </div>
-
-        <div className="mt-12 grid gap-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
-          <div>
-            <Eyebrow>OEM digital parts</Eyebrow>
+            <Eyebrow>Why this exists</Eyebrow>
             <h2 className="mt-4 text-4xl font-black leading-tight text-slate-950">
-              Certified spare-part files can become a controlled commercial
-              channel for machine manufacturers.
+              Hardware work breaks when the part context breaks.
             </h2>
-            <p className="mt-5 text-lg leading-8 text-slate-600">
-              Machine OEMs can publish approved digital part files by machine
-              model, control who can access them, and let customers route those
-              files into internal production or approved provider packages.
-            </p>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {[
-              "Machine model library",
-              "Licensed part files",
-              "Customer entitlement",
-              "Manufacturing-ready package",
-            ].map((item) => (
+
+          <div className="grid gap-3">
+            {painPoints.map((item) => (
               <div
                 key={item}
-                className="rounded-[8px] border border-slate-200 bg-white p-5 text-sm font-bold text-slate-900 shadow-sm"
+                className="rounded-[8px] border border-slate-200 bg-[#f8fbfc] p-4 text-base font-semibold leading-7 text-slate-800"
               >
                 {item}
               </div>
             ))}
           </div>
         </div>
+      </section>
 
-        <div className="mt-12 rounded-[8px] border border-slate-200 bg-white p-6 shadow-sm lg:p-9">
-          <div className="max-w-4xl">
-            <Eyebrow>Built for the workflow you are describing</Eyebrow>
-            <h2 className="mt-4 text-4xl font-black leading-tight text-slate-950">
-              High-trust part collaboration for customers, vendors, consultants,
-              and machine-connected teams.
-            </h2>
-            <p className="mt-5 text-lg leading-8 text-slate-600">
-              Kordyne is not just a prettier file vault. It is the operating
-              layer where part context, revisions, manufacturing requests,
-              messages, selected file access, and provider responses stay
-              connected.
-            </p>
-            <div className="mt-8 flex flex-wrap gap-3">
+      <section className="mx-auto max-w-7xl px-5 py-16 sm:px-6 lg:px-8 lg:py-24">
+        <SectionIntro
+          eyebrow="How work moves"
+          title="A cleaner path from design release to manufacturing decision."
+          body="Kordyne is not trying to turn every uploaded part into a project. The vault stays the source of truth. Workspaces and projects appear when the owner chooses to collaborate, share, or organize a larger effort."
+        />
+
+        <div className="mt-10 grid gap-4 lg:grid-cols-3">
+          {workflowSteps.map((step) => (
+            <article
+              key={step.number}
+              className="rounded-[8px] border border-slate-200 bg-white p-5 shadow-sm"
+            >
+              <p className="text-xs font-black text-[#00bdde]">{step.number}</p>
+              <h3 className="mt-3 text-xl font-black text-slate-950">
+                {step.title}
+              </h3>
+              <p className="mt-3 text-sm leading-7 text-slate-600">
+                {step.body}
+              </p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="bg-[#003040] py-16 text-white lg:py-20">
+        <div className="mx-auto max-w-7xl px-5 sm:px-6 lg:px-8">
+          <div className="grid gap-10 lg:grid-cols-[0.78fr_1.22fr] lg:items-start">
+            <div>
+              <Eyebrow>Workspace model</Eyebrow>
+              <h2 className="mt-4 text-4xl font-black leading-tight text-white sm:text-5xl">
+                Parts stay standalone until they need a workspace or project.
+              </h2>
+              <p className="mt-5 text-lg leading-8 text-slate-300">
+                That keeps the vault clean as it grows. A project becomes a
+                project only when there is a real customer program, R&D build,
+                or multi-part collaboration to manage.
+              </p>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-3">
+              {workspaceTypes.map((item) => (
+                <article
+                  key={item.title}
+                  className="rounded-[8px] border border-white/12 bg-white/[0.06] p-5"
+                >
+                  <h3 className="text-lg font-black text-white">
+                    {item.title}
+                  </h3>
+                  <p className="mt-3 text-sm leading-7 text-white/70">
+                    {item.body}
+                  </p>
+                </article>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-5 py-16 sm:px-6 lg:px-8 lg:py-24">
+        <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
+          <div>
+            <SectionIntro
+              eyebrow="Manufacturing handoff"
+              title="Package the right files for the right route."
+              body="Once the part context is controlled, Kordyne helps teams move toward production without uncontrolled folders, stale revisions, or supplier conversations floating outside the record."
+            />
+
+            <div className="mt-8 grid gap-4">
+              {handoffRoutes.map((route) => (
+                <FeatureCard
+                  key={route.title}
+                  title={route.title}
+                  body={route.body}
+                />
+              ))}
+            </div>
+          </div>
+
+          <WorkflowShowcase variant="platform" compact />
+        </div>
+      </section>
+
+      <section className="border-y border-slate-200 bg-white py-16 lg:py-20">
+        <div className="mx-auto max-w-7xl px-5 sm:px-6 lg:px-8">
+          <div className="grid gap-10 lg:grid-cols-[0.82fr_1.18fr] lg:items-start">
+            <SectionIntro
+              eyebrow="Controlled collaboration"
+              title="Share the part, not the whole company vault."
+              body="External access should be explicit, limited, and connected to the exact part, request, or project being discussed. Kordyne is designed around selected files, selected collaborators, and traceable handoffs."
+            />
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <FeatureCard
+                title="Selected file access"
+                body="Share metadata, previews, selected files, or downloadable selected files without broad vault visibility."
+              />
+              <FeatureCard
+                title="Threaded context"
+                body="Keep comments, clarifications, quotes, and returned files attached to the part or project where the decision happened."
+              />
+              <FeatureCard
+                title="Provider response"
+                body="Give manufacturers a focused workspace to review packages, ask questions, quote, and return evidence."
+              />
+              <FeatureCard
+                title="Project continuity"
+                body="When a standalone part becomes part of a larger effort, link it to a project without duplicating the vault record."
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-5 py-16 sm:px-6 lg:px-8 lg:py-20">
+        <div className="rounded-[8px] bg-[#003040] p-6 text-white shadow-[0_22px_60px_rgba(0,48,64,0.18)] lg:p-10">
+          <div className="grid gap-8 lg:grid-cols-[1fr_0.46fr] lg:items-center">
+            <div>
+              <Eyebrow>Built for the workflow ahead</Eyebrow>
+              <h2 className="mt-4 text-4xl font-black leading-tight text-white">
+                Bring CAD release, part truth, collaboration, and manufacturing
+                handoff into one operating layer.
+              </h2>
+              <p className="mt-5 max-w-3xl text-lg leading-8 text-slate-300">
+                Start with the vault. Add part workspaces when collaboration
+                starts. Create projects when the work becomes a real program.
+              </p>
+            </div>
+            <div className="flex flex-col gap-3">
               <Link
-                href="/enterprise"
-                className="rounded-[8px] border border-slate-300 px-5 py-3 text-sm font-black text-slate-950 transition hover:bg-slate-50"
+                href="/contact"
+                className="rounded-[8px] bg-[#00bdde] px-5 py-3 text-center text-sm font-black text-[#003040] transition hover:bg-[#8ceeff]"
               >
-                Enterprise Direction
+                Request Demo
               </Link>
               <Link
-                href="/providers"
-                className="rounded-[8px] bg-slate-950 px-5 py-3 text-sm font-black text-white transition hover:opacity-90"
+                href="/platform"
+                className="rounded-[8px] border border-white/18 bg-white/10 px-5 py-3 text-center text-sm font-black text-white transition hover:bg-white/15"
               >
-                Provider Portal
+                View Platform
               </Link>
             </div>
           </div>
