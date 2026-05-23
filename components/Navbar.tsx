@@ -77,7 +77,7 @@ export default function Navbar() {
         <div className="flex items-center justify-between py-3">
           <Link
             href="/"
-            className="flex shrink-0 items-center rounded-[8px] px-1 py-2 transition"
+            className="flex shrink-0 items-center rounded-[8px] px-1 py-1.5 transition"
           >
             <Image
               src="/kordyne-logo.svg"
@@ -85,7 +85,7 @@ export default function Navbar() {
               width={260}
               height={64}
               priority
-              className="h-9 w-auto object-contain sm:h-10"
+              className="h-11 w-auto object-contain sm:h-12"
             />
           </Link>
 
