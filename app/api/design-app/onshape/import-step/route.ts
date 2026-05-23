@@ -14,6 +14,9 @@ const DESIGN_UPLOAD_BUCKET =
 type ImportStepInput = {
   part_id?: string | null;
   file_id?: string | null;
+  storage_path?: string | null;
+  filename?: string | null;
+  mime_type?: string | null;
   mode?: "new_document" | "current_document" | null;
   documentId?: string | null;
   workspaceId?: string | null;
@@ -71,6 +74,15 @@ function asString(value: unknown) {
 function isStepFile(fileName: unknown) {
   const lower = String(fileName ?? "").toLowerCase();
   return lower.endsWith(".step") || lower.endsWith(".stp");
+}
+
+function validateStoragePathPrefix(
+  storagePath: string,
+  organizationId: string,
+  userId: string,
+) {
+  const expectedPrefix = `design-app/${organizationId}/${userId}/`;
+  return storagePath.startsWith(expectedPrefix);
 }
 
 function safeDocumentName(value: string) {
@@ -323,66 +335,109 @@ export async function POST(request: Request) {
     const input = (await request.json().catch(() => ({}))) as ImportStepInput;
     const partId = asString(input.part_id);
     const fileId = asString(input.file_id);
+    const uploadStoragePath = asString(input.storage_path);
 
-    if (!partId) {
+    if (!partId && !uploadStoragePath) {
       return NextResponse.json(
-        { ok: false, error: "part_id is required." },
+        { ok: false, error: "part_id or storage_path is required." },
         { status: 400 },
       );
     }
 
-    const { data: part, error: partError } = await ctx.supabase
-      .from("parts")
-      .select("id, organization_id, part_family_id, name, revision, status")
-      .eq("id", partId)
-      .eq("organization_id", ctx.organizationId)
-      .maybeSingle();
+    const admin = createDesignAppAdminClient();
+    let part: PartRow | null = null;
+    let stepFile: PartFileRow | null = null;
 
-    if (partError) {
-      return NextResponse.json(
-        { ok: false, error: partError.message },
-        { status: 500 },
-      );
+    if (partId) {
+      const { data: partRow, error: partError } = await ctx.supabase
+        .from("parts")
+        .select("id, organization_id, part_family_id, name, revision, status")
+        .eq("id", partId)
+        .eq("organization_id", ctx.organizationId)
+        .maybeSingle();
+
+      if (partError) {
+        return NextResponse.json(
+          { ok: false, error: partError.message },
+          { status: 500 },
+        );
+      }
+
+      if (!partRow?.id) {
+        return NextResponse.json(
+          { ok: false, error: "Part not found." },
+          { status: 404 },
+        );
+      }
+
+      part = partRow as PartRow;
+
+      let fileQuery = ctx.supabase
+        .from("part_files")
+        .select("id, part_id, file_name, file_type, storage_path, file_size_bytes, created_at")
+        .eq("part_id", part.id)
+        .order("created_at", { ascending: false });
+
+      if (fileId) {
+        fileQuery = fileQuery.eq("id", fileId);
+      }
+
+      const { data: files, error: filesError } = await fileQuery;
+
+      if (filesError) {
+        return NextResponse.json(
+          { ok: false, error: filesError.message },
+          { status: 500 },
+        );
+      }
+
+      stepFile =
+        ((files ?? []) as PartFileRow[]).find((file) =>
+          isStepFile(file.file_name),
+        ) ?? null;
+    } else {
+      if (
+        !validateStoragePathPrefix(
+          uploadStoragePath,
+          ctx.organizationId,
+          ctx.user.id,
+        )
+      ) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: "Uploaded STEP path is outside the allowed design-app scope.",
+          },
+          { status: 403 },
+        );
+      }
+
+      const filename = asString(input.filename) || uploadStoragePath.split("/").pop() || "kordyne-current.step";
+
+      if (!isStepFile(filename)) {
+        return NextResponse.json(
+          { ok: false, error: "Uploaded comparison file must be STEP/STP." },
+          { status: 400 },
+        );
+      }
+
+      stepFile = {
+        id: "",
+        file_name: filename,
+        file_type: asString(input.mime_type) || "application/step",
+        storage_path: uploadStoragePath,
+        file_size_bytes: null,
+        created_at: new Date().toISOString(),
+      };
     }
-
-    if (!part?.id) {
-      return NextResponse.json(
-        { ok: false, error: "Part not found." },
-        { status: 404 },
-      );
-    }
-
-    let fileQuery = ctx.supabase
-      .from("part_files")
-      .select("id, part_id, file_name, file_type, storage_path, file_size_bytes, created_at")
-      .eq("part_id", part.id)
-      .order("created_at", { ascending: false });
-
-    if (fileId) {
-      fileQuery = fileQuery.eq("id", fileId);
-    }
-
-    const { data: files, error: filesError } = await fileQuery;
-
-    if (filesError) {
-      return NextResponse.json(
-        { ok: false, error: filesError.message },
-        { status: 500 },
-      );
-    }
-
-    const stepFile = ((files ?? []) as PartFileRow[]).find((file) =>
-      isStepFile(file.file_name),
-    );
 
     if (!stepFile?.storage_path) {
       return NextResponse.json(
-        { ok: false, error: "No STEP file is available for this part." },
+        { ok: false, error: "No STEP file is available for import." },
         { status: 404 },
       );
     }
 
-    const admin = createDesignAppAdminClient();
     let storedToken;
 
     try {
@@ -460,11 +515,10 @@ export async function POST(request: Request) {
         );
       }
     } else {
-      const partRow = part as PartRow;
       const baseName =
         safeDocumentName(
-          `${partRow.name || filename.replace(/\.(step|stp)$/i, "")} Rev ${
-            partRow.revision || "latest"
+          `${part?.name || filename.replace(/\.(step|stp)$/i, "")} Rev ${
+            part?.revision || "latest"
           }`,
         ) || "Kordyne Onshape pull";
       const created = await createOnshapeDocument(
@@ -491,14 +545,14 @@ export async function POST(request: Request) {
       ok: true,
       mode,
       part: {
-        id: part.id,
-        name: part.name,
-        revision: part.revision,
-        status: part.status,
-        part_family_id: part.part_family_id,
+        id: part?.id ?? "onshape-current-source",
+        name: part?.name ?? asString(input.filename) ?? "Current Onshape source",
+        revision: part?.revision ?? null,
+        status: part?.status ?? null,
+        part_family_id: part?.part_family_id ?? null,
       },
       file: {
-        id: stepFile.id,
+        id: stepFile.id || null,
         filename,
         size_bytes: stepFile.file_size_bytes ?? null,
       },

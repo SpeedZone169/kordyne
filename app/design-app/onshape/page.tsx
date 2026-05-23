@@ -194,6 +194,29 @@ type ImportStepPayload = {
   message?: string;
 };
 
+type CompareWorkspacePayload = {
+  ok: boolean;
+  assembly?: {
+    element_id?: string | null;
+    open_url?: string | null;
+    inserted_count?: number;
+    warnings?: string[];
+  } | null;
+  rows: Array<{
+    label: string;
+    name?: string | null;
+    revision?: string | null;
+    material?: string | null;
+    process_type?: string | null;
+    file_name?: string | null;
+    file_size_bytes?: number | null;
+    onshape_element_id?: string | null;
+    onshape_part_id?: string | null;
+    volume_m3?: number | null;
+  }>;
+  message?: string;
+};
+
 type CompareStatusPayload = {
   ok: boolean;
   current: PublishedPart;
@@ -230,6 +253,7 @@ type LibraryCompareResult = {
 
 const TOKEN_STORAGE_KEY = "kordyne:onshape:connection-token";
 const THEME_STORAGE_KEY = "kordyne:onshape:theme";
+const HANDOFF_STORAGE_KEY = "kordyne:onshape:last-handoff";
 const ONSHAPE_EXTENSION_ACTION_URL =
   "https://www.kordyne.com/design-app/onshape?documentId={$documentId}&workspaceOrVersion={$workspaceOrVersion}&workspaceOrVersionId={$workspaceOrVersionId}&elementId={$elementId}&tabElementId={$tabElementId}&partId={$partId}&partNumber={$partNumber}&revision={$revision}&configuration={$configuration}";
 
@@ -353,6 +377,22 @@ function formatBytes(value?: number | null) {
   return `${(value / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function formatVolume(value?: number | null) {
+  if (!value || value <= 0) return "-";
+  const cubicMillimeters = value * 1_000_000_000;
+  if (cubicMillimeters < 1000) return `${cubicMillimeters.toFixed(1)} mm3`;
+  const cubicCentimeters = value * 1_000_000;
+  if (cubicCentimeters < 1000) return `${cubicCentimeters.toFixed(2)} cm3`;
+  return `${(value * 1000).toFixed(3)} L`;
+}
+
+function formatDeltaPercent(left?: number | null, right?: number | null) {
+  if (!left || !right || left <= 0) return "-";
+  const delta = ((right - left) / left) * 100;
+  const prefix = delta > 0 ? "+" : "";
+  return `${prefix}${delta.toFixed(2)}%`;
+}
+
 function partDisplayName(part?: PublishedPart | null) {
   if (!part) return "Kordyne part";
   return part.name || part.part_number || part.part_id || "Kordyne part";
@@ -447,6 +487,8 @@ export default function OnshapeDesignAppPage() {
     useState<CompareStatusPayload | null>(null);
   const [compareStepPackage, setCompareStepPackage] =
     useState<CompareStepPackage | null>(null);
+  const [compareWorkspace, setCompareWorkspace] =
+    useState<CompareWorkspacePayload | null>(null);
 
   const storageKey = useMemo(
     () => (context ? contextStorageKey(context) : ""),
@@ -667,6 +709,49 @@ export default function OnshapeDesignAppPage() {
     [context, token],
   );
 
+  const prepareOnshapeCheckpoint = useCallback(
+    async function prepareOnshapeCheckpoint(actionLabel: string) {
+      if (
+        !publishableContext ||
+        !onshapeDocumentId ||
+        !editableWorkspaceId ||
+        !onshapeElementId
+      ) {
+        return;
+      }
+
+      setStatus(`${actionLabel}: confirming latest Onshape cloud state...`);
+
+      window.parent.postMessage(
+        {
+          documentId: onshapeDocumentId,
+          workspaceId: editableWorkspaceId,
+          elementId: onshapeElementId,
+          messageName: "requestSelection",
+        },
+        onshapeOrigin,
+      );
+
+      await new Promise<void>((resolve) => {
+        window.setTimeout(resolve, 550);
+      });
+
+      if (token && onshapeApiConnected) {
+        await loadOnshapePartContext(token, true).catch(() => null);
+      }
+    },
+    [
+      editableWorkspaceId,
+      loadOnshapePartContext,
+      onshapeApiConnected,
+      onshapeDocumentId,
+      onshapeElementId,
+      onshapeOrigin,
+      publishableContext,
+      token,
+    ],
+  );
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
       const parsedContext = parseOnshapeContext();
@@ -787,6 +872,7 @@ export default function OnshapeDesignAppPage() {
     setPullPackage(null);
     setCompareSummary(null);
     setCompareStepPackage(null);
+    setCompareWorkspace(null);
     setLibraryCompareResult(null);
   }, [lastPart?.part_id]);
 
@@ -1190,6 +1276,8 @@ export default function OnshapeDesignAppPage() {
         return;
       }
 
+      await prepareOnshapeCheckpoint("Publish");
+
       let targetMatch =
         publishMode === "new_revision"
           ? selectedMatch || lastPart || null
@@ -1431,9 +1519,11 @@ export default function OnshapeDesignAppPage() {
 
     setState("working");
     setLibraryCompareResult(null);
+    setCompareWorkspace(null);
     setStatus("Importing both Kordyne STEP files into this Onshape document...");
 
     try {
+      await prepareOnshapeCheckpoint("Library compare");
       const left = await importLibraryComparePart(leftPart);
       const right = await importLibraryComparePart(rightPart);
       const leftSize = left.stepFile.size_bytes;
@@ -1444,16 +1534,64 @@ export default function OnshapeDesignAppPage() {
           : null;
 
       setLibraryCompareResult({ left, right, fileSizeDeltaBytes });
+      let workspace: CompareWorkspacePayload | null = null;
+
+      try {
+        workspace = await callOnshapeApi<CompareWorkspacePayload>(
+          "/api/design-app/onshape/compare-workspace",
+          {
+            method: "POST",
+            body: JSON.stringify({
+              documentId: onshapeDocumentId,
+              workspaceId: editableWorkspaceId,
+              imports: [
+                {
+                  label: "Library A",
+                  documentId: left.imported.onshape.document_id,
+                  workspaceId: left.imported.onshape.workspace_id,
+                  elementId: left.imported.onshape.element_id,
+                  name: partDisplayName(left.part),
+                  revision: left.part.revision,
+                  material: left.part.material,
+                  process_type: left.part.process_type,
+                  file_name: left.stepFile.filename,
+                  file_size_bytes: left.stepFile.size_bytes ?? null,
+                },
+                {
+                  label: "Library B",
+                  documentId: right.imported.onshape.document_id,
+                  workspaceId: right.imported.onshape.workspace_id,
+                  elementId: right.imported.onshape.element_id,
+                  name: partDisplayName(right.part),
+                  revision: right.part.revision,
+                  material: right.part.material,
+                  process_type: right.part.process_type,
+                  file_name: right.stepFile.filename,
+                  file_size_bytes: right.stepFile.size_bytes ?? null,
+                },
+              ],
+            }),
+          },
+        );
+        setCompareWorkspace(workspace);
+      } catch {
+        workspace = null;
+      }
+
       setState("connected");
+      setActiveTab("compare");
 
       const switched =
+        focusOnshapeElement(workspace?.assembly?.element_id) ||
         focusOnshapeElement(right.imported.onshape.element_id) ||
         focusOnshapeElement(left.imported.onshape.element_id);
 
       setStatus(
         switched
-          ? "Imported both selected library revisions and switched to the newest comparison tab."
-          : "Imported both selected library revisions into this Onshape document for side-by-side comparison.",
+          ? workspace?.assembly?.inserted_count
+            ? "Imported both selected revisions and switched to the comparison assembly."
+            : "Imported both selected revisions and switched to the newest comparison tab."
+          : "Imported both selected revisions into this Onshape document for comparison.",
       );
     } catch (error) {
       setState("error");
@@ -1469,6 +1607,12 @@ export default function OnshapeDesignAppPage() {
     setLastPart(item);
     setSelectedMatch(item);
     setPublishMode("new_revision");
+    setPartName((current) => item.name || current);
+    setPartNumber((current) => item.part_number || current);
+    setMaterial((current) => item.material || current);
+    setProcessType((current) => item.process_type || current);
+    setCategory((current) => item.category || current);
+    setStatusValue((current) => item.status || current);
     setActiveTab(tab);
     setStatus("Linked this Onshape context to a Kordyne part.");
   }
@@ -1483,9 +1627,14 @@ export default function OnshapeDesignAppPage() {
     setStatus("Checking Kordyne revision status...");
     setCompareSummary(null);
     setCompareStepPackage(null);
+    setCompareWorkspace(null);
 
     try {
       setLastPart(sourcePart);
+      setSelectedMatch(sourcePart);
+      setPublishMode("new_revision");
+      setActiveTab("compare");
+      await prepareOnshapeCheckpoint("Compare");
 
       const payload = await callOnshapeApi<CompareStatusPayload>(
         "/api/design-app/onshape/compare-status",
@@ -1518,11 +1667,39 @@ export default function OnshapeDesignAppPage() {
       setCompareStepPackage(stepPackage);
 
       let compareOpenMessage = "";
+      let currentImport: ImportStepPayload | null = null;
+      let latestImport: ImportStepPayload | null = null;
+      let compareWorkspacePayload: CompareWorkspacePayload | null = null;
+
+      if (onshapeDocumentId && editableWorkspaceId && onshapeApiConnected) {
+        setStatus("Exporting current Onshape geometry for comparison...");
+        const currentStep = await exportStepFromOnshape(true);
+
+        if (currentStep?.storage_path) {
+          setStatus("Importing current source as comparison baseline...");
+          currentImport = await callOnshapeApi<ImportStepPayload>(
+            "/api/design-app/onshape/import-step",
+            {
+              method: "POST",
+              body: JSON.stringify({
+                mode: "current_document",
+                storage_path: currentStep.storage_path,
+                filename: currentStep.filename,
+                mime_type: currentStep.mime_type,
+                documentId: onshapeDocumentId,
+                workspaceId: editableWorkspaceId,
+                workspaceOrVersion: onshapeWorkspaceOrVersion,
+                workspaceOrVersionId: onshapeWorkspaceOrVersionId,
+              }),
+            },
+          );
+        }
+      }
 
       if (stepPackage?.step_file?.file_id && onshapeDocumentId && editableWorkspaceId) {
         setStatus("Importing latest Kordyne STEP into the active Onshape document...");
 
-        const imported = await callOnshapeApi<ImportStepPayload>(
+        latestImport = await callOnshapeApi<ImportStepPayload>(
           "/api/design-app/onshape/import-step",
           {
             method: "POST",
@@ -1538,12 +1715,58 @@ export default function OnshapeDesignAppPage() {
           },
         );
 
-        const switchedToImport = focusOnshapeElement(imported.onshape.element_id);
+        if (currentImport && latestImport) {
+          try {
+            compareWorkspacePayload = await callOnshapeApi<CompareWorkspacePayload>(
+              "/api/design-app/onshape/compare-workspace",
+              {
+                method: "POST",
+                body: JSON.stringify({
+                  documentId: onshapeDocumentId,
+                  workspaceId: editableWorkspaceId,
+                  imports: [
+                    {
+                      label: "Current Onshape",
+                      documentId: currentImport.onshape.document_id,
+                      workspaceId: currentImport.onshape.workspace_id,
+                      elementId: currentImport.onshape.element_id,
+                      name: activePartName,
+                      revision: activePartRevision || context?.revision || null,
+                      material: material || sourcePart.material || null,
+                      process_type: processType || sourcePart.process_type || null,
+                      file_name: currentImport.file.filename,
+                      file_size_bytes: currentImport.file.size_bytes ?? null,
+                    },
+                    {
+                      label: "Kordyne latest",
+                      documentId: latestImport.onshape.document_id,
+                      workspaceId: latestImport.onshape.workspace_id,
+                      elementId: latestImport.onshape.element_id,
+                      name: partDisplayName(stepPackage.latest),
+                      revision: stepPackage.latest.revision,
+                      material: stepPackage.latest.material,
+                      process_type: stepPackage.latest.process_type,
+                      file_name: stepPackage.step_file.filename,
+                      file_size_bytes: stepPackage.step_file.size_bytes ?? null,
+                    },
+                  ],
+                }),
+              },
+            );
+            setCompareWorkspace(compareWorkspacePayload);
+          } catch {
+            setCompareWorkspace(null);
+          }
+        }
 
-        if (imported.onshape.open_url) {
+        const switchedToImport =
+          focusOnshapeElement(compareWorkspacePayload?.assembly?.element_id) ||
+          focusOnshapeElement(latestImport.onshape.element_id);
+
+        if (latestImport.onshape.open_url) {
           compareOpenMessage =
             switchedToImport
-              ? " Latest STEP was imported and Onshape is switching to the comparison tab."
+              ? " Latest STEP was imported and Onshape is switching to the comparison view."
               : " Latest STEP was imported into this Onshape document for visual review.";
         } else {
           compareOpenMessage =
@@ -1580,6 +1803,18 @@ export default function OnshapeDesignAppPage() {
 
     try {
       setLastPart(sourcePart);
+      setSelectedMatch(sourcePart);
+      setPublishMode("new_revision");
+      window.localStorage.setItem(
+        HANDOFF_STORAGE_KEY,
+        JSON.stringify({
+          action: "pull",
+          part_id: sourcePart.part_id,
+          revision: sourcePart.revision ?? null,
+          at: new Date().toISOString(),
+        }),
+      );
+      await prepareOnshapeCheckpoint("Pull");
 
       const payload = await callOnshapeApi<PullPackage>(
         "/api/design-app/onshape/pull-package",
@@ -1603,12 +1838,13 @@ export default function OnshapeDesignAppPage() {
           );
 
         setState("connected");
+        setActiveTab("publish");
         setStatus(
           switchedToNative
-            ? `Switched to the native Onshape tab for Rev ${fieldOrDash(payload.part.revision)}.`
+            ? `Switched to the native Onshape tab for Rev ${fieldOrDash(payload.part.revision)}. Publish is ready when you want to save back to Kordyne.`
             : isCurrentOnshapeDocument
-              ? `Native Onshape source for Rev ${fieldOrDash(payload.part.revision)} is in this document, but Kordyne could not identify the exact Onshape tab to focus.`
-            : `Native Onshape source is available for Rev ${fieldOrDash(payload.part.revision)}. Use the source link below if you need to open that document.`,
+              ? `Native Onshape source for Rev ${fieldOrDash(payload.part.revision)} is in this document, but Kordyne could not identify the exact Onshape tab to focus. Publish is ready when you return.`
+            : `Native Onshape source is available for Rev ${fieldOrDash(payload.part.revision)}. Use the source link below if you need to open that document, then publish back from this panel.`,
         );
         return;
       }
@@ -1638,9 +1874,10 @@ export default function OnshapeDesignAppPage() {
 
         if (imported.onshape.open_url) {
           setState("connected");
+          setActiveTab("publish");
           setStatus(
             switchedToImport
-              ? `Imported STEP for Rev ${fieldOrDash(payload.part.revision)} and switched to the new Onshape tab. Edit there, then publish back as a new revision.`
+              ? `Imported STEP for Rev ${fieldOrDash(payload.part.revision)} and switched to the new Onshape tab. Publish is ready when you want to save back to Kordyne.`
               : `Imported STEP for Rev ${fieldOrDash(payload.part.revision)} into this Onshape document. Use the new Onshape tab for edits, then publish back as a new revision.`,
           );
           return;
@@ -1648,6 +1885,7 @@ export default function OnshapeDesignAppPage() {
       }
 
       setState("connected");
+      setActiveTab("publish");
       setStatus(
         `Pull package ready: ${payload.availability.native_count} native reference${payload.availability.native_count === 1 ? "" : "s"}, ${payload.availability.step_count} STEP exchange file${payload.availability.step_count === 1 ? "" : "s"}.`,
       );
@@ -1712,6 +1950,7 @@ export default function OnshapeDesignAppPage() {
     setPullPackage(null);
     setCompareSummary(null);
     setCompareStepPackage(null);
+    setCompareWorkspace(null);
     setOnshapeApiConnected(false);
     setPublishStatus("idle");
     setPublishWarning("");
@@ -1727,21 +1966,25 @@ export default function OnshapeDesignAppPage() {
     state === "working";
   const contextName = context ? displayNameForContext(context) : "Onshape design";
   const isDark = theme === "dark";
-  const surface = isDark ? "bg-[#1f2937] text-white" : "bg-[#f4f7fb] text-slate-950";
+  const surface = isDark ? "bg-[#003040] text-white" : "bg-[#eef7fa] text-slate-950";
   const card = isDark
-    ? "border border-slate-500/70 bg-[#1f2937]"
-    : "border border-slate-300 bg-white";
-  const panel = isDark ? "border-slate-600 bg-[#263241]" : "border-slate-200 bg-slate-50";
-  const muted = isDark ? "text-slate-300" : "text-slate-600";
+    ? "rounded-md border border-cyan-200/20 bg-[#062f3d] shadow-sm shadow-black/20"
+    : "rounded-md border border-[#c9dce3] bg-white shadow-sm shadow-slate-200/80";
+  const panel = isDark
+    ? "rounded-md border-cyan-200/15 bg-[#093847]"
+    : "rounded-md border-[#d6e5ea] bg-[#f8fbfc]";
+  const muted = isDark ? "text-cyan-50/75" : "text-slate-600";
   const inputClass = isDark
-    ? "border-slate-600 bg-[#111827] text-white placeholder:text-slate-400"
-    : "border-slate-300 bg-white text-slate-950 placeholder:text-slate-400";
+    ? "rounded-md border-cyan-200/20 bg-[#002836] text-white placeholder:text-cyan-50/45 focus:border-[#00bdde] focus:outline-none"
+    : "rounded-md border-[#c9dce3] bg-white text-slate-950 placeholder:text-slate-400 focus:border-[#00bdde] focus:outline-none";
+  const primaryButton =
+    "rounded-md bg-[#00bdde] text-[#002b38] shadow-sm shadow-cyan-900/10 hover:bg-[#20cbe6]";
   const secondaryButton = isDark
-    ? "border border-slate-600 bg-[#344255] text-white hover:border-slate-400"
-    : "border border-slate-300 bg-white text-slate-900 hover:border-blue-600";
+    ? "rounded-md border border-cyan-200/20 bg-[#0b3f4f] text-white hover:border-[#00bdde]"
+    : "rounded-md border border-[#c9dce3] bg-white text-[#003040] hover:border-[#00bdde]";
   const inactiveTab = isDark
-    ? "border border-slate-600 bg-[#344255] text-white"
-    : "border border-slate-300 bg-white text-slate-900";
+    ? "rounded-md border border-cyan-200/20 bg-[#0b3f4f] text-white"
+    : "rounded-md border border-[#c9dce3] bg-white text-[#003040]";
   const activePartId = context?.partId || resolvedPart?.partId || "";
   const activePartRevision = context?.revision || resolvedPart?.revision || "";
   const activePartName =
@@ -1758,8 +2001,8 @@ export default function OnshapeDesignAppPage() {
           : "Publish to Kordyne";
   const publishButtonClass =
     publishStatus === "published"
-      ? "bg-emerald-600 text-white"
-      : "bg-blue-600 text-white";
+      ? "rounded-md bg-emerald-600 text-white"
+      : primaryButton;
   const targetLabel =
     publishMode === "new_revision"
       ? `Target: next revision${selectedMatch?.revision ? ` after Rev ${selectedMatch.revision}` : ""}`
@@ -1778,7 +2021,7 @@ export default function OnshapeDesignAppPage() {
           }
         }}
         className={`h-9 min-w-[94px] px-4 text-sm font-semibold ${
-          activeTab === tab ? "bg-blue-600 text-white" : inactiveTab
+          activeTab === tab ? "rounded-md bg-[#00bdde] text-[#002b38]" : inactiveTab
         }`}
       >
         {label}
@@ -1790,13 +2033,21 @@ export default function OnshapeDesignAppPage() {
     <main className={`min-h-screen px-4 py-5 ${surface}`}>
       <div className="mx-auto max-w-[420px] space-y-5">
         <header className="flex items-center justify-between gap-4">
-          <Image
-            src="/kordyne-logo.svg"
-            alt="Kordyne"
-            width={260}
-            height={72}
-            className="h-14 min-w-0 flex-1 object-contain object-left"
-          />
+          <a
+            href="https://www.kordyne.com"
+            target="_blank"
+            rel="noreferrer"
+            className="min-w-0 flex-1"
+            aria-label="Open Kordyne website"
+          >
+            <Image
+              src="/kordyne-logo.svg"
+              alt="Kordyne"
+              width={260}
+              height={72}
+              className="h-14 w-full object-contain object-left"
+            />
+          </a>
           <button
             type="button"
             onClick={() => setTheme(isDark ? "light" : "dark")}
@@ -1888,7 +2139,7 @@ export default function OnshapeDesignAppPage() {
                   type="button"
                   onClick={() => void connect()}
                   disabled={busy}
-                  className="h-11 bg-blue-600 px-5 text-sm font-bold text-white disabled:opacity-60"
+                  className={`h-11 px-5 text-sm font-bold disabled:opacity-60 ${primaryButton}`}
                 >
                   Connect to Kordyne
                 </button>
@@ -1907,7 +2158,7 @@ export default function OnshapeDesignAppPage() {
                   type="button"
                   onClick={() => void connectOnshapeApi()}
                   disabled={busy}
-                  className="h-11 bg-blue-600 px-5 text-sm font-bold text-white disabled:opacity-60"
+                  className={`h-11 px-5 text-sm font-bold disabled:opacity-60 ${primaryButton}`}
                 >
                   Connect Onshape API
                 </button>
@@ -2156,7 +2407,7 @@ export default function OnshapeDesignAppPage() {
                   type="button"
                   onClick={() => void connectOnshapeApi()}
                   disabled={!connected || busy}
-                  className="mt-3 h-10 w-full bg-blue-600 text-sm font-bold text-white disabled:opacity-60"
+                  className={`mt-3 h-10 w-full text-sm font-bold disabled:opacity-60 ${primaryButton}`}
                 >
                   Reconnect Onshape API
                 </button>
@@ -2327,7 +2578,7 @@ export default function OnshapeDesignAppPage() {
                   type="button"
                   onClick={() => void compareLibrarySelection()}
                   disabled={!connected || busy || libraryCompareSelection.length !== 2}
-                  className="mt-3 h-9 w-full bg-blue-600 px-4 text-xs font-bold text-white disabled:opacity-60"
+                  className={`mt-3 h-9 w-full px-4 text-xs font-bold disabled:opacity-60 ${primaryButton}`}
                 >
                   Compare selected parts
                 </button>
@@ -2452,7 +2703,7 @@ export default function OnshapeDesignAppPage() {
                         <button
                           type="button"
                           onClick={() => toggleLibraryCompareSelection(item)}
-                          className={`h-9 text-xs font-bold ${selectedForCompare ? "bg-blue-600 text-white" : secondaryButton}`}
+                          className={`h-9 text-xs font-bold ${selectedForCompare ? primaryButton : secondaryButton}`}
                         >
                           {selectedForCompare ? "Selected" : "Select"}
                         </button>
@@ -2520,7 +2771,7 @@ export default function OnshapeDesignAppPage() {
                                       onClick={() =>
                                         toggleLibraryCompareSelection(revision)
                                       }
-                                      className={`h-8 px-2 font-bold ${revisionSelected ? "bg-blue-600 text-white" : secondaryButton}`}
+                                      className={`h-8 px-2 font-bold ${revisionSelected ? primaryButton : secondaryButton}`}
                                     >
                                       {revisionSelected ? "A/B" : "Select"}
                                     </button>
@@ -2607,7 +2858,7 @@ export default function OnshapeDesignAppPage() {
               type="button"
               onClick={() => void pull()}
               disabled={!connected || busy || !lastPart}
-              className="mt-5 h-11 w-full bg-blue-600 px-5 text-sm font-bold text-white disabled:opacity-60"
+              className={`mt-5 h-11 w-full px-5 text-sm font-bold disabled:opacity-60 ${primaryButton}`}
             >
               Pull Latest
             </button>
@@ -2724,7 +2975,7 @@ export default function OnshapeDesignAppPage() {
               type="button"
               onClick={() => void compare()}
               disabled={!connected || busy || !lastPart}
-              className="mt-5 h-11 w-full bg-blue-600 px-5 text-sm font-bold text-white disabled:opacity-60"
+              className={`mt-5 h-11 w-full px-5 text-sm font-bold disabled:opacity-60 ${primaryButton}`}
             >
               Open Compare
             </button>
@@ -2765,6 +3016,72 @@ export default function OnshapeDesignAppPage() {
                 Publish Rev
               </button>
             </div>
+            {compareWorkspace ? (
+              <div className={`mt-5 border p-4 ${panel}`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-bold">Comparison workspace</h3>
+                    <p className={`mt-1 text-xs ${muted}`}>
+                      Current source and Kordyne geometry are staged together for
+                      visual review.
+                    </p>
+                  </div>
+                  {compareWorkspace.assembly?.inserted_count ? (
+                    <span className="rounded-md bg-emerald-100 px-2 py-1 text-xs font-bold text-emerald-900">
+                      Assembly
+                    </span>
+                  ) : (
+                    <span className={`rounded-md border px-2 py-1 text-xs font-bold ${muted}`}>
+                      Tabs
+                    </span>
+                  )}
+                </div>
+                <div className="mt-3 overflow-x-auto">
+                  <table className="w-full min-w-[360px] border-collapse text-left text-xs">
+                    <thead className={muted}>
+                      <tr className="border-b">
+                        <th className="py-2 pr-3 font-bold">Source</th>
+                        <th className="py-2 pr-3 font-bold">Part</th>
+                        <th className="py-2 pr-3 font-bold">Rev</th>
+                        <th className="py-2 pr-3 font-bold">Material</th>
+                        <th className="py-2 font-bold">Volume</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {compareWorkspace.rows.map((row) => (
+                        <tr key={`${row.label}-${row.onshape_element_id}`} className="border-b last:border-b-0">
+                          <td className="py-2 pr-3 font-bold">{row.label}</td>
+                          <td className="max-w-[120px] truncate py-2 pr-3">
+                            {fieldOrDash(row.name)}
+                          </td>
+                          <td className="py-2 pr-3">{fieldOrDash(row.revision)}</td>
+                          <td className="max-w-[96px] truncate py-2 pr-3">
+                            {fieldOrDash(row.material)}
+                          </td>
+                          <td className="py-2">{formatVolume(row.volume_m3)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {compareWorkspace.rows.length === 2 ? (
+                  <p className={`mt-3 text-xs ${muted}`}>
+                    Volume delta:{" "}
+                    <span className="font-bold">
+                      {formatDeltaPercent(
+                        compareWorkspace.rows[0]?.volume_m3,
+                        compareWorkspace.rows[1]?.volume_m3,
+                      )}
+                    </span>
+                  </p>
+                ) : null}
+                {compareWorkspace.assembly?.warnings?.length ? (
+                  <p className="mt-3 text-xs font-semibold text-amber-500">
+                    {compareWorkspace.assembly.warnings[0]}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
             {compareSummary ? (
               <div className={`mt-5 border p-4 ${panel}`}>
                 <h3 className="text-sm font-bold">Revision history</h3>
