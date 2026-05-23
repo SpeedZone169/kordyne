@@ -119,23 +119,22 @@ export default function Home() {
       <Navbar />
 
       <section className="relative overflow-hidden bg-[#003040] text-white">
-        <div className="absolute inset-0 opacity-55">
+        <div className="absolute inset-0 opacity-35">
           <div className="absolute inset-0 kordyne-grid-bg" />
         </div>
-        <div className="absolute inset-y-8 right-[-140px] hidden w-[760px] opacity-80 lg:block">
-          <WorkflowShowcase variant="hero" compact />
-        </div>
 
-        <div className="relative mx-auto max-w-7xl px-5 py-20 sm:px-6 lg:px-8 lg:py-24">
-          <div className="max-w-4xl">
+        <div className="relative mx-auto max-w-7xl px-5 py-16 sm:px-6 lg:px-8 lg:py-20">
+          <div className="max-w-5xl">
             <Eyebrow>Advanced manufacturing digital thread</Eyebrow>
-            <h1 className="mt-5 max-w-4xl text-5xl font-black leading-tight text-white sm:text-6xl lg:text-7xl">
-              Controlled part collaboration from CAD to manufacturing.
+            <h1 className="mt-5 max-w-5xl text-4xl font-black leading-tight text-white sm:text-5xl lg:text-6xl">
+              Your part vault, project workspace, and manufacturing handoff in
+              one controlled place.
             </h1>
-            <p className="mt-7 max-w-3xl text-xl leading-9 text-slate-200">
-              One controlled workspace for part vaults, revision history,
-              live file review, request routing, provider collaboration, and
-              machine-connected manufacturing workflows.
+            <p className="mt-7 max-w-4xl text-lg leading-8 text-slate-200 sm:text-xl">
+              Kordyne keeps CAD files, revisions, project discussion, supplier
+              packages, and production decisions tied to the part, instead of
+              scattered across inboxes, shared folders, and disconnected
+              portals.
             </p>
 
             <div className="mt-9 flex flex-wrap gap-3">
@@ -154,8 +153,26 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="mt-14 lg:hidden">
-            <WorkflowShowcase variant="hero" compact />
+          <div className="mt-12 grid gap-4 border-t border-white/12 pt-6 md:grid-cols-3">
+            {[
+              [
+                "Part truth",
+                "Files, previews, revisions, and manufacturing evidence stay attached to the correct part.",
+              ],
+              [
+                "Project context",
+                "Create a workspace only when a part becomes part of a real project or collaboration.",
+              ],
+              [
+                "External control",
+                "Share selected files and discussions without exposing the full vault or organization.",
+              ],
+            ].map(([title, body]) => (
+              <div key={title} className="max-w-sm">
+                <p className="text-sm font-black text-[#8ceeff]">{title}</p>
+                <p className="mt-2 text-sm leading-6 text-white/72">{body}</p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
