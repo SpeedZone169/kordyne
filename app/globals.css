@@ -1,19 +1,26 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f2f5f8;
-  --foreground: #0c1424;
-  --shell-bg: #eef3f7;
+  --brand-deep-teal: #003040;
+  --brand-aqua: #00bdde;
+  --brand-aqua-hover: #00a8c5;
+  --brand-ink: #00151d;
+  --brand-soft: #eef9fb;
+  --background: #f4f8fa;
+  --foreground: #031820;
+  --shell-bg: #eef7fa;
   --shell-surface: #ffffff;
   --shell-border: rgba(15, 23, 42, 0.1);
   --shell-muted: #64748b;
+  --font-brand-display: "Eurostile Extended", Eurostile, "Microgramma D Extended",
+    "Bank Gothic", "Arial Black", Inter, ui-sans-serif, system-ui, sans-serif;
 }
 
 :root[data-theme="dark"] {
-  --background: #08111f;
+  --background: #00151d;
   --foreground: #e5edf7;
-  --shell-bg: #0b1422;
-  --shell-surface: #101c2d;
+  --shell-bg: #002532;
+  --shell-surface: #003040;
   --shell-border: rgba(148, 163, 184, 0.18);
   --shell-muted: #94a3b8;
 }
@@ -21,8 +28,12 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-brand-deep: var(--brand-deep-teal);
+  --color-brand-aqua: var(--brand-aqua);
+  --color-brand-soft: var(--brand-soft);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-brand-display);
 }
 
 body {
@@ -38,13 +49,13 @@ body {
 }
 
 ::selection {
-  background: #123a66;
-  color: #ffffff;
+  background: var(--brand-aqua);
+  color: var(--brand-deep-teal);
 }
 
 :root[data-theme="dark"] body {
   background:
-    radial-gradient(circle at 20% 0%, rgba(31, 111, 178, 0.18), transparent 28%),
+    radial-gradient(circle at 20% 0%, rgba(0, 189, 222, 0.18), transparent 28%),
     var(--background);
 }
 
@@ -114,6 +125,11 @@ textarea {
   letter-spacing: 0;
 }
 
+.kordyne-display {
+  font-family: var(--font-brand-display);
+  letter-spacing: 0;
+}
+
 .kordyne-panel {
   border: 1px solid rgba(15, 23, 42, 0.08);
   background: rgba(255, 255, 255, 0.94);
@@ -122,14 +138,14 @@ textarea {
 
 .kordyne-dark-panel {
   border: 1px solid rgba(148, 163, 184, 0.18);
-  background: #0b1626;
+  background: var(--brand-deep-teal);
   box-shadow: 0 24px 64px rgba(2, 8, 23, 0.24);
 }
 
 .kordyne-grid-bg {
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.055) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.055) 1px, transparent 1px);
+    linear-gradient(rgba(0, 189, 222, 0.095) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 189, 222, 0.095) 1px, transparent 1px);
   background-size: 42px 42px;
   mask-image: linear-gradient(to bottom, black, transparent 92%);
 }
@@ -138,7 +154,7 @@ textarea {
   background: linear-gradient(
     to bottom,
     transparent,
-    rgba(47, 128, 183, 0.18),
+    rgba(0, 189, 222, 0.2),
     transparent
   );
   animation: kordyne-scan 5.6s ease-in-out infinite;

@@ -49,7 +49,7 @@ const featureRows = [
 
 function Eyebrow({ children }: { children: React.ReactNode }) {
   return (
-    <p className="text-xs font-black uppercase text-[#e08a49]">
+    <p className="text-xs font-black uppercase text-[#00bdde]">
       {children}
     </p>
   );
@@ -60,7 +60,7 @@ export default function PricingPage() {
     <main className="min-h-screen bg-[#f5f7fa] text-slate-900">
       <Navbar />
 
-      <section className="relative overflow-hidden bg-[#101823] text-white">
+      <section className="relative overflow-hidden bg-[#003040] text-white">
         <div className="absolute inset-0 kordyne-grid-bg opacity-70" />
         <div className="relative mx-auto grid max-w-7xl gap-10 px-5 py-16 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:px-8 lg:py-20">
           <div className="self-center">
@@ -77,7 +77,7 @@ export default function PricingPage() {
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
                 href="/contact"
-                className="rounded-[8px] bg-[#e08a49] px-5 py-3 text-sm font-black text-white transition hover:bg-[#c97539]"
+                className="rounded-[8px] bg-[#00bdde] px-5 py-3 text-sm font-black text-[#003040] transition hover:bg-[#8ceeff]"
               >
                 Request pricing
               </Link>
@@ -101,7 +101,7 @@ export default function PricingPage() {
               key={plan.name}
               className={`rounded-[8px] border p-5 shadow-sm ${
                 index === 1
-                  ? "border-[#e08a49] bg-white shadow-[0_18px_48px_rgba(224,138,73,0.16)]"
+                  ? "border-[#00bdde] bg-white shadow-[0_18px_48px_rgba(0,189,222,0.18)]"
                   : "border-slate-200 bg-white"
               }`}
             >
@@ -123,7 +123,7 @@ export default function PricingPage() {
                 href="/contact"
                 className={`mt-5 inline-flex w-full items-center justify-center rounded-[8px] px-4 py-3 text-sm font-black transition ${
                   index === 1
-                    ? "bg-[#e08a49] text-white hover:bg-[#c97539]"
+                    ? "bg-[#00bdde] text-[#003040] hover:bg-[#8ceeff]"
                     : "border border-slate-300 bg-white text-slate-950 hover:bg-slate-50"
                 }`}
               >
@@ -147,7 +147,7 @@ export default function PricingPage() {
           <div className="mt-9 overflow-hidden rounded-[8px] border border-slate-200">
             <div className="overflow-x-auto">
               <table className="min-w-[880px] w-full border-collapse bg-white text-left text-sm">
-                <thead className="bg-[#101823] text-white">
+                <thead className="bg-[#003040] text-white">
                   <tr>
                     <th className="w-[32%] px-4 py-4 font-black">Capability</th>
                     {plans.map((plan) => (

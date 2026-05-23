@@ -1,10 +1,10 @@
 type ShowcaseVariant = "hero" | "platform" | "enterprise" | "providers";
 
 const stages = [
-  { label: "Vault", value: "CAD + docs", tone: "bg-[#e08a49]" },
-  { label: "Revision", value: "B.3 released", tone: "bg-[#2f80b7]" },
-  { label: "Request", value: "3 providers", tone: "bg-[#29a66a]" },
-  { label: "Thread", value: "@vendor note", tone: "bg-[#d7b46a]" },
+  { label: "Vault", value: "CAD + docs", tone: "bg-[#00bdde]" },
+  { label: "Revision", value: "B.3 released", tone: "bg-[#8ceeff]" },
+  { label: "Request", value: "3 providers", tone: "bg-emerald-300" },
+  { label: "Thread", value: "@vendor note", tone: "bg-white/70" },
 ];
 
 const variantCopy: Record<
@@ -69,7 +69,7 @@ export function WorkflowShowcase({
 
   return (
     <div
-      className={`kordyne-workflow-scene relative overflow-hidden border border-white/12 bg-[#101823] text-white shadow-[0_24px_80px_rgba(2,8,23,0.28)] ${
+      className={`kordyne-workflow-scene relative overflow-hidden border border-white/12 bg-[#003040] text-white shadow-[0_24px_80px_rgba(0,48,64,0.28)] ${
         compact ? "rounded-[8px] p-4" : "rounded-[8px] p-5 sm:p-6"
       }`}
     >
@@ -88,7 +88,7 @@ export function WorkflowShowcase({
                 {copy.title}
               </h3>
             </div>
-            <span className="rounded-[8px] border border-emerald-300/30 bg-emerald-400/10 px-3 py-1 text-xs font-bold text-emerald-200">
+            <span className="rounded-[8px] border border-[#00bdde]/35 bg-[#00bdde]/10 px-3 py-1 text-xs font-bold text-[#8ceeff]">
               In control
             </span>
           </div>
@@ -96,20 +96,20 @@ export function WorkflowShowcase({
           <div className="relative min-h-[270px] overflow-hidden rounded-[8px] border border-white/10 bg-white/[0.04] p-4">
             <div className="kordyne-part-plate absolute left-[12%] top-[22%] h-36 w-[58%] rounded-[8px] border border-white/16 bg-[#8b98a8]/70 shadow-[0_28px_60px_rgba(0,0,0,0.32)]" />
             <div className="kordyne-part-plate absolute left-[28%] top-[12%] h-24 w-24 rounded-full border-[14px] border-[#657282] bg-[#222d3a] shadow-[0_20px_40px_rgba(0,0,0,0.28)]" />
-            <div className="absolute left-[16%] top-[30%] h-5 w-5 rounded-full border-4 border-[#273446] bg-[#101823]" />
-            <div className="absolute left-[58%] top-[30%] h-5 w-5 rounded-full border-4 border-[#273446] bg-[#101823]" />
-            <div className="absolute left-[18%] top-[65%] h-5 w-5 rounded-full border-4 border-[#273446] bg-[#101823]" />
-            <div className="absolute left-[60%] top-[65%] h-5 w-5 rounded-full border-4 border-[#273446] bg-[#101823]" />
+            <div className="absolute left-[16%] top-[30%] h-5 w-5 rounded-full border-4 border-[#273446] bg-[#003040]" />
+            <div className="absolute left-[58%] top-[30%] h-5 w-5 rounded-full border-4 border-[#273446] bg-[#003040]" />
+            <div className="absolute left-[18%] top-[65%] h-5 w-5 rounded-full border-4 border-[#273446] bg-[#003040]" />
+            <div className="absolute left-[60%] top-[65%] h-5 w-5 rounded-full border-4 border-[#273446] bg-[#003040]" />
 
-            <div className="kordyne-callout absolute right-4 top-6 max-w-[210px] rounded-[8px] border border-sky-300/40 bg-sky-400/10 p-3">
-              <p className="text-xs font-black text-sky-100">{copy.primary}</p>
-              <p className="mt-1 text-xs leading-5 text-sky-100/70">
+            <div className="kordyne-callout absolute right-4 top-6 max-w-[210px] rounded-[8px] border border-[#00bdde]/40 bg-[#00bdde]/10 p-3">
+              <p className="text-xs font-black text-[#dffaff]">{copy.primary}</p>
+              <p className="mt-1 text-xs leading-5 text-[#dffaff]/70">
                 STEP, STL, PDF, and image context stay tied to revision history.
               </p>
             </div>
 
-            <div className="kordyne-callout absolute bottom-4 left-4 max-w-[260px] rounded-[8px] border border-[#e08a49]/50 bg-[#e08a49]/12 p-3">
-              <p className="text-xs font-black text-[#ffd9bd]">
+            <div className="kordyne-callout absolute bottom-4 left-4 max-w-[260px] rounded-[8px] border border-[#00bdde]/35 bg-[#00bdde]/12 p-3">
+              <p className="text-xs font-black text-[#dffaff]">
                 {copy.secondary}
               </p>
               <p className="mt-1 text-xs leading-5 text-white/65">
@@ -149,7 +149,7 @@ export function WorkflowShowcase({
             <div className="mt-3 space-y-2">
               {copy.activity.map((item) => (
                 <div key={item} className="flex gap-2 text-xs leading-5 text-white/72">
-                  <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#e08a49]" />
+                  <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#00bdde]" />
                   <span>{item}</span>
                 </div>
               ))}

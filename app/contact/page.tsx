@@ -34,12 +34,12 @@ const mapPoints = [
 function GlobalMapBackdrop() {
   return (
     <div aria-hidden="true" className="absolute inset-0 overflow-hidden">
-      <div className="absolute inset-0 bg-[#101823]" />
+      <div className="absolute inset-0 bg-[#003040]" />
       <div className="absolute inset-0 kordyne-grid-bg opacity-55" />
       <div className="absolute left-[8%] top-[20%] h-[56%] w-[84%] rounded-full border border-white/10" />
-      <div className="absolute left-[18%] top-[28%] h-[40%] w-[64%] rounded-full border border-[#2f80b7]/25" />
-      <div className="absolute left-[12%] right-[12%] top-[49%] h-px bg-gradient-to-r from-transparent via-[#e08a49]/50 to-transparent" />
-      <div className="absolute bottom-0 left-0 right-0 h-48 bg-gradient-to-t from-[#101823] to-transparent" />
+      <div className="absolute left-[18%] top-[28%] h-[40%] w-[64%] rounded-full border border-[#00bdde]/25" />
+      <div className="absolute left-[12%] right-[12%] top-[49%] h-px bg-gradient-to-r from-transparent via-[#00bdde]/55 to-transparent" />
+      <div className="absolute bottom-0 left-0 right-0 h-48 bg-gradient-to-t from-[#003040] to-transparent" />
       {mapPoints.map((point, index) => (
         <div
           key={point.label}
@@ -50,7 +50,7 @@ function GlobalMapBackdrop() {
             animationDelay: `${index * 110}ms`,
           }}
         >
-          <span className="absolute h-3 w-3 rounded-full bg-[#e08a49] shadow-[0_0_0_8px_rgba(224,138,73,0.16)]" />
+          <span className="absolute h-3 w-3 rounded-full bg-[#00bdde] shadow-[0_0_0_8px_rgba(0,189,222,0.16)]" />
           <span className="ml-5 whitespace-nowrap text-[11px] font-black uppercase text-white/60">
             {point.label}
           </span>
@@ -125,7 +125,7 @@ export default function ContactPage() {
 
         <div className="relative mx-auto grid max-w-7xl gap-10 px-5 py-16 sm:px-6 lg:grid-cols-[0.92fr_1.08fr] lg:px-8 lg:py-20">
           <div className="self-center">
-            <p className="text-xs font-black uppercase text-[#e08a49]">
+            <p className="text-xs font-black uppercase text-[#00bdde]">
               Request a demo
             </p>
             <h1 className="mt-4 text-5xl font-black leading-tight text-white sm:text-6xl">
@@ -265,7 +265,7 @@ export default function ContactPage() {
               <button
                 type="submit"
                 disabled={loading || !turnstileToken}
-                className="w-full rounded-[8px] bg-[#e08a49] px-6 py-3 text-sm font-black text-white transition hover:bg-[#c97539] disabled:cursor-not-allowed disabled:opacity-50"
+                className="w-full rounded-[8px] bg-[#00bdde] px-6 py-3 text-sm font-black text-[#003040] transition hover:bg-[#8ceeff] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {loading ? "Sending..." : "Send request"}
               </button>

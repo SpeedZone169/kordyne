@@ -9,7 +9,7 @@ import {
 
 function Eyebrow({ children }: { children: React.ReactNode }) {
   return (
-    <p className="text-xs font-black uppercase text-[#e08a49]">
+    <p className="text-xs font-black uppercase text-[#00bdde]">
       {children}
     </p>
   );
@@ -35,7 +35,7 @@ export default function ProvidersLandingPage() {
     <main className="min-h-screen bg-[#f5f7fa] text-slate-900">
       <Navbar />
 
-      <section className="bg-[#101823] text-white">
+      <section className="bg-[#003040] text-white">
         <div className="mx-auto grid max-w-7xl gap-10 px-5 py-16 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:px-8 lg:py-20">
           <div className="self-center">
             <Eyebrow>Kordyne for providers</Eyebrow>
@@ -52,7 +52,7 @@ export default function ProvidersLandingPage() {
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
                 href={buildProviderLoginHref("/provider")}
-                className="rounded-[8px] bg-[#e08a49] px-5 py-3 text-sm font-black text-white transition hover:bg-[#c97539]"
+                className="rounded-[8px] bg-[#00bdde] px-5 py-3 text-sm font-black text-[#003040] transition hover:bg-[#8ceeff]"
               >
                 Provider sign in
               </Link>

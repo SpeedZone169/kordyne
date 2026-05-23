@@ -5,7 +5,7 @@ import { WorkflowShowcase } from "@/components/MarketingShowcase";
 
 function Eyebrow({ children }: { children: React.ReactNode }) {
   return (
-    <p className="text-xs font-black uppercase text-[#e08a49]">
+    <p className="text-xs font-black uppercase text-[#00bdde]">
       {children}
     </p>
   );
@@ -31,7 +31,7 @@ export default function PlatformPage() {
     <main className="min-h-screen bg-[#f5f7fa] text-slate-900">
       <Navbar />
 
-      <section className="bg-[#101823] text-white">
+      <section className="bg-[#003040] text-white">
         <div className="mx-auto grid max-w-7xl gap-10 px-5 py-16 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:px-8 lg:py-20">
           <div className="self-center">
             <Eyebrow>Platform</Eyebrow>
@@ -98,7 +98,7 @@ export default function PlatformPage() {
               key={number}
               className="border-b border-slate-200 py-6 lg:border-b-0 lg:border-r lg:px-6 last:lg:border-r-0"
             >
-              <p className="text-xs font-black text-[#e08a49]">{number}</p>
+              <p className="text-xs font-black text-[#00bdde]">{number}</p>
               <h3 className="mt-2 text-lg font-black text-slate-950">{title}</h3>
               <p className="mt-3 text-sm leading-7 text-slate-600">{body}</p>
             </div>
@@ -139,7 +139,7 @@ export default function PlatformPage() {
             <div className="flex flex-col gap-3">
               <Link
                 href="/enterprise"
-                className="rounded-[8px] bg-slate-950 px-5 py-3 text-center text-sm font-black text-white transition hover:opacity-90"
+                className="rounded-[8px] bg-[#003040] px-5 py-3 text-center text-sm font-black text-white transition hover:bg-[#005169]"
               >
                 Enterprise Direction
               </Link>

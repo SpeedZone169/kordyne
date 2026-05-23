@@ -5,7 +5,7 @@ import { WorkflowShowcase, WorkflowStrip } from "@/components/MarketingShowcase"
 
 function Eyebrow({ children }: { children: React.ReactNode }) {
   return (
-    <p className="text-xs font-black uppercase text-[#e08a49]">
+    <p className="text-xs font-black uppercase text-[#00bdde]">
       {children}
     </p>
   );
@@ -57,7 +57,7 @@ function FlowPill({ children }: { children: React.ReactNode }) {
 
 function WorkflowRouteMap() {
   return (
-    <section className="bg-[#101823] py-16 text-white lg:py-20">
+    <section className="bg-[#003040] py-16 text-white lg:py-20">
       <div className="mx-auto max-w-7xl px-5 sm:px-6 lg:px-8">
         <div className="grid gap-10 lg:grid-cols-[0.85fr_1.15fr] lg:items-start">
           <div>
@@ -83,8 +83,8 @@ function WorkflowRouteMap() {
               </div>
 
               <div className="grid gap-4 lg:grid-cols-2">
-                <div className="rounded-[8px] border border-emerald-300/20 bg-emerald-400/10 p-4">
-                  <p className="text-xs font-black uppercase text-emerald-200">
+                <div className="rounded-[8px] border border-[#00bdde]/25 bg-[#00bdde]/10 p-4">
+                  <p className="text-xs font-black uppercase text-[#8ceeff]">
                     Internal route
                   </p>
                   <div className="mt-3 grid gap-3">
@@ -94,8 +94,8 @@ function WorkflowRouteMap() {
                   </div>
                 </div>
 
-                <div className="rounded-[8px] border border-[#e08a49]/30 bg-[#e08a49]/10 p-4">
-                  <p className="text-xs font-black uppercase text-[#ffd9bd]">
+                <div className="rounded-[8px] border border-white/15 bg-white/[0.06] p-4">
+                  <p className="text-xs font-black uppercase text-white/75">
                     External route
                   </p>
                   <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -118,7 +118,7 @@ export default function Home() {
     <main className="min-h-screen bg-[#f5f7fa] text-slate-900">
       <Navbar />
 
-      <section className="relative overflow-hidden bg-[#101823] text-white">
+      <section className="relative overflow-hidden bg-[#003040] text-white">
         <div className="absolute inset-0 opacity-55">
           <div className="absolute inset-0 kordyne-grid-bg" />
         </div>
@@ -141,7 +141,7 @@ export default function Home() {
             <div className="mt-9 flex flex-wrap gap-3">
               <Link
                 href="/contact"
-                className="rounded-[8px] bg-[#e08a49] px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-[#c97539]"
+                className="rounded-[8px] bg-[#00bdde] px-5 py-3 text-sm font-black text-[#003040] shadow-[0_16px_34px_rgba(0,189,222,0.22)] transition hover:bg-[#8ceeff]"
               >
                 Request Demo
               </Link>
@@ -205,7 +205,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="bg-[#18202b] py-16 text-white lg:py-24">
+      <section className="bg-[#002532] py-16 text-white lg:py-24">
         <div className="mx-auto max-w-7xl px-5 sm:px-6 lg:px-8">
           <div className="grid gap-8 lg:grid-cols-[1fr_1fr] lg:items-center">
             <WorkflowShowcase variant="enterprise" compact />
