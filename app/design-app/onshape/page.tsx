@@ -113,7 +113,7 @@ type OnshapeResolvedPart = {
 type ThemeMode = "light" | "dark";
 type ActiveTab = "connect" | "publish" | "library" | "pull" | "compare";
 type PublishMode = "new_family" | "new_revision";
-type PublishStatus = "idle" | "saving" | "publishing" | "published";
+type PublishStatus = "idle" | "checking" | "saving" | "publishing" | "published";
 type LibrarySort = "recent" | "name_asc" | "revision_desc" | "status";
 type PublishStepId =
   | "checkpoint"
@@ -511,6 +511,7 @@ export default function OnshapeDesignAppPage() {
   const [lastPublishedFingerprint, setLastPublishedFingerprint] = useState("");
   const [publishMatches, setPublishMatches] = useState<PublishedPart[]>([]);
   const [selectedMatch, setSelectedMatch] = useState<PublishedPart | null>(null);
+  const [newFamilyMatchOverrideKey, setNewFamilyMatchOverrideKey] = useState("");
   const [pullPackage, setPullPackage] = useState<PullPackage | null>(null);
   const [compareSummary, setCompareSummary] =
     useState<CompareStatusPayload | null>(null);
@@ -541,6 +542,16 @@ export default function OnshapeDesignAppPage() {
   const editableWorkspaceId =
     onshapeWorkspaceId ||
     (onshapeWorkspaceOrVersion === "w" ? onshapeWorkspaceOrVersionId : "");
+  const publishMatchKey = useMemo(
+    () =>
+      [
+        context?.documentId ?? "",
+        context?.elementId ?? "",
+        partName.trim().toLowerCase(),
+        partNumber.trim().toLowerCase(),
+      ].join("|"),
+    [context?.documentId, context?.elementId, partName, partNumber],
+  );
   const focusOnshapeElement = useCallback(
     function focusOnshapeElement(elementId?: string | null) {
       const nextElementId = elementId?.trim();
@@ -563,14 +574,17 @@ export default function OnshapeDesignAppPage() {
     },
     [editableWorkspaceId, onshapeDocumentId, onshapeElementId, onshapeOrigin],
   );
-  const publishFingerprint = useMemo(
-    () =>
+  const buildPublishFingerprint = useCallback(
+    (
+      mode = publishMode,
+      targetPartId = mode === "new_revision" ? selectedMatch?.part_id ?? "" : "",
+    ) =>
       [
         context?.documentId ?? "",
         context?.elementId ?? "",
         context?.microversionId ?? "",
-        publishMode,
-        selectedMatch?.part_id ?? "",
+        mode,
+        targetPartId,
         partName.trim(),
         partNumber.trim(),
         material.trim(),
@@ -590,6 +604,10 @@ export default function OnshapeDesignAppPage() {
       selectedMatch?.part_id,
     ],
   );
+  const publishFingerprint = useMemo(
+    () => buildPublishFingerprint(),
+    [buildPublishFingerprint],
+  );
 
   useEffect(() => {
     const savedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
@@ -605,6 +623,11 @@ export default function OnshapeDesignAppPage() {
   useEffect(() => {
     window.localStorage.setItem(THEME_STORAGE_KEY, theme);
   }, [theme]);
+
+  useEffect(() => {
+    setPublishMatches([]);
+    setNewFamilyMatchOverrideKey("");
+  }, [publishMatchKey]);
 
   const callOnshapeApi = useCallback(
     async function callOnshapeApi<T>(
@@ -1407,21 +1430,43 @@ export default function OnshapeDesignAppPage() {
     return exactMatches;
   }
 
-  async function publish() {
+  async function publish(
+    decision?: {
+      mode: PublishMode;
+      match?: PublishedPart | null;
+      allowSeparateNewPart?: boolean;
+    },
+  ) {
     if (!context || !token) return;
     if (publishInFlightRef.current) return;
 
-    if (lastPublishedFingerprint && lastPublishedFingerprint === publishFingerprint) {
+    const effectiveMode = decision?.mode ?? publishMode;
+    const effectiveTargetMatch =
+      effectiveMode === "new_revision"
+        ? decision?.match || selectedMatch || lastPart || null
+        : null;
+    const allowSeparateNewPart =
+      Boolean(decision?.allowSeparateNewPart) ||
+      (effectiveMode === "new_family" &&
+        newFamilyMatchOverrideKey === publishMatchKey);
+    const effectiveFingerprint = buildPublishFingerprint(
+      effectiveMode,
+      effectiveTargetMatch?.part_id ?? "",
+    );
+
+    if (
+      lastPublishedFingerprint &&
+      lastPublishedFingerprint === effectiveFingerprint
+    ) {
       setStatus("This package was already saved to Kordyne.");
       return;
     }
 
     publishInFlightRef.current = true;
-    setState("working");
-    setPublishStatus("saving");
+    setPublishStatus("checking");
     setPublishWarning("");
-    setPublishSteps(initialPublishSteps());
-    setStatus("Saving package: checking Onshape and Kordyne data...");
+    setPublishSteps([]);
+    setStatus("Checking Vault target before publishing...");
 
     try {
       if (!partName.trim()) {
@@ -1431,42 +1476,59 @@ export default function OnshapeDesignAppPage() {
         return;
       }
 
-      updatePublishStep("checkpoint", "active", "Confirming latest cloud state");
-      await prepareOnshapeCheckpoint("Publish");
-      updatePublishStep("checkpoint", "done", "Latest state confirmed");
+      const targetMatch = effectiveTargetMatch;
 
-      let targetMatch =
-        publishMode === "new_revision"
-          ? selectedMatch || lastPart || null
-          : null;
-
-      if (!targetMatch && publishMode === "new_family") {
-        setStatus("Saving package: checking for existing Kordyne part...");
+      if (effectiveMode === "new_family" && !allowSeparateNewPart) {
+        setStatus("Checking Vault for existing Kordyne parts...");
         const matches = await findPotentialPublishMatches();
         if (matches.length > 0) {
           setPublishStatus("idle");
           setState("connected");
           setStatus(
-            "Possible existing Kordyne part found. Choose new revision or keep creating a separate part.",
+            "Possible existing Kordyne part found. Choose the matching Vault part or confirm a separate new part before publishing.",
           );
           setActiveTab("publish");
           return;
         }
       }
 
-      if (publishMode === "new_revision" && !targetMatch) {
-        setStatus("Saving package: finding the Kordyne part to revise...");
+      if (effectiveMode === "new_revision" && !targetMatch) {
+        setStatus("Choose which existing Kordyne part should receive the next revision...");
         const matches = await findPotentialPublishMatches();
-        targetMatch = matches[0] ?? null;
+        if (matches.length > 0) {
+          setPublishStatus("idle");
+          setState("connected");
+          setActiveTab("publish");
+          return;
+        }
       }
 
-      if (publishMode === "new_revision" && !targetMatch?.part_id) {
-        updatePublishStep("package", "error", "No revision target selected");
+      if (effectiveMode === "new_revision" && !targetMatch?.part_id) {
         setPublishStatus("idle");
         setState("error");
         setStatus("Select an existing Kordyne part before publishing a revision.");
         return;
       }
+
+      setPublishMode(effectiveMode);
+      if (effectiveMode === "new_revision" && targetMatch) {
+        setSelectedMatch(targetMatch);
+        setLastPart(targetMatch);
+        setNewFamilyMatchOverrideKey("");
+      }
+      if (effectiveMode === "new_family" && allowSeparateNewPart) {
+        setSelectedMatch(null);
+        setNewFamilyMatchOverrideKey(publishMatchKey);
+      }
+      setPublishMatches([]);
+      setState("working");
+      setPublishStatus("saving");
+      setPublishSteps(initialPublishSteps());
+      setStatus("Saving package: checking Onshape and Kordyne data...");
+
+      updatePublishStep("checkpoint", "active", "Confirming latest cloud state");
+      await prepareOnshapeCheckpoint("Publish");
+      updatePublishStep("checkpoint", "done", "Latest state confirmed");
 
       let publishStlFile = stlFile;
       if (!publishStlFile) {
@@ -1541,7 +1603,7 @@ export default function OnshapeDesignAppPage() {
       setPublishStatus("publishing");
       updatePublishStep("package", "active", "Creating Vault record");
       setStatus(
-        publishMode === "new_revision"
+        effectiveMode === "new_revision"
           ? "Publishing package: creating next Kordyne revision..."
           : "Publishing package: creating Kordyne part...",
       );
@@ -1572,7 +1634,7 @@ export default function OnshapeDesignAppPage() {
         method: "POST",
         body: JSON.stringify({
           idempotency_key: randomIdempotencyKey(),
-          part_id: publishMode === "new_revision" ? targetMatch?.part_id : null,
+          part_id: effectiveMode === "new_revision" ? targetMatch?.part_id : null,
           external_workspace_id: context.workspaceId || null,
           external_project_id: context.companyId || null,
           external_document_id: context.documentId || null,
@@ -1584,13 +1646,13 @@ export default function OnshapeDesignAppPage() {
           external_name: partName || displayNameForContext(context),
           external_url: context.externalUrl || null,
           metadata: {
-            publish_mode: publishMode,
+            publish_mode: effectiveMode,
             name: partName.trim(),
             part_number: partNumber.trim() || null,
             description: description.trim() || null,
             process_type: processType || null,
             material: material.trim() || null,
-            revision_scheme: publishMode === "new_family" ? revisionScheme : null,
+            revision_scheme: effectiveMode === "new_family" ? revisionScheme : null,
             category: category || null,
             status: statusValue,
             revision_note: revisionNote.trim() || "Published from Onshape.",
@@ -1626,7 +1688,7 @@ export default function OnshapeDesignAppPage() {
       setLibraryLoaded(false);
       setState("connected");
       setPublishStatus("published");
-      setLastPublishedFingerprint(publishFingerprint);
+      setLastPublishedFingerprint(effectiveFingerprint);
       updatePublishStep("package", "done", "Package saved in Kordyne");
       setStatus(
         payload.revision
@@ -2206,7 +2268,9 @@ export default function OnshapeDesignAppPage() {
             ? "Publishing package..."
             : publishStatus === "saving"
               ? "Preparing package..."
-              : "Publish package to Kordyne";
+              : publishStatus === "checking"
+                ? "Checking Vault..."
+                : "Publish package to Kordyne";
   const publishButtonClass =
     publishStatus === "published"
       ? "rounded-md bg-emerald-600 text-white"
@@ -2214,8 +2278,8 @@ export default function OnshapeDesignAppPage() {
   const targetLabel =
     publishMode === "new_revision"
       ? `Target: next revision${selectedMatch?.revision ? ` after Rev ${selectedMatch.revision}` : ""}`
-      : publishMatches.length > 0
-        ? "Target: new Kordyne part family - duplicate intentionally allowed"
+      : newFamilyMatchOverrideKey === publishMatchKey
+        ? "Target: new Kordyne part family - confirmed separate part"
         : "Target: new Kordyne part family";
   const sourceLocation =
     context?.documentName ||
@@ -2538,7 +2602,11 @@ export default function OnshapeDesignAppPage() {
 
             {publishMatches.length > 0 ? (
               <div className={`mt-5 border p-4 ${panel}`}>
-                <h3 className="text-sm font-bold">Possible existing Vault match</h3>
+                <h3 className="text-sm font-bold">Resolve Vault target first</h3>
+                <p className={`mt-1 text-xs ${muted}`}>
+                  Kordyne found possible existing parts. Choose a match to publish
+                  the next revision, or confirm this is a separate new part.
+                </p>
                 <div className="mt-3 space-y-2">
                   {publishMatches.slice(0, 3).map((item) => {
                     const nextRevision = nextRevisionHint(item.revision);
@@ -2550,18 +2618,20 @@ export default function OnshapeDesignAppPage() {
                           setSelectedMatch(item);
                           setLastPart(item);
                           setPublishMode("new_revision");
-                          setStatus(
-                            nextRevision
-                              ? `Existing match selected. Kordyne will create Rev ${nextRevision}.`
-                              : "Existing match selected. Kordyne will create the next revision.",
-                          );
+                          void publish({ mode: "new_revision", match: item });
                         }}
-                        className={`block w-full border p-3 text-left text-sm ${secondaryButton}`}
+                        disabled={publishStatus === "checking" || busy}
+                        className={`block w-full border p-3 text-left text-sm disabled:opacity-60 ${secondaryButton}`}
                       >
                         <span className="block font-bold">{item.name || item.part_id}</span>
                         <span className={muted}>
                           {item.part_number ? `${item.part_number} - ` : ""}
                           {item.revision ? `Rev ${item.revision}` : "No revision"}
+                        </span>
+                        <span className="mt-2 block text-xs font-bold text-[#00a9c7]">
+                          {nextRevision
+                            ? `Publish as Rev ${nextRevision}`
+                            : "Publish as next revision"}
                         </span>
                       </button>
                     );
@@ -2573,11 +2643,16 @@ export default function OnshapeDesignAppPage() {
                     setPublishMatches([]);
                     setSelectedMatch(null);
                     setPublishMode("new_family");
-                    setStatus("Creating a separate new Vault family.");
+                    setNewFamilyMatchOverrideKey(publishMatchKey);
+                    void publish({
+                      mode: "new_family",
+                      allowSeparateNewPart: true,
+                    });
                   }}
-                  className={`mt-3 h-10 w-full text-sm font-bold ${secondaryButton}`}
+                  disabled={publishStatus === "checking" || busy}
+                  className={`mt-3 h-10 w-full text-sm font-bold disabled:opacity-60 ${secondaryButton}`}
                 >
-                  Create separate new part
+                  Create separate new part instead
                 </button>
               </div>
             ) : null}
@@ -2649,6 +2724,7 @@ export default function OnshapeDesignAppPage() {
                 disabled={
                   !connected ||
                   busy ||
+                  publishStatus === "checking" ||
                   !publishableContext ||
                   duplicatePublishBlocked
                 }
