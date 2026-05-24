@@ -80,6 +80,7 @@ export type DesignConnectorProviderDefinition = {
   capabilities: readonly DesignConnectorCapability[];
   security: DesignConnectorSecurityPolicy;
   downloadRoute?: string;
+  setupRoute?: string;
 };
 
 const REGULATED_WORKSPACE_FIELDS: readonly DesignConnectorRegulatedWorkspaceField[] =
@@ -218,6 +219,7 @@ export const DESIGN_CONNECTOR_PROVIDER_DEFINITIONS: Record<
       "web_handoff",
     ],
     security: CLOUD_CONNECTOR_SECURITY_POLICY,
+    setupRoute: "/design-app/onshape",
   },
 };
 

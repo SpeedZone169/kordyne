@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createBrowserClient } from "@supabase/ssr";
 
@@ -200,51 +201,60 @@ export default function DesignAppConnectPage() {
       : "/login";
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6 p-6">
-      <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
-        <h1 className="text-2xl font-semibold text-gray-900">
-          Connect {clientLabel} to Kordyne
-        </h1>
+    <div className="min-h-screen bg-[#003040] bg-[linear-gradient(rgba(255,255,255,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.035)_1px,transparent_1px)] bg-[size:36px_36px] p-6">
+      <div className="mx-auto max-w-2xl space-y-6">
+        <div className="rounded-[8px] border border-cyan-100/20 bg-[#062f3d]/95 p-6 text-white shadow-sm">
+          <Image
+            src="/kordyne-logo-white.svg"
+            alt="Kordyne"
+            width={228}
+            height={58}
+            className="h-10 w-auto"
+          />
+          <h1 className="mt-8 text-2xl font-semibold">
+            Connect {clientLabel} to Kordyne
+          </h1>
 
-        <p className="mt-3 text-sm text-gray-600">{message}</p>
+          <p className="mt-3 text-sm leading-6 text-cyan-50/75">{message}</p>
 
-        <div className="mt-6 flex flex-wrap gap-3">
-          {status === "needs_login" ? (
-            <>
-              <a
-                href={loginHref}
-                className="rounded-xl border border-gray-900 bg-gray-900 px-4 py-2 text-sm font-medium text-white"
-              >
-                Open Kordyne Login
-              </a>
+          <div className="mt-6 flex flex-wrap gap-3">
+            {status === "needs_login" ? (
+              <>
+                <a
+                  href={loginHref}
+                  className="rounded-[8px] border border-[#00bdde] bg-[#00bdde] px-4 py-2 text-sm font-medium text-[#002b38]"
+                >
+                  Open Kordyne Login
+                </a>
+                <button
+                  type="button"
+                  onClick={() => void approve(code)}
+                  className="rounded-[8px] border border-cyan-100/25 px-4 py-2 text-sm font-medium"
+                >
+                  I already logged in
+                </button>
+              </>
+            ) : null}
+
+            {status === "error" ? (
               <button
                 type="button"
                 onClick={() => void approve(code)}
-                className="rounded-xl border px-4 py-2 text-sm font-medium"
+                className="rounded-[8px] border border-cyan-100/25 px-4 py-2 text-sm font-medium"
               >
-                I already logged in
+                Retry
               </button>
-            </>
-          ) : null}
+            ) : null}
+          </div>
 
-          {status === "error" ? (
-            <button
-              type="button"
-              onClick={() => void approve(code)}
-              className="rounded-xl border px-4 py-2 text-sm font-medium"
-            >
-              Retry
-            </button>
-          ) : null}
-        </div>
-
-        <div className="mt-6 rounded-[8px] border bg-gray-50 p-4 text-sm text-gray-600">
-          <p>
-            Keep {clientLabel} open while Kordyne completes the connection.
-          </p>
-          <p className="mt-2">
-            After approval, this tab will close if your browser allows it.
-          </p>
+          <div className="mt-6 rounded-[8px] border border-cyan-100/20 bg-white/5 p-4 text-sm leading-6 text-cyan-50/70">
+            <p>
+              Keep {clientLabel} open while Kordyne completes the connection.
+            </p>
+            <p className="mt-2">
+              After approval, this tab will close if your browser allows it.
+            </p>
+          </div>
         </div>
       </div>
     </div>

@@ -134,17 +134,17 @@ export default async function DesignConnectorsPage() {
   ).length;
 
   return (
-    <div className="space-y-6 p-6">
-      <section className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
+    <div className="space-y-6 bg-[#f4f9fb] p-6">
+      <section className="rounded-[8px] border border-[#c6dce3] bg-[#003040] p-6 text-white shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <div className="text-sm font-medium text-gray-500">
+            <div className="text-sm font-medium text-cyan-100/70">
               {organization?.name ?? "Organization"}
             </div>
-            <h1 className="mt-1 text-2xl font-semibold text-gray-900">
+            <h1 className="mt-1 text-2xl font-semibold">
               Design Connectors
             </h1>
-            <p className="mt-2 max-w-3xl text-sm text-gray-600">
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-cyan-50/75">
               Connect CAD environments to Kordyne, manage credentials and scopes,
               and control connector rollout across current and upcoming adapters.
             </p>
@@ -153,13 +153,13 @@ export default async function DesignConnectorsPage() {
           <div className="flex flex-wrap gap-3">
             <Link
               href="/dashboard/design-connectors/downloads"
-              className="rounded-xl border border-gray-900 bg-gray-900 px-4 py-2 text-sm font-medium text-white"
+              className="rounded-[8px] border border-[#00bdde] bg-[#00bdde] px-4 py-2 text-sm font-medium text-[#002b38]"
             >
               Downloads
             </Link>
             <Link
               href="/dashboard/parts"
-              className="rounded-xl border px-4 py-2 text-sm font-medium text-gray-700"
+              className="rounded-[8px] border border-cyan-100/25 px-4 py-2 text-sm font-medium text-white"
             >
               Parts
             </Link>
@@ -168,7 +168,7 @@ export default async function DesignConnectorsPage() {
       </section>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+        <div className="rounded-[8px] border border-[#c6dce3] bg-white p-5 shadow-sm">
           <div className="text-sm font-medium text-gray-500">
             Active connectors
           </div>
@@ -177,7 +177,7 @@ export default async function DesignConnectorsPage() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+        <div className="rounded-[8px] border border-[#c6dce3] bg-white p-5 shadow-sm">
           <div className="text-sm font-medium text-gray-500">
             Credential profiles
           </div>
@@ -186,7 +186,7 @@ export default async function DesignConnectorsPage() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+        <div className="rounded-[8px] border border-[#c6dce3] bg-white p-5 shadow-sm">
           <div className="text-sm font-medium text-gray-500">
             Runs in progress
           </div>
@@ -195,7 +195,7 @@ export default async function DesignConnectorsPage() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+        <div className="rounded-[8px] border border-[#c6dce3] bg-white p-5 shadow-sm">
           <div className="text-sm font-medium text-gray-500">
             Recent successful runs
           </div>
@@ -205,7 +205,7 @@ export default async function DesignConnectorsPage() {
         </div>
       </section>
 
-      <section className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
+      <section className="rounded-[8px] border border-[#c6dce3] bg-white p-6 shadow-sm">
         <div className="flex items-center justify-between gap-4">
           <div>
             <h2 className="text-lg font-semibold text-gray-900">
@@ -218,7 +218,7 @@ export default async function DesignConnectorsPage() {
 
           <Link
             href="/dashboard/design-connectors/downloads"
-            className="rounded-xl border px-4 py-2 text-sm font-medium text-gray-700"
+            className="rounded-[8px] border border-[#c6dce3] px-4 py-2 text-sm font-medium text-[#003040]"
           >
             Manage downloads
           </Link>
@@ -232,13 +232,17 @@ export default async function DesignConnectorsPage() {
             const enabled = Boolean(entitlement?.is_enabled);
 
             const statusTone = enabled
-              ? "border-green-200 bg-green-50 text-green-700"
-              : release
-                ? "border-amber-200 bg-amber-50 text-amber-700"
-                : "border-gray-200 bg-gray-50 text-gray-500";
+              ? "border-[#00bdde]/40 bg-[#d6f8fd] text-[#003040]"
+              : meta.setupRoute
+                ? "border-[#00bdde]/40 bg-[#e8fbff] text-[#006f87]"
+                : release
+                  ? "border-amber-200 bg-amber-50 text-amber-700"
+                  : "border-gray-200 bg-gray-50 text-gray-500";
 
             const statusLabel = enabled
               ? "Enabled"
+              : meta.setupRoute
+                ? "Web app"
               : release
                 ? "Available"
                 : meta.statusLabel;
@@ -252,14 +256,14 @@ export default async function DesignConnectorsPage() {
             return (
               <div
                 key={providerKey}
-                className="rounded-2xl border border-gray-200 bg-gray-50/60 p-4"
+                className="rounded-[8px] border border-[#c6dce3] bg-[#f8fbfc] p-4"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="text-base font-semibold text-gray-900">
                     {meta.label}
                   </div>
                   <span
-                    className={`rounded-full border px-3 py-1 text-xs font-medium ${statusTone}`}
+                    className={`rounded-[8px] border px-3 py-1 text-xs font-medium ${statusTone}`}
                   >
                     {statusLabel}
                   </span>
@@ -279,13 +283,21 @@ export default async function DesignConnectorsPage() {
                     {runtimeRoles}
                   </div>
                 </div>
+                {meta.setupRoute ? (
+                  <Link
+                    href={meta.setupRoute}
+                    className="mt-4 inline-flex rounded-[8px] border border-[#003040] bg-[#003040] px-3 py-2 text-xs font-medium text-white"
+                  >
+                    Open Onshape add-in
+                  </Link>
+                ) : null}
               </div>
             );
           })}
         </div>
       </section>
 
-      <details className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
+      <details className="rounded-[8px] border border-[#c6dce3] bg-white p-6 shadow-sm">
         <summary className="cursor-pointer text-lg font-semibold text-gray-900">
           Advanced connector administration
         </summary>
@@ -295,7 +307,7 @@ export default async function DesignConnectorsPage() {
           for admins when credentials or scopes need review.
         </p>
 
-        <div className="mt-5 rounded-2xl border border-gray-200 bg-gray-50 p-2">
+        <div className="mt-5 rounded-[8px] border border-[#c6dce3] bg-gray-50 p-2">
           <Client
             initialConnectors={connectors}
             initialProfiles={profiles}

@@ -6,7 +6,10 @@ import { DESIGN_CONNECTOR_PROVIDER_LIST } from "../../../../lib/design-connector
 const CONNECTORS = DESIGN_CONNECTOR_PROVIDER_LIST.map((provider) => ({
   key: provider.key,
   label: provider.label,
+  description: provider.description,
   href: provider.downloadRoute,
+  setupRoute: provider.setupRoute,
+  runtimes: provider.runtimes,
   security: provider.security,
 }));
 
@@ -48,7 +51,7 @@ export default async function DesignConnectorDownloadsPage() {
   if (!membership?.organization_id) {
     return (
       <div className="space-y-6 p-6">
-        <div className="rounded-3xl border border-red-200 bg-red-50 p-6 text-red-800">
+        <div className="rounded-[8px] border border-red-200 bg-red-50 p-6 text-red-800">
           No organization membership found.
         </div>
       </div>
@@ -94,28 +97,29 @@ export default async function DesignConnectorDownloadsPage() {
   const canDownload = membership.role === "admin";
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
+    <div className="space-y-6 bg-[#f4f9fb] p-6">
+      <div className="rounded-[8px] border border-[#c6dce3] bg-[#003040] p-6 text-white shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold text-gray-900">
+            <h1 className="text-2xl font-semibold">
               Connector Downloads
             </h1>
-            <p className="mt-1 text-sm text-gray-500">
-              Download enabled design connectors for your organization.
+            <p className="mt-1 max-w-2xl text-sm text-cyan-50/75">
+              Install desktop connectors or open the Onshape web handoff route
+              for your organization.
             </p>
           </div>
 
           <Link
             href="/dashboard/design-connectors"
-            className="rounded-xl border px-4 py-2 text-sm font-medium text-gray-700"
+            className="rounded-[8px] border border-cyan-100/25 px-4 py-2 text-sm font-medium text-white"
           >
             Back
           </Link>
         </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {CONNECTORS.map((connector) => {
           const entitlement = entitlementByProvider.get(connector.key);
           const connectorReleases = DOWNLOAD_FORMATS.map((format) => ({
@@ -137,26 +141,37 @@ export default async function DesignConnectorDownloadsPage() {
               : "—";
 
           const hasRelease = connectorReleases.some((item) => item.release);
+          const isDesktopPackage =
+            connector.security.distributionKind === "msi";
           const showDownload = Boolean(
             canDownload && enabled && connector.href && hasRelease,
           );
           const securityLabel = connector.security.requiresSignedInstaller
             ? "Signed MSI required"
             : "Controlled access enforced";
-          const integrityLabel = release?.sha256_checksum
+          const integrityLabel = !isDesktopPackage
+            ? "OAuth runtime"
+            : release?.sha256_checksum
             ? "Checksum recorded"
             : release
               ? "Checksum pending"
               : "—";
+          const runtimeLabel = connector.runtimes
+            .map((runtime) => runtime.replace(/_/g, " "))
+            .join(", ");
 
           const statusLabel = enabled
             ? "Enabled"
+            : connector.setupRoute
+              ? "Web app"
             : release
               ? "Available"
               : "Coming soon";
 
           const statusClasses = enabled
-            ? "border-green-200 bg-green-50 text-green-700"
+            ? "border-[#00bdde]/40 bg-[#d6f8fd] text-[#003040]"
+            : connector.setupRoute
+              ? "border-[#00bdde]/40 bg-[#e8fbff] text-[#006f87]"
             : release
               ? "border-amber-200 bg-amber-50 text-amber-700"
               : "border-gray-200 bg-gray-50 text-gray-500";
@@ -164,20 +179,25 @@ export default async function DesignConnectorDownloadsPage() {
           return (
             <section
               key={connector.key}
-              className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm"
+              className="rounded-[8px] border border-[#c6dce3] bg-white p-5 shadow-sm"
             >
               <div className="flex items-start justify-between gap-3">
-                <h2 className="text-lg font-semibold text-gray-900">
-                  {connector.label}
-                </h2>
+                <div>
+                  <h2 className="text-lg font-semibold text-[#003040]">
+                    {connector.label}
+                  </h2>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    {connector.description}
+                  </p>
+                </div>
                 <span
-                  className={`rounded-full border px-3 py-1 text-xs font-medium ${statusClasses}`}
+                  className={`rounded-[8px] border px-3 py-1 text-xs font-medium ${statusClasses}`}
                 >
                   {statusLabel}
                 </span>
               </div>
 
-              <div className="mt-5 space-y-3 text-sm text-gray-700">
+              <div className="mt-5 space-y-3 text-sm text-slate-700">
                 <div>
                   <span className="font-medium">Version:</span> {version}
                 </div>
@@ -200,7 +220,8 @@ export default async function DesignConnectorDownloadsPage() {
                   <span className="font-medium">Published:</span> {published}
                 </div>
                 <div>
-                  <span className="font-medium">Runtime:</span> {runtimeRoles}
+                  <span className="font-medium">Runtime:</span>{" "}
+                  {runtimeRoles !== "—" ? runtimeRoles : runtimeLabel}
                 </div>
                 <div>
                   <span className="font-medium">Security:</span>{" "}
@@ -219,17 +240,24 @@ export default async function DesignConnectorDownloadsPage() {
                       <a
                         key={item.key}
                         href={connector.href}
-                        className="inline-flex rounded-xl border border-gray-900 bg-gray-900 px-4 py-2 text-sm font-medium text-white"
+                        className="inline-flex rounded-[8px] border border-[#00bdde] bg-[#00bdde] px-4 py-2 text-sm font-medium text-[#002b38]"
                       >
                         Download MSI
                       </a>
                     ) : null,
                   )
+                ) : connector.setupRoute ? (
+                  <Link
+                    href={connector.setupRoute}
+                    className="inline-flex rounded-[8px] border border-[#003040] bg-[#003040] px-4 py-2 text-sm font-medium text-white"
+                  >
+                    Open Onshape Add-in
+                  </Link>
                 ) : release ? (
                   <button
                     type="button"
                     disabled
-                    className="inline-flex cursor-not-allowed rounded-xl border border-gray-200 bg-gray-100 px-4 py-2 text-sm font-medium text-gray-400"
+                    className="inline-flex cursor-not-allowed rounded-[8px] border border-gray-200 bg-gray-100 px-4 py-2 text-sm font-medium text-gray-400"
                   >
                     Download disabled
                   </button>
@@ -237,7 +265,7 @@ export default async function DesignConnectorDownloadsPage() {
                   <button
                     type="button"
                     disabled
-                    className="inline-flex cursor-not-allowed rounded-xl border border-gray-200 bg-gray-100 px-4 py-2 text-sm font-medium text-gray-400"
+                    className="inline-flex cursor-not-allowed rounded-[8px] border border-gray-200 bg-gray-100 px-4 py-2 text-sm font-medium text-gray-400"
                   >
                     Coming soon
                   </button>
