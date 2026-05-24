@@ -2958,14 +2958,7 @@ export default function OnshapeDesignAppPage() {
                           </button>
                         ) : null}
                       </div>
-                      <div className="mt-3 grid grid-cols-4 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => linkLibraryPart(item, "publish")}
-                          className={`h-9 text-xs font-bold ${secondaryButton}`}
-                        >
-                          Revise
-                        </button>
+                      <div className="mt-3 grid grid-cols-3 gap-2">
                         <button
                           type="button"
                           onClick={() => {
@@ -3022,16 +3015,7 @@ export default function OnshapeDesignAppPage() {
                                         .join(" - ") || "No status"}
                                     </p>
                                   </div>
-                                  <div className="grid grid-cols-4 gap-1">
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        linkLibraryPart(revision, "publish")
-                                      }
-                                      className={`h-8 px-2 font-bold ${secondaryButton}`}
-                                    >
-                                      Revise
-                                    </button>
+                                  <div className="grid grid-cols-3 gap-1">
                                     <button
                                       type="button"
                                       onClick={() => {
