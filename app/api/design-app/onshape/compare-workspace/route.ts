@@ -52,6 +52,18 @@ function asString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function safeElementName(value: string) {
+  return value
+    .replace(/[<>:"/\\|?*\u0000-\u001F]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 90);
+}
+
+function compareName(value: unknown, fallback: string) {
+  return safeElementName(asString(value)) || fallback;
+}
+
 function choosePrimaryPart(parts: OnshapePart[]) {
   return (
     parts.find((part) => part.bodyType === "solid" && !part.isMesh) ||
@@ -294,10 +306,11 @@ export async function POST(request: Request) {
       });
     }
 
-    const assemblyName = `Kordyne compare ${new Date()
-      .toISOString()
-      .slice(0, 16)
-      .replace("T", " ")}`;
+    const leftName = compareName(resolved[0]?.row.name, "Part A");
+    const rightName = compareName(resolved[1]?.row.name, "Part B");
+    const assemblyName =
+      safeElementName(`Comparison ${leftName} vs ${rightName}`) ||
+      "Kordyne comparison";
     let assembly: {
       element_id?: string | null;
       open_url?: string | null;

@@ -16,6 +16,7 @@ type ImportStepInput = {
   file_id?: string | null;
   storage_path?: string | null;
   filename?: string | null;
+  import_name?: string | null;
   mime_type?: string | null;
   mode?: "new_document" | "current_document" | null;
   documentId?: string | null;
@@ -87,6 +88,14 @@ function validateStoragePathPrefix(
 
 function safeDocumentName(value: string) {
   return value.replace(/[<>:"/\\|?*\u0000-\u001F]/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function safeStepImportFilename(value: string, fallback: string) {
+  const fallbackBase =
+    safeDocumentName(fallback.replace(/\.(step|stp)$/i, "")) || "Kordyne part";
+  const base =
+    safeDocumentName(value.replace(/\.(step|stp)$/i, "")) || fallbackBase;
+  return `${base.slice(0, 90)}.step`;
 }
 
 function parseJsonObject<T>(text: string): T & { message?: string; error?: string } {
@@ -262,6 +271,7 @@ async function importStepIntoDocument(input: {
   documentId: string;
   workspaceId: string;
   filename: string;
+  importFilename?: string;
   contentType: string;
   bytes: Uint8Array;
 }) {
@@ -273,7 +283,11 @@ async function importStepIntoDocument(input: {
 
   const fileBuffer = new ArrayBuffer(input.bytes.byteLength);
   new Uint8Array(fileBuffer).set(input.bytes);
-  form.set("file", new Blob([fileBuffer], { type: input.contentType }), input.filename);
+  form.set(
+    "file",
+    new Blob([fileBuffer], { type: input.contentType }),
+    input.importFilename || input.filename,
+  );
 
   const translation = await fetchOnshapeJson<TranslationResponse>(
     buildOnshapeApiUrl(
@@ -488,6 +502,12 @@ export async function POST(request: Request) {
     }
 
     const filename = asString(stepFile.file_name) || "kordyne-part.step";
+    const importFilename = safeStepImportFilename(
+      asString(input.import_name) ||
+        part?.name ||
+        filename.replace(/\.(step|stp)$/i, ""),
+      filename,
+    );
     const contentType =
       blob.type || asString(stepFile.file_type) || "application/step";
     const bytes = new Uint8Array(await blob.arrayBuffer());
@@ -537,6 +557,7 @@ export async function POST(request: Request) {
       documentId,
       workspaceId,
       filename,
+      importFilename,
       contentType,
       bytes,
     });

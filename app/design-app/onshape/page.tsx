@@ -1757,6 +1757,7 @@ export default function OnshapeDesignAppPage() {
           mode: "current_document",
           part_id: part.part_id,
           file_id: stepFile.file_id,
+          import_name: partDisplayName(part),
           documentId: onshapeDocumentId,
           workspaceId: editableWorkspaceId,
           workspaceOrVersion: onshapeWorkspaceOrVersion,
@@ -1951,6 +1952,7 @@ export default function OnshapeDesignAppPage() {
                 mode: "current_document",
                 storage_path: currentStep.storage_path,
                 filename: currentStep.filename,
+                import_name: activePartName,
                 mime_type: currentStep.mime_type,
                 documentId: onshapeDocumentId,
                 workspaceId: editableWorkspaceId,
@@ -1973,6 +1975,7 @@ export default function OnshapeDesignAppPage() {
               mode: "current_document",
               part_id: stepPackage.latest.part_id,
               file_id: stepPackage.step_file.file_id,
+              import_name: partDisplayName(stepPackage.latest),
               documentId: onshapeDocumentId,
               workspaceId: editableWorkspaceId,
               workspaceOrVersion: onshapeWorkspaceOrVersion,
@@ -2128,6 +2131,11 @@ export default function OnshapeDesignAppPage() {
               mode: "current_document",
               part_id: sourcePart.part_id,
               file_id: primaryStep.file_id,
+              import_name:
+                payload.part.name ||
+                sourcePart.name ||
+                sourcePart.part_number ||
+                sourcePart.part_id,
               documentId: onshapeDocumentId,
               workspaceId: editableWorkspaceId,
               workspaceOrVersion: onshapeWorkspaceOrVersion,
