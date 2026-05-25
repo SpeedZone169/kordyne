@@ -2447,9 +2447,6 @@ export default function OnshapeDesignAppPage() {
   const inputClass = isDark
     ? "rounded-lg border-cyan-200/20 bg-[#002836] text-white placeholder:text-cyan-50/45 focus:border-[#00bdde] focus:outline-none focus:ring-2 focus:ring-[#00bdde]/15"
     : "rounded-lg border-[#c9dce3] bg-white text-slate-950 placeholder:text-slate-400 focus:border-[#00bdde] focus:outline-none focus:ring-2 focus:ring-[#00bdde]/15";
-  const tableCellClass = isDark
-    ? "border-cyan-200/10 bg-white/[0.03]"
-    : "border-[#d8e7ec] bg-white";
   const primaryButton =
     "rounded-lg bg-gradient-to-r from-[#00bdde] to-[#008fad] text-white shadow-[0_10px_24px_rgba(0,189,222,0.24)] hover:from-[#16c8e5] hover:to-[#009dbd] focus:outline-none focus:ring-2 focus:ring-[#00bdde]/35";
   const secondaryButton = isDark
@@ -2564,6 +2561,44 @@ export default function OnshapeDesignAppPage() {
     );
   }
 
+  function statusPill(status?: string | null) {
+    const value = status?.trim();
+    if (!value) return null;
+    const normalized = value.toLowerCase();
+    const label =
+      normalized === "archived"
+        ? "Archived"
+        : normalized === "active"
+          ? "Active"
+          : normalized === "draft"
+            ? "Draft"
+            : value;
+    const className =
+      normalized === "active"
+        ? isDark
+          ? "border-emerald-300/30 bg-emerald-400/15 text-emerald-200"
+          : "border-emerald-300 bg-emerald-50 text-emerald-700"
+        : normalized === "archived"
+          ? isDark
+            ? "border-slate-300/20 bg-slate-300/10 text-slate-200"
+            : "border-slate-300 bg-slate-100 text-slate-600"
+          : normalized === "draft"
+            ? isDark
+              ? "border-amber-300/30 bg-amber-400/15 text-amber-200"
+              : "border-amber-300 bg-amber-50 text-amber-700"
+            : isDark
+              ? "border-cyan-200/20 bg-cyan-200/10 text-cyan-100"
+              : "border-[#c9dce3] bg-[#f5fbfd] text-[#003040]";
+
+    return (
+      <span
+        className={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[11px] font-bold ${className}`}
+      >
+        {label}
+      </span>
+    );
+  }
+
   return (
     <main className={`min-h-screen px-4 py-6 ${surface}`}>
       <div className="mx-auto max-w-[458px] space-y-5">
@@ -2577,12 +2612,8 @@ export default function OnshapeDesignAppPage() {
           >
             {/* eslint-disable-next-line @next/next/no-img-element -- Static SVG brand asset is more reliable inside the Onshape iframe. */}
             <img
-              src={isDark ? "/kordyne-logo-dark.png" : "/kordyne-logo.svg"}
+              src={isDark ? "/kordyne-logo-white.svg" : "/kordyne-logo.svg"}
               alt="Kordyne"
-              onError={(event) => {
-                event.currentTarget.src = "/kordyne-logo.svg";
-                event.currentTarget.classList.add("rounded-md", "bg-white", "p-1");
-              }}
               className="h-16 w-full object-contain object-left"
             />
           </a>
@@ -3281,17 +3312,6 @@ export default function OnshapeDesignAppPage() {
                   const selectedForCompare = libraryCompareSelection.some(
                     (part) => part.part_id === item.part_id,
                   );
-                  const metadataCells = [
-                    ["Part no.", fieldOrDash(item.part_number)],
-                    ["Revision", item.revision ? `Rev ${item.revision}` : "-"],
-                    [
-                      "Revisions",
-                      item.revision_count ? String(item.revision_count) : "-",
-                    ],
-                    ["Process", fieldOrDash(item.process_type)],
-                    ["Category", fieldOrDash(item.category)],
-                    ["Status", fieldOrDash(item.status)],
-                  ];
 
                   return (
                     <div key={item.part_id} className={`border p-3 text-sm ${panel}`}>
@@ -3318,30 +3338,29 @@ export default function OnshapeDesignAppPage() {
                           <p className="truncate font-bold">
                             {item.name || item.part_id}
                           </p>
-                          <dl
-                            className={`mt-2 grid grid-cols-2 overflow-hidden rounded-lg border text-[11px] ${rowBorder}`}
-                          >
-                            {metadataCells.map(([label, value]) => (
-                              <div
-                                key={label}
-                                className={`min-w-0 border-b border-r p-2 last:border-r-0 even:border-r-0 [&:nth-last-child(-n+2)]:border-b-0 ${tableCellClass}`}
-                              >
-                                <dt className={`truncate font-semibold ${softMuted}`}>
-                                  {label}
-                                </dt>
-                                <dd
-                                  className={`mt-0.5 truncate font-bold ${
-                                    label === "Status" &&
-                                    value.toLowerCase() === "active"
-                                      ? "text-emerald-400"
-                                      : ""
-                                  }`}
-                                >
+                          <p className={`mt-1 truncate text-xs ${muted}`}>
+                            {item.part_number ? `${item.part_number} - ` : ""}
+                            {item.revision ? `Rev ${item.revision}` : "No revision"}
+                            {item.revision_count
+                              ? ` - ${item.revision_count} revision${item.revision_count === 1 ? "" : "s"}`
+                              : ""}
+                          </p>
+                          <div className={`mt-1 flex min-w-0 flex-wrap items-center gap-1.5 text-xs ${muted}`}>
+                            {[item.process_type, item.category]
+                              .filter(Boolean)
+                              .map((value) => (
+                                <span key={value} className="truncate">
                                   {value}
-                                </dd>
-                              </div>
-                            ))}
-                          </dl>
+                                </span>
+                              ))}
+                            {item.process_type || item.category ? (
+                              <span className={softMuted}>-</span>
+                            ) : null}
+                            {statusPill(item.status)}
+                            {!item.process_type && !item.category && !item.status ? (
+                              <span>No classification</span>
+                            ) : null}
+                          </div>
                           {item.linked_projects?.length ? (
                             <p className={`mt-1 truncate text-xs ${muted}`}>
                               {item.linked_projects
