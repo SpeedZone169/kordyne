@@ -2538,6 +2538,7 @@ export default function OnshapeDesignAppPage() {
   const formRowClass =
     "grid grid-cols-[28px_1fr] gap-x-3 gap-y-2 text-sm sm:grid-cols-[28px_118px_1fr] sm:items-center";
   const formLabelClass = `font-bold ${muted}`;
+  const formControlClass = `col-span-2 h-11 w-full border px-3 text-sm sm:col-span-1 ${inputClass}`;
 
   function navButton(tab: ActiveTab, label: string, icon: ConnectorIconName) {
     return (
@@ -2790,7 +2791,7 @@ export default function OnshapeDesignAppPage() {
                   id="onshape-part-name"
                   value={partName}
                   onChange={(event) => setPartName(event.target.value)}
-                  className={`h-11 w-full border px-3 text-sm ${inputClass}`}
+                  className={formControlClass}
                 />
               </div>
 
@@ -2804,7 +2805,7 @@ export default function OnshapeDesignAppPage() {
                   value={partNumber}
                   onChange={(event) => setPartNumber(event.target.value)}
                   placeholder="Optional part number"
-                  className={`h-11 w-full border px-3 text-sm ${inputClass}`}
+                  className={formControlClass}
                 />
               </div>
 
@@ -2818,7 +2819,7 @@ export default function OnshapeDesignAppPage() {
                   value={description}
                   onChange={(event) => setDescription(event.target.value)}
                   placeholder="Optional description"
-                  className={`h-11 w-full border px-3 text-sm ${inputClass}`}
+                  className={formControlClass}
                 />
               </div>
 
@@ -2831,7 +2832,7 @@ export default function OnshapeDesignAppPage() {
                   id="onshape-process"
                   value={processType}
                   onChange={(event) => setProcessType(event.target.value)}
-                  className={`h-11 w-full border px-3 text-sm ${inputClass}`}
+                  className={formControlClass}
                 >
                   <option value="">Select process type</option>
                   <option>3D Printing</option>
@@ -2856,7 +2857,7 @@ export default function OnshapeDesignAppPage() {
                   value={material}
                   onChange={(event) => setMaterial(event.target.value)}
                   placeholder="Type or choose a material"
-                  className={`h-11 w-full border px-3 text-sm ${inputClass}`}
+                  className={formControlClass}
                 />
               </div>
 
@@ -2869,7 +2870,7 @@ export default function OnshapeDesignAppPage() {
                   id="onshape-publish-mode"
                   value={publishMode}
                   onChange={(event) => setPublishMode(event.target.value as PublishMode)}
-                  className={`h-11 w-full border px-3 text-sm ${inputClass}`}
+                  className={formControlClass}
                 >
                   <option value="new_family">New family</option>
                   <option value="new_revision">New revision</option>
@@ -2888,7 +2889,7 @@ export default function OnshapeDesignAppPage() {
                     onChange={(event) =>
                       setRevisionScheme(event.target.value as "alphabetic" | "numeric")
                     }
-                    className={`h-11 w-full border px-3 text-sm ${inputClass}`}
+                    className={formControlClass}
                   >
                     <option value="alphabetic">Alphabetic (A, B, C...)</option>
                     <option value="numeric">Numeric (1, 2, 3...)</option>
@@ -2906,7 +2907,7 @@ export default function OnshapeDesignAppPage() {
                   value={revisionNote}
                   onChange={(event) => setRevisionNote(event.target.value)}
                   placeholder="Optional revision note"
-                  className={`h-11 w-full border px-3 text-sm ${inputClass}`}
+                  className={formControlClass}
                 />
               </div>
 
