@@ -2612,9 +2612,11 @@ export default function OnshapeDesignAppPage() {
           >
             {/* eslint-disable-next-line @next/next/no-img-element -- Static SVG brand asset is more reliable inside the Onshape iframe. */}
             <img
-              src={isDark ? "/kordyne-logo-white.svg" : "/kordyne-logo.svg"}
+              src="/kordyne-logo.svg"
               alt="Kordyne"
-              className="h-16 w-full object-contain object-left"
+              className={`h-16 w-full object-contain object-left ${
+                isDark ? "brightness-0 invert" : ""
+              }`}
             />
           </a>
           <button
