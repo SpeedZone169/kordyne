@@ -456,6 +456,197 @@ function randomIdempotencyKey() {
   return `onshape-${random}`;
 }
 
+type ConnectorIconName =
+  | "alert"
+  | "building"
+  | "check"
+  | "chevronDown"
+  | "compare"
+  | "cube"
+  | "description"
+  | "external"
+  | "gear"
+  | "hash"
+  | "info"
+  | "layers"
+  | "library"
+  | "link"
+  | "part"
+  | "pull"
+  | "role"
+  | "search"
+  | "select"
+  | "sun"
+  | "tag"
+  | "text"
+  | "upload"
+  | "user";
+
+function ConnectorIcon({
+  name,
+  className = "h-5 w-5",
+}: {
+  name: ConnectorIconName;
+  className?: string;
+}) {
+  const common = {
+    fill: "none",
+    stroke: "currentColor",
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    strokeWidth: 1.8,
+  };
+
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className={className}
+      {...common}
+    >
+      {name === "alert" ? (
+        <>
+          <circle cx="12" cy="12" r="8.5" />
+          <path d="m9.5 9.5 5 5M14.5 9.5l-5 5" />
+        </>
+      ) : null}
+      {name === "building" ? (
+        <>
+          <path d="M5 21V5.5A1.5 1.5 0 0 1 6.5 4h7A1.5 1.5 0 0 1 15 5.5V21" />
+          <path d="M15 9h2.5A1.5 1.5 0 0 1 19 10.5V21" />
+          <path d="M8 8h1.5M8 12h1.5M8 16h1.5M12 8h.5M12 12h.5M12 16h.5M4 21h16" />
+        </>
+      ) : null}
+      {name === "check" ? (
+        <>
+          <circle cx="12" cy="12" r="8.5" />
+          <path d="m8.4 12.2 2.4 2.4 4.8-5.2" />
+        </>
+      ) : null}
+      {name === "chevronDown" ? <path d="m7 9 5 5 5-5" /> : null}
+      {name === "compare" ? (
+        <>
+          <path d="M8 7h8M8 17h8" />
+          <path d="m10 4-3 3 3 3M14 14l3 3-3 3" />
+        </>
+      ) : null}
+      {name === "cube" ? (
+        <>
+          <path d="m12 3.5 7 4v8l-7 4-7-4v-8l7-4Z" />
+          <path d="M5.4 7.8 12 11.6l6.6-3.8M12 11.6v7.6" />
+        </>
+      ) : null}
+      {name === "description" ? (
+        <>
+          <path d="M5 6h14M5 11h14M5 16h10" />
+        </>
+      ) : null}
+      {name === "external" ? (
+        <>
+          <path d="M9 5H6.5A1.5 1.5 0 0 0 5 6.5v11A1.5 1.5 0 0 0 6.5 19h11a1.5 1.5 0 0 0 1.5-1.5V15" />
+          <path d="M13 5h6v6M19 5l-8 8" />
+        </>
+      ) : null}
+      {name === "gear" ? (
+        <>
+          <circle cx="12" cy="12" r="3" />
+          <path d="M12 3.5v2M12 18.5v2M4.6 7.8l1.7 1M17.7 15.2l1.7 1M4.6 16.2l1.7-1M17.7 8.8l1.7-1M3.5 12h2M18.5 12h2" />
+        </>
+      ) : null}
+      {name === "hash" ? (
+        <>
+          <path d="M9.5 4.5 7.8 19.5M16.2 4.5l-1.7 15M5 9h15M4 15h15" />
+        </>
+      ) : null}
+      {name === "info" ? (
+        <>
+          <circle cx="12" cy="12" r="8.5" />
+          <path d="M12 11v5M12 8h.01" />
+        </>
+      ) : null}
+      {name === "layers" ? (
+        <>
+          <path d="m12 4 8 4-8 4-8-4 8-4Z" />
+          <path d="m4 12 8 4 8-4M4 16l8 4 8-4" />
+        </>
+      ) : null}
+      {name === "library" ? (
+        <>
+          <path d="M5 5.5A1.5 1.5 0 0 1 6.5 4H8v16H6.5A1.5 1.5 0 0 1 5 18.5v-13ZM10 4h4v16h-4zM16 4h1.5A1.5 1.5 0 0 1 19 5.5v13a1.5 1.5 0 0 1-1.5 1.5H16z" />
+        </>
+      ) : null}
+      {name === "link" ? (
+        <>
+          <path d="M9.5 14.5 14.5 9.5" />
+          <path d="M10.8 7.2 12 6a4 4 0 0 1 5.7 5.7l-1.2 1.2M13.2 16.8 12 18a4 4 0 0 1-5.7-5.7l1.2-1.2" />
+        </>
+      ) : null}
+      {name === "part" ? (
+        <>
+          <path d="M7 7h10v10H7z" />
+          <path d="M4 10h3M17 10h3M4 14h3M17 14h3M10 4v3M14 4v3M10 17v3M14 17v3" />
+        </>
+      ) : null}
+      {name === "pull" ? (
+        <>
+          <path d="M12 4v10" />
+          <path d="m8 10 4 4 4-4" />
+          <path d="M5 18h14" />
+        </>
+      ) : null}
+      {name === "role" ? (
+        <>
+          <path d="M12 3.5 19 6v5.2c0 4.3-2.8 7.5-7 9.3-4.2-1.8-7-5-7-9.3V6l7-2.5Z" />
+          <circle cx="12" cy="10" r="2.2" />
+          <path d="M8.8 16a3.8 3.8 0 0 1 6.4 0" />
+        </>
+      ) : null}
+      {name === "search" ? (
+        <>
+          <circle cx="10.5" cy="10.5" r="5.5" />
+          <path d="m15 15 4 4" />
+        </>
+      ) : null}
+      {name === "select" ? (
+        <>
+          <path d="M5 5h14v14H5z" />
+          <path d="m8.5 12 2.2 2.2 4.8-5" />
+        </>
+      ) : null}
+      {name === "sun" ? (
+        <>
+          <circle cx="12" cy="12" r="3.5" />
+          <path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4" />
+        </>
+      ) : null}
+      {name === "tag" ? (
+        <>
+          <path d="M4 12.5 11.5 20 20 11.5V5h-6.5L4 14.5v-2Z" />
+          <circle cx="15.5" cy="8.5" r="1" />
+        </>
+      ) : null}
+      {name === "text" ? (
+        <>
+          <path d="M5 6h14M12 6v12M9 18h6" />
+        </>
+      ) : null}
+      {name === "upload" ? (
+        <>
+          <path d="M12 20V9" />
+          <path d="m8 13 4-4 4 4" />
+          <path d="M5 20h14M6 5h12" />
+        </>
+      ) : null}
+      {name === "user" ? (
+        <>
+          <circle cx="12" cy="8" r="3" />
+          <path d="M5.5 20a6.5 6.5 0 0 1 13 0" />
+        </>
+      ) : null}
+    </svg>
+  );
+}
+
 export default function OnshapeDesignAppPage() {
   const [context, setContext] = useState<OnshapeContext | null>(null);
   const [token, setToken] = useState("");
@@ -2241,25 +2432,51 @@ export default function OnshapeDesignAppPage() {
     state === "working";
   const contextName = context ? displayNameForContext(context) : "Onshape design";
   const isDark = theme === "dark";
-  const surface = isDark ? "bg-[#003040] text-white" : "bg-[#eef7fa] text-slate-950";
+  const surface = isDark
+    ? "bg-[#002532] text-white"
+    : "bg-[radial-gradient(circle_at_top_left,#ffffff_0,#f4fbfd_48%,#eaf5f8_100%)] text-slate-950";
   const card = isDark
-    ? "rounded-md border border-cyan-200/20 bg-[#062f3d] shadow-sm shadow-black/20"
-    : "rounded-md border border-[#c9dce3] bg-white shadow-sm shadow-slate-200/80";
+    ? "rounded-lg border border-cyan-200/15 bg-[#06303f] shadow-[0_18px_42px_rgba(0,0,0,0.22)]"
+    : "rounded-lg border border-[#cbdde4] bg-white/95 shadow-[0_16px_42px_rgba(0,48,64,0.08)]";
   const panel = isDark
-    ? "rounded-md border-cyan-200/15 bg-[#093847]"
-    : "rounded-md border-[#d6e5ea] bg-[#f8fbfc]";
+    ? "rounded-lg border-cyan-200/15 bg-[#082f3d]"
+    : "rounded-lg border-[#d8e7ec] bg-[#fbfdfe]";
   const muted = isDark ? "text-cyan-50/75" : "text-slate-600";
+  const softMuted = isDark ? "text-cyan-50/55" : "text-slate-500";
+  const rowBorder = isDark ? "border-cyan-200/10" : "border-[#dde9ee]";
+  const iconTone = isDark ? "text-[#67ddf1]" : "text-[#008cad]";
   const inputClass = isDark
-    ? "rounded-md border-cyan-200/20 bg-[#002836] text-white placeholder:text-cyan-50/45 focus:border-[#00bdde] focus:outline-none"
-    : "rounded-md border-[#c9dce3] bg-white text-slate-950 placeholder:text-slate-400 focus:border-[#00bdde] focus:outline-none";
+    ? "rounded-lg border-cyan-200/20 bg-[#002836] text-white placeholder:text-cyan-50/45 focus:border-[#00bdde] focus:outline-none focus:ring-2 focus:ring-[#00bdde]/15"
+    : "rounded-lg border-[#c9dce3] bg-white text-slate-950 placeholder:text-slate-400 focus:border-[#00bdde] focus:outline-none focus:ring-2 focus:ring-[#00bdde]/15";
   const primaryButton =
-    "rounded-md bg-[#00bdde] text-[#002b38] shadow-sm shadow-cyan-900/10 hover:bg-[#20cbe6]";
+    "rounded-lg bg-gradient-to-r from-[#00bdde] to-[#008fad] text-white shadow-[0_10px_24px_rgba(0,189,222,0.24)] hover:from-[#16c8e5] hover:to-[#009dbd] focus:outline-none focus:ring-2 focus:ring-[#00bdde]/35";
   const secondaryButton = isDark
-    ? "rounded-md border border-cyan-200/20 bg-[#0b3f4f] text-white hover:border-[#00bdde]"
-    : "rounded-md border border-[#c9dce3] bg-white text-[#003040] hover:border-[#00bdde]";
+    ? "rounded-lg border border-cyan-200/20 bg-[#0b3f4f] text-white hover:border-[#00bdde] focus:outline-none focus:ring-2 focus:ring-[#00bdde]/35"
+    : "rounded-lg border border-[#c9dce3] bg-white text-[#003040] hover:border-[#00bdde] hover:bg-[#f5fbfd] focus:outline-none focus:ring-2 focus:ring-[#00bdde]/35";
   const inactiveTab = isDark
-    ? "rounded-md border border-cyan-200/20 bg-[#0b3f4f] text-white"
-    : "rounded-md border border-[#c9dce3] bg-white text-[#003040]";
+    ? "border border-cyan-200/20 bg-[#0b3f4f] text-white focus:outline-none focus:ring-2 focus:ring-[#00bdde]/35"
+    : "border border-[#c9dce3] bg-white text-[#003040] focus:outline-none focus:ring-2 focus:ring-[#00bdde]/35";
+  const connectionTitle = connected ? "Connected" : "Not connected";
+  const connectionDetail = connected
+    ? onshapeApiConnected
+      ? "Connected to Kordyne and Onshape API."
+      : "Connected to Kordyne. Authorize Onshape API before publishing."
+    : "Connect to access Kordyne services";
+  const connectionBannerClass = connected
+    ? isDark
+      ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-50"
+      : "border-emerald-300 bg-emerald-50 text-emerald-950"
+    : isDark
+      ? "border-red-300/30 bg-red-400/10 text-red-50"
+      : "border-red-200 bg-red-50 text-red-950";
+  const liveStatusClass =
+    state === "error"
+      ? isDark
+        ? "border-red-300/25 bg-red-400/10 text-red-50"
+        : "border-red-200 bg-red-50 text-red-900"
+      : isDark
+        ? "border-cyan-200/15 bg-cyan-200/5 text-cyan-50"
+        : "border-[#d5e8ef] bg-[#f3fbfe] text-[#17394a]";
   const activePartRevision = context?.revision || resolvedPart?.revision || "";
   const activePartName =
     resolvedPart?.name ||
@@ -2318,8 +2535,11 @@ export default function OnshapeDesignAppPage() {
   const duplicatePublishBlocked =
     Boolean(lastPublishedFingerprint) &&
     lastPublishedFingerprint === publishFingerprint;
+  const formRowClass =
+    "grid grid-cols-[28px_1fr] gap-x-3 gap-y-2 text-sm sm:grid-cols-[28px_118px_1fr] sm:items-center";
+  const formLabelClass = `font-bold ${muted}`;
 
-  function navButton(tab: ActiveTab, label: string) {
+  function navButton(tab: ActiveTab, label: string, icon: ConnectorIconName) {
     return (
       <button
         type="button"
@@ -2329,18 +2549,21 @@ export default function OnshapeDesignAppPage() {
             void searchLibrary();
           }
         }}
-        className={`h-9 min-w-[94px] px-4 text-sm font-semibold ${
-          activeTab === tab ? "rounded-md bg-[#00bdde] text-[#002b38]" : inactiveTab
+        className={`flex h-11 min-w-0 items-center justify-center gap-2 px-3 text-sm font-bold transition ${
+          activeTab === tab
+            ? "rounded-lg bg-gradient-to-r from-[#00bdde] to-[#008fad] text-white shadow-[0_10px_22px_rgba(0,189,222,0.22)] focus:outline-none focus:ring-2 focus:ring-[#00bdde]/35"
+            : inactiveTab
         }`}
       >
+        <ConnectorIcon name={icon} className="h-4 w-4 shrink-0" />
         {label}
       </button>
     );
   }
 
   return (
-    <main className={`min-h-screen px-4 py-5 ${surface}`}>
-      <div className="mx-auto max-w-[420px] space-y-5">
+    <main className={`min-h-screen px-4 py-6 ${surface}`}>
+      <div className="mx-auto max-w-[458px] space-y-5">
         <header className="flex items-center justify-between gap-4">
           <a
             href="https://www.kordyne.com"
@@ -2354,57 +2577,114 @@ export default function OnshapeDesignAppPage() {
               alt="Kordyne"
               width={260}
               height={72}
-              className="h-14 w-full object-contain object-left"
+              className="h-16 w-full object-contain object-left"
             />
           </a>
           <button
             type="button"
             onClick={() => setTheme(isDark ? "light" : "dark")}
-            className={`h-11 min-w-[112px] px-3 text-sm font-semibold ${secondaryButton}`}
+            className={`flex h-11 min-w-[128px] items-center justify-center gap-2 px-3 text-sm font-semibold ${secondaryButton}`}
           >
+            <ConnectorIcon name="sun" className="h-5 w-5" />
             {isDark ? "Light theme" : "Dark theme"}
           </button>
         </header>
 
         <div
-          className={`py-2 text-center text-sm font-bold ${
-            connected ? "bg-emerald-200 text-emerald-950" : "bg-[#8f2f12] text-white"
-          }`}
+          className={`flex items-center gap-4 rounded-lg border px-4 py-4 ${connectionBannerClass}`}
         >
-          {connected ? "Connected" : "Not connected"}
+          <span
+            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
+              connected
+                ? "bg-emerald-600 text-white"
+                : "bg-red-700 text-white"
+            }`}
+          >
+            <ConnectorIcon
+              name={connected ? "check" : "alert"}
+              className="h-5 w-5"
+            />
+          </span>
+          <div className="min-w-0">
+            <p className="text-base font-bold">{connectionTitle}</p>
+            <p className="mt-1 text-sm opacity-80">{connectionDetail}</p>
+          </div>
         </div>
 
-        <dl className="grid grid-cols-[120px_1fr] gap-x-3 gap-y-3 text-sm">
-          <dt className={`font-bold ${muted}`}>User</dt>
-          <dd>{fieldOrDash(profile?.user?.full_name || profile?.user?.email)}</dd>
-          <dt className={`font-bold ${muted}`}>Organization</dt>
-          <dd>{fieldOrDash(profile?.organization?.name)}</dd>
-          <dt className={`font-bold ${muted}`}>Role</dt>
-          <dd>{fieldOrDash(profile?.membership?.role)}</dd>
+        <dl className="space-y-0 text-sm">
+          {[
+            {
+              icon: "user" as const,
+              label: "User",
+              value: fieldOrDash(profile?.user?.full_name || profile?.user?.email),
+            },
+            {
+              icon: "building" as const,
+              label: "Organization",
+              value: fieldOrDash(profile?.organization?.name),
+            },
+            {
+              icon: "role" as const,
+              label: "Role",
+              value: fieldOrDash(profile?.membership?.role),
+            },
+          ].map((row) => (
+            <div
+              key={row.label}
+              className={`grid grid-cols-[34px_1fr_1.25fr] items-center gap-3 border-b py-3 last:border-b-0 ${rowBorder}`}
+            >
+              <ConnectorIcon name={row.icon} className={`h-6 w-6 ${iconTone}`} />
+              <dt className={`font-bold ${muted}`}>{row.label}</dt>
+              <dd className="truncate text-right sm:text-left">{row.value}</dd>
+            </div>
+          ))}
         </dl>
 
         <section className={`p-5 ${card}`}>
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h2 className="text-base font-bold">Active design context</h2>
-              <p className="mt-3 text-sm font-bold">{activePartName}</p>
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex min-w-0 gap-4">
+              <span
+                className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full ${
+                  isDark ? "bg-cyan-200/10" : "bg-[#edf8fb]"
+                }`}
+              >
+                <ConnectorIcon name="cube" className={`h-8 w-8 ${iconTone}`} />
+              </span>
+              <div className="min-w-0">
+                <h2 className="text-lg font-bold">Active design context</h2>
+                <p className="mt-2 truncate text-sm font-bold">{activePartName}</p>
+              </div>
             </div>
             {onshapeApiConnected ? (
-              <span className="text-xs font-bold text-emerald-500">API connected</span>
+              <span
+                className={`flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-bold ${
+                  isDark
+                    ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-200"
+                    : "border-emerald-300 bg-emerald-50 text-emerald-700"
+                }`}
+              >
+                <ConnectorIcon name="check" className="h-3.5 w-3.5" />
+                API connected
+              </span>
             ) : null}
           </div>
 
-          <dl className="mt-5 grid grid-cols-[112px_1fr] gap-x-3 gap-y-3 text-sm">
-            <dt className={muted}>Source</dt>
-            <dd className="truncate">{fieldOrDash(sourceLocation)}</dd>
-            <dt className={muted}>CAD part</dt>
-            <dd className="truncate">{fieldOrDash(activePartName)}</dd>
-            <dt className={muted}>Part no.</dt>
-            <dd className="truncate">{fieldOrDash(activePartNumber)}</dd>
-            <dt className={muted}>Kordyne target</dt>
-            <dd className="truncate">{fieldOrDash(selectedMatch?.name || lastPart?.name)}</dd>
-            <dt className={muted}>Revision plan</dt>
-            <dd>{revisionPlan}</dd>
+          <dl className={`mt-5 border-t ${rowBorder}`}>
+            {[
+              ["Source", fieldOrDash(sourceLocation)],
+              ["CAD part", fieldOrDash(activePartName)],
+              ["Part no.", fieldOrDash(activePartNumber)],
+              ["Kordyne target", fieldOrDash(selectedMatch?.name || lastPart?.name)],
+              ["Revision plan", revisionPlan],
+            ].map(([label, value]) => (
+              <div
+                key={label}
+                className={`grid grid-cols-[132px_1fr] gap-3 border-b py-3 text-sm last:border-b-0 ${rowBorder}`}
+              >
+                <dt className={muted}>{label}</dt>
+                <dd className="truncate">{value}</dd>
+              </div>
+            ))}
           </dl>
 
           {context && !publishableContext ? (
@@ -2417,31 +2697,47 @@ export default function OnshapeDesignAppPage() {
           ) : null}
         </section>
 
-        <p className={`text-sm ${state === "error" ? "font-semibold text-red-500" : muted}`}>
-          {status}
-        </p>
+        <div className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm ${liveStatusClass}`}>
+          <ConnectorIcon
+            name={state === "error" ? "alert" : "info"}
+            className="mt-0.5 h-5 w-5 shrink-0"
+          />
+          <p>{status}</p>
+        </div>
 
-        <div className="grid grid-cols-3 gap-2">
-          {navButton("connect", "Connect")}
-          {navButton("publish", "Publish")}
-          {navButton("library", "Library")}
+        <div className={`grid grid-cols-3 overflow-hidden rounded-lg border ${rowBorder}`}>
+          {navButton("connect", "Connect", "link")}
+          {navButton("publish", "Publish", "upload")}
+          {navButton("library", "Library", "library")}
         </div>
 
         {activeTab === "connect" ? (
           <section className={`p-5 ${card}`}>
-            <h2 className="text-xl font-bold">Connect to Kordyne</h2>
-            <p className={`mt-3 text-sm leading-6 ${muted}`}>
-              Browser login opens Kordyne, signs you in, and returns this panel
-              connected.
-            </p>
-            <div className="mt-5 flex flex-wrap gap-3">
+            <div className="flex gap-4">
+              <span
+                className={`flex h-20 w-20 shrink-0 items-center justify-center rounded-full ${
+                  isDark ? "bg-cyan-200/10" : "bg-[#edf8fb]"
+                }`}
+              >
+                <ConnectorIcon name="link" className={`h-10 w-10 ${iconTone}`} />
+              </span>
+              <div className="min-w-0">
+                <h2 className="text-2xl font-bold">Connect to Kordyne</h2>
+                <p className={`mt-3 text-base leading-7 ${muted}`}>
+                  Browser login opens Kordyne, signs you in, and returns this
+                  panel connected.
+                </p>
+              </div>
+            </div>
+            <div className="mt-6 grid gap-3">
               {!connected ? (
                 <button
                   type="button"
                   onClick={() => void connect()}
                   disabled={busy}
-                  className={`h-11 px-5 text-sm font-bold disabled:opacity-60 ${primaryButton}`}
+                  className={`flex h-12 items-center justify-center gap-2 px-5 text-base font-bold disabled:opacity-60 ${primaryButton}`}
                 >
+                  <ConnectorIcon name="external" className="h-5 w-5" />
                   Connect to Kordyne
                 </button>
               ) : (
@@ -2449,7 +2745,7 @@ export default function OnshapeDesignAppPage() {
                   type="button"
                   onClick={disconnect}
                   disabled={busy}
-                  className={`h-11 px-5 text-sm font-bold disabled:opacity-60 ${secondaryButton}`}
+                  className={`flex h-12 items-center justify-center gap-2 px-5 text-base font-bold disabled:opacity-60 ${secondaryButton}`}
                 >
                   Disconnect
                 </button>
@@ -2459,13 +2755,18 @@ export default function OnshapeDesignAppPage() {
                   type="button"
                   onClick={() => void connectOnshapeApi()}
                   disabled={busy}
-                  className={`h-11 px-5 text-sm font-bold disabled:opacity-60 ${primaryButton}`}
+                  className={`flex h-12 items-center justify-center gap-2 px-5 text-base font-bold disabled:opacity-60 ${primaryButton}`}
                 >
+                  <ConnectorIcon name="external" className="h-5 w-5" />
                   Connect Onshape API
                 </button>
               ) : null}
             </div>
-            <p className={`mt-5 text-xs ${muted}`}>
+            <p className={`mt-6 border-t pt-5 text-sm leading-6 ${muted} ${rowBorder}`}>
+              <ConnectorIcon
+                name="role"
+                className={`mr-2 inline h-4 w-4 align-[-3px] ${iconTone}`}
+              />
               By using this connector, you agree to Kordyne Terms and Privacy.
             </p>
           </section>
@@ -2473,45 +2774,64 @@ export default function OnshapeDesignAppPage() {
 
         {activeTab === "publish" ? (
           <section className={`p-5 ${card}`}>
-            <h2 className="text-xl font-bold">Publish to Kordyne</h2>
+            <div className="flex items-center gap-3">
+              <ConnectorIcon name="upload" className={`h-6 w-6 ${iconTone}`} />
+              <h2 className="text-xl font-bold">Publish to Kordyne</h2>
+            </div>
             <p className={`mt-3 text-sm font-bold ${muted}`}>{targetLabel}</p>
 
             <div className="mt-5 grid gap-4">
-              <label className="text-sm font-bold">
-                Part Name
+              <div className={formRowClass}>
+                <ConnectorIcon name="text" className={`mt-2 h-5 w-5 sm:mt-0 ${iconTone}`} />
+                <label htmlFor="onshape-part-name" className={formLabelClass}>
+                  Part Name
+                </label>
                 <input
+                  id="onshape-part-name"
                   value={partName}
                   onChange={(event) => setPartName(event.target.value)}
-                  className={`mt-2 h-10 w-full border px-3 text-sm ${inputClass}`}
+                  className={`h-11 w-full border px-3 text-sm ${inputClass}`}
                 />
-              </label>
+              </div>
 
-              <label className="text-sm font-bold">
-                Part Number
+              <div className={formRowClass}>
+                <ConnectorIcon name="hash" className={`mt-2 h-5 w-5 sm:mt-0 ${iconTone}`} />
+                <label htmlFor="onshape-part-number" className={formLabelClass}>
+                  Part Number
+                </label>
                 <input
+                  id="onshape-part-number"
                   value={partNumber}
                   onChange={(event) => setPartNumber(event.target.value)}
                   placeholder="Optional part number"
-                  className={`mt-2 h-10 w-full border px-3 text-sm ${inputClass}`}
+                  className={`h-11 w-full border px-3 text-sm ${inputClass}`}
                 />
-              </label>
+              </div>
 
-              <label className="text-sm font-bold">
-                Description
+              <div className={formRowClass}>
+                <ConnectorIcon name="description" className={`mt-2 h-5 w-5 sm:mt-0 ${iconTone}`} />
+                <label htmlFor="onshape-description" className={formLabelClass}>
+                  Description
+                </label>
                 <input
+                  id="onshape-description"
                   value={description}
                   onChange={(event) => setDescription(event.target.value)}
                   placeholder="Optional description"
-                  className={`mt-2 h-10 w-full border px-3 text-sm ${inputClass}`}
+                  className={`h-11 w-full border px-3 text-sm ${inputClass}`}
                 />
-              </label>
+              </div>
 
-              <label className="text-sm font-bold">
-                Process Type
+              <div className={formRowClass}>
+                <ConnectorIcon name="gear" className={`mt-2 h-5 w-5 sm:mt-0 ${iconTone}`} />
+                <label htmlFor="onshape-process" className={formLabelClass}>
+                  Process Type
+                </label>
                 <select
+                  id="onshape-process"
                   value={processType}
                   onChange={(event) => setProcessType(event.target.value)}
-                  className={`mt-2 h-10 w-full border px-3 text-sm ${inputClass}`}
+                  className={`h-11 w-full border px-3 text-sm ${inputClass}`}
                 >
                   <option value="">Select process type</option>
                   <option>3D Printing</option>
@@ -2524,75 +2844,99 @@ export default function OnshapeDesignAppPage() {
                   <option>Multi Process</option>
                   <option>Other</option>
                 </select>
-              </label>
+              </div>
 
-              <label className="text-sm font-bold">
-                Material
+              <div className={formRowClass}>
+                <ConnectorIcon name="layers" className={`mt-2 h-5 w-5 sm:mt-0 ${iconTone}`} />
+                <label htmlFor="onshape-material" className={formLabelClass}>
+                  Material
+                </label>
                 <input
+                  id="onshape-material"
                   value={material}
                   onChange={(event) => setMaterial(event.target.value)}
                   placeholder="Type or choose a material"
-                  className={`mt-2 h-10 w-full border px-3 text-sm ${inputClass}`}
+                  className={`h-11 w-full border px-3 text-sm ${inputClass}`}
                 />
-              </label>
+              </div>
 
-              <label className="text-sm font-bold">
-                Publish Mode
+              <div className={formRowClass}>
+                <ConnectorIcon name="part" className={`mt-2 h-5 w-5 sm:mt-0 ${iconTone}`} />
+                <label htmlFor="onshape-publish-mode" className={formLabelClass}>
+                  Publish Mode
+                </label>
                 <select
+                  id="onshape-publish-mode"
                   value={publishMode}
                   onChange={(event) => setPublishMode(event.target.value as PublishMode)}
-                  className={`mt-2 h-10 w-full border px-3 text-sm ${inputClass}`}
+                  className={`h-11 w-full border px-3 text-sm ${inputClass}`}
                 >
                   <option value="new_family">New family</option>
                   <option value="new_revision">New revision</option>
                 </select>
-              </label>
+              </div>
 
               {publishMode === "new_family" ? (
-                <label className="text-sm font-bold">
-                  Revision Scheme
+                <div className={formRowClass}>
+                  <ConnectorIcon name="text" className={`mt-2 h-5 w-5 sm:mt-0 ${iconTone}`} />
+                  <label htmlFor="onshape-revision-scheme" className={formLabelClass}>
+                    Revision Scheme
+                  </label>
                   <select
+                    id="onshape-revision-scheme"
                     value={revisionScheme}
                     onChange={(event) =>
                       setRevisionScheme(event.target.value as "alphabetic" | "numeric")
                     }
-                    className={`mt-2 h-10 w-full border px-3 text-sm ${inputClass}`}
+                    className={`h-11 w-full border px-3 text-sm ${inputClass}`}
                   >
                     <option value="alphabetic">Alphabetic (A, B, C...)</option>
                     <option value="numeric">Numeric (1, 2, 3...)</option>
                   </select>
-                </label>
+                </div>
               ) : null}
 
-              <label className="text-sm font-bold">
-                Revision Note
+              <div className={formRowClass}>
+                <ConnectorIcon name="description" className={`mt-2 h-5 w-5 sm:mt-0 ${iconTone}`} />
+                <label htmlFor="onshape-revision-note" className={formLabelClass}>
+                  Revision Note
+                </label>
                 <input
+                  id="onshape-revision-note"
                   value={revisionNote}
                   onChange={(event) => setRevisionNote(event.target.value)}
                   placeholder="Optional revision note"
-                  className={`mt-2 h-10 w-full border px-3 text-sm ${inputClass}`}
+                  className={`h-11 w-full border px-3 text-sm ${inputClass}`}
                 />
-              </label>
+              </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <label className="text-sm font-bold">
-                  Status
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid grid-cols-[28px_1fr] gap-x-3 gap-y-2 text-sm">
+                  <ConnectorIcon name="info" className={`mt-2 h-5 w-5 ${iconTone}`} />
+                  <label htmlFor="onshape-status" className={formLabelClass}>
+                    Status
+                  </label>
                   <select
+                    id="onshape-status"
                     value={statusValue}
                     onChange={(event) => setStatusValue(event.target.value)}
-                    className={`mt-2 h-10 w-full border px-3 text-sm ${inputClass}`}
+                    className={`col-span-2 h-11 w-full border px-3 text-sm ${inputClass}`}
                   >
                     <option value="draft">Draft</option>
                     <option value="active">Active</option>
                     <option value="archived">Archived</option>
                   </select>
-                </label>
-                <label className="text-sm font-bold">
-                  Category
+                </div>
+                <div className="grid grid-cols-[28px_1fr] gap-x-3 gap-y-2 text-sm">
+                  <ConnectorIcon name="tag" className={`mt-2 h-5 w-5 ${iconTone}`} />
+                  <label htmlFor="onshape-category" className={formLabelClass}>
+                    Category
+                  </label>
                   <select
+                    id="onshape-category"
                     value={category}
                     onChange={(event) => setCategory(event.target.value)}
-                    className={`mt-2 h-10 w-full border px-3 text-sm ${inputClass}`}
+                    className={`col-span-2 h-11 w-full border px-3 text-sm ${inputClass}`}
                   >
                     <option value="">Select category</option>
                     <option>Part</option>
@@ -2604,17 +2948,22 @@ export default function OnshapeDesignAppPage() {
                     <option>Document Only</option>
                     <option>Other</option>
                   </select>
-                </label>
+                </div>
               </div>
             </div>
 
             {publishMatches.length > 0 ? (
               <div className={`mt-5 border p-4 ${panel}`}>
-                <h3 className="text-sm font-bold">Resolve Vault target first</h3>
-                <p className={`mt-1 text-xs ${muted}`}>
-                  Kordyne found possible existing parts. Choose a match to publish
-                  the next revision, or confirm this is a separate new part.
-                </p>
+                <div className="flex items-start gap-3">
+                  <ConnectorIcon name="search" className={`h-5 w-5 shrink-0 ${iconTone}`} />
+                  <div>
+                    <h3 className="text-sm font-bold">Resolve Vault target first</h3>
+                    <p className={`mt-1 text-xs ${muted}`}>
+                      Kordyne found possible existing parts. Choose a match to publish
+                      the next revision, or confirm this is a separate new part.
+                    </p>
+                  </div>
+                </div>
                 <div className="mt-3 space-y-2">
                   {publishMatches.slice(0, 3).map((item) => {
                     const nextRevision = nextRevisionHint(item.revision);
@@ -2736,8 +3085,9 @@ export default function OnshapeDesignAppPage() {
                   !publishableContext ||
                   duplicatePublishBlocked
                 }
-                className={`h-11 px-5 text-sm font-bold disabled:opacity-60 ${publishButtonClass}`}
+                className={`flex h-12 items-center justify-center gap-2 px-5 text-sm font-bold disabled:opacity-60 ${publishButtonClass}`}
               >
+                <ConnectorIcon name={publishStatus === "published" ? "check" : "upload"} className="h-5 w-5" />
                 {publishButtonText}
               </button>
             </div>
@@ -2746,28 +3096,38 @@ export default function OnshapeDesignAppPage() {
 
         {activeTab === "library" ? (
           <section className={`p-5 ${card}`}>
-            <h2 className="text-xl font-bold">Kordyne Vault Library</h2>
-            <div className="mt-4 flex gap-2">
-              <input
-                value={libraryQuery}
-                onChange={(event) => setLibraryQuery(event.target.value)}
-                className={`min-w-0 flex-1 border px-3 py-2 text-sm ${inputClass}`}
-                placeholder="Search, or leave blank for all parts"
-              />
+            <div className="flex items-center gap-3">
+              <ConnectorIcon name="library" className={`h-6 w-6 ${iconTone}`} />
+              <h2 className="text-xl font-bold">Kordyne Vault Library</h2>
+            </div>
+            <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto]">
+              <label className="relative min-w-0">
+                <ConnectorIcon
+                  name="search"
+                  className={`pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 ${softMuted}`}
+                />
+                <input
+                  value={libraryQuery}
+                  onChange={(event) => setLibraryQuery(event.target.value)}
+                  className={`h-11 w-full min-w-0 border py-2 pl-9 pr-3 text-sm ${inputClass}`}
+                  placeholder="Search parts, families, numbers..."
+                />
+              </label>
               <button
                 type="button"
                 onClick={() => void searchLibrary()}
                 disabled={!connected || busy}
-                className={`px-4 py-2 text-sm font-bold disabled:opacity-60 ${secondaryButton}`}
+                className={`flex h-11 items-center justify-center gap-2 px-4 text-sm font-bold disabled:opacity-60 ${secondaryButton}`}
               >
-                Search / Refresh
+                <ConnectorIcon name="search" className="h-4 w-4" />
+                Search
               </button>
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2">
               <select
                 value={libraryStatus}
                 onChange={(event) => setLibraryStatus(event.target.value)}
-                className={`h-9 border px-2 text-xs ${inputClass}`}
+                className={`h-10 border px-2 text-xs ${inputClass}`}
               >
                 <option value="all">All statuses</option>
                 <option value="draft">Draft</option>
@@ -2779,7 +3139,7 @@ export default function OnshapeDesignAppPage() {
                 onChange={(event) =>
                   setLibrarySort(event.target.value as LibrarySort)
                 }
-                className={`h-9 border px-2 text-xs ${inputClass}`}
+                className={`h-10 border px-2 text-xs ${inputClass}`}
               >
                 <option value="recent">Recent</option>
                 <option value="name_asc">Name A-Z</option>
@@ -2789,7 +3149,7 @@ export default function OnshapeDesignAppPage() {
               <select
                 value={libraryProcess}
                 onChange={(event) => setLibraryProcess(event.target.value)}
-                className={`h-9 border px-2 text-xs ${inputClass}`}
+                className={`h-10 border px-2 text-xs ${inputClass}`}
               >
                 <option value="all">All processes</option>
                 <option>3D Printing</option>
@@ -2805,7 +3165,7 @@ export default function OnshapeDesignAppPage() {
               <select
                 value={libraryCategory}
                 onChange={(event) => setLibraryCategory(event.target.value)}
-                className={`h-9 border px-2 text-xs ${inputClass}`}
+                className={`h-10 border px-2 text-xs ${inputClass}`}
               >
                 <option value="all">All categories</option>
                 <option>Part</option>
@@ -2820,7 +3180,7 @@ export default function OnshapeDesignAppPage() {
               <select
                 value={libraryProjectId}
                 onChange={(event) => setLibraryProjectId(event.target.value)}
-                className={`col-span-2 h-9 border px-2 text-xs ${inputClass}`}
+                className={`col-span-2 h-10 border px-2 text-xs ${inputClass}`}
               >
                 <option value="all">All explicit projects/workspaces</option>
                 <option value="none">Standalone vault parts only</option>
@@ -2837,12 +3197,15 @@ export default function OnshapeDesignAppPage() {
             {libraryLoaded ? (
               <div className={`mt-3 border p-3 text-xs ${panel}`}>
                 <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
+                  <div className="flex min-w-0 gap-3">
+                    <ConnectorIcon name="compare" className={`h-5 w-5 shrink-0 ${iconTone}`} />
+                    <div className="min-w-0">
                     <p className="font-bold">Library compare</p>
                     <p className={`mt-1 leading-5 ${muted}`}>
                       Select any two parts or revisions to import them into this
                       Onshape document as comparison tabs.
                     </p>
+                    </div>
                   </div>
                   <span className="shrink-0 font-bold">
                     {libraryCompareSelection.length}/2
@@ -2866,8 +3229,9 @@ export default function OnshapeDesignAppPage() {
                   type="button"
                   onClick={() => void compareLibrarySelection()}
                   disabled={!connected || busy || libraryCompareSelection.length !== 2}
-                  className={`mt-3 h-9 w-full px-4 text-xs font-bold disabled:opacity-60 ${primaryButton}`}
+                  className={`mt-3 flex h-10 w-full items-center justify-center gap-2 px-4 text-xs font-bold disabled:opacity-60 ${primaryButton}`}
                 >
+                  <ConnectorIcon name="compare" className="h-4 w-4" />
                   Compare selected parts
                 </button>
                 {libraryCompareResult ? (
@@ -2918,9 +3282,19 @@ export default function OnshapeDesignAppPage() {
                           <img
                             src={imageUrl}
                             alt=""
-                            className="h-14 w-14 border border-slate-300 object-cover"
+                            className="h-16 w-16 rounded-lg border border-slate-300 object-cover"
                           />
-                        ) : null}
+                        ) : (
+                          <span
+                            className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-lg border ${
+                              isDark
+                                ? "border-cyan-200/15 bg-cyan-200/5"
+                                : "border-[#d8e7ec] bg-[#f4fafc]"
+                            }`}
+                          >
+                            <ConnectorIcon name="cube" className={`h-8 w-8 ${iconTone}`} />
+                          </span>
+                        )}
                         <div className="min-w-0 flex-1">
                           <p className="truncate font-bold">
                             {item.name || item.part_id}
@@ -2949,7 +3323,7 @@ export default function OnshapeDesignAppPage() {
                           <button
                             type="button"
                             onClick={() => toggleLibraryRevisionList(item.part_id)}
-                            className={`h-8 w-8 shrink-0 text-base font-bold ${secondaryButton}`}
+                            className={`flex h-8 w-8 shrink-0 items-center justify-center text-base font-bold ${secondaryButton}`}
                             aria-label={
                               expanded ? "Collapse revisions" : "Expand revisions"
                             }
@@ -2966,8 +3340,9 @@ export default function OnshapeDesignAppPage() {
                             void pull(item);
                           }}
                           disabled={busy}
-                          className={`h-9 text-xs font-bold disabled:opacity-60 ${secondaryButton}`}
+                          className={`flex h-9 items-center justify-center gap-1.5 text-xs font-bold disabled:opacity-60 ${secondaryButton}`}
                         >
+                          <ConnectorIcon name="pull" className="h-4 w-4" />
                           Pull
                         </button>
                         <button
@@ -2977,15 +3352,17 @@ export default function OnshapeDesignAppPage() {
                             void compare(item);
                           }}
                           disabled={busy}
-                          className={`h-9 text-xs font-bold disabled:opacity-60 ${secondaryButton}`}
+                          className={`flex h-9 items-center justify-center gap-1.5 text-xs font-bold disabled:opacity-60 ${secondaryButton}`}
                         >
+                          <ConnectorIcon name="compare" className="h-4 w-4" />
                           Compare
                         </button>
                         <button
                           type="button"
                           onClick={() => toggleLibraryCompareSelection(item)}
-                          className={`h-9 text-xs font-bold ${selectedForCompare ? primaryButton : secondaryButton}`}
+                          className={`flex h-9 items-center justify-center gap-1.5 text-xs font-bold ${selectedForCompare ? primaryButton : secondaryButton}`}
                         >
+                          <ConnectorIcon name="select" className="h-4 w-4" />
                           {selectedForCompare ? "Selected" : "Select"}
                         </button>
                       </div>
@@ -3023,8 +3400,9 @@ export default function OnshapeDesignAppPage() {
                                         void pull(revision);
                                       }}
                                       disabled={busy}
-                                      className={`h-8 px-2 font-bold disabled:opacity-60 ${secondaryButton}`}
+                                      className={`flex h-8 items-center justify-center gap-1 px-2 font-bold disabled:opacity-60 ${secondaryButton}`}
                                     >
+                                      <ConnectorIcon name="pull" className="h-3.5 w-3.5" />
                                       Pull
                                     </button>
                                     <button
@@ -3034,8 +3412,9 @@ export default function OnshapeDesignAppPage() {
                                         void compare(revision);
                                       }}
                                       disabled={busy}
-                                      className={`h-8 px-2 font-bold disabled:opacity-60 ${secondaryButton}`}
+                                      className={`flex h-8 items-center justify-center gap-1 px-2 font-bold disabled:opacity-60 ${secondaryButton}`}
                                     >
+                                      <ConnectorIcon name="compare" className="h-3.5 w-3.5" />
                                       Compare
                                     </button>
                                     <button
@@ -3043,8 +3422,9 @@ export default function OnshapeDesignAppPage() {
                                       onClick={() =>
                                         toggleLibraryCompareSelection(revision)
                                       }
-                                      className={`h-8 px-2 font-bold ${revisionSelected ? primaryButton : secondaryButton}`}
+                                      className={`flex h-8 items-center justify-center gap-1 px-2 font-bold ${revisionSelected ? primaryButton : secondaryButton}`}
                                     >
+                                      <ConnectorIcon name="select" className="h-3.5 w-3.5" />
                                       {revisionSelected ? "A/B" : "Select"}
                                     </button>
                                   </div>
@@ -3115,7 +3495,10 @@ export default function OnshapeDesignAppPage() {
 
         {activeTab === "pull" ? (
           <section className={`p-5 ${card}`}>
-            <h2 className="text-xl font-bold">Pull from Kordyne</h2>
+            <div className="flex items-center gap-3">
+              <ConnectorIcon name="pull" className={`h-6 w-6 ${iconTone}`} />
+              <h2 className="text-xl font-bold">Pull from Kordyne</h2>
+            </div>
             <p className={`mt-3 text-sm leading-6 ${muted}`}>
               Pull opens the native Onshape source when Kordyne has one, or
               imports the STEP exchange file into this Onshape document.
@@ -3130,8 +3513,9 @@ export default function OnshapeDesignAppPage() {
               type="button"
               onClick={() => void pull()}
               disabled={!connected || busy || !lastPart}
-              className={`mt-5 h-11 w-full px-5 text-sm font-bold disabled:opacity-60 ${primaryButton}`}
+              className={`mt-5 flex h-12 w-full items-center justify-center gap-2 px-5 text-sm font-bold disabled:opacity-60 ${primaryButton}`}
             >
+              <ConnectorIcon name="pull" className="h-5 w-5" />
               Pull Latest
             </button>
             {pullPackage ? (
@@ -3213,7 +3597,10 @@ export default function OnshapeDesignAppPage() {
 
         {activeTab === "compare" ? (
           <section className={`p-5 ${card}`}>
-            <h2 className="text-xl font-bold">Compare with Kordyne</h2>
+            <div className="flex items-center gap-3">
+              <ConnectorIcon name="compare" className={`h-6 w-6 ${iconTone}`} />
+              <h2 className="text-xl font-bold">Compare with Kordyne</h2>
+            </div>
             <p className={`mt-3 text-sm leading-6 ${muted}`}>
               Check whether this Onshape source is linked to the latest Kordyne
               revision and import the latest STEP into this document for
@@ -3247,8 +3634,9 @@ export default function OnshapeDesignAppPage() {
               type="button"
               onClick={() => void compare()}
               disabled={!connected || busy || !lastPart}
-              className={`mt-5 h-11 w-full px-5 text-sm font-bold disabled:opacity-60 ${primaryButton}`}
+              className={`mt-5 flex h-12 w-full items-center justify-center gap-2 px-5 text-sm font-bold disabled:opacity-60 ${primaryButton}`}
             >
+              <ConnectorIcon name="compare" className="h-5 w-5" />
               Open Compare
             </button>
             {compareStepPackage?.step_file?.signed_url ? (
@@ -3269,8 +3657,9 @@ export default function OnshapeDesignAppPage() {
                   void pull();
                 }}
                 disabled={!connected || busy || !lastPart}
-                className={`h-10 text-sm font-bold disabled:opacity-60 ${secondaryButton}`}
+                className={`flex h-10 items-center justify-center gap-2 text-sm font-bold disabled:opacity-60 ${secondaryButton}`}
               >
+                <ConnectorIcon name="pull" className="h-4 w-4" />
                 Pull Latest
               </button>
               <button
@@ -3283,8 +3672,9 @@ export default function OnshapeDesignAppPage() {
                   setActiveTab("publish");
                 }}
                 disabled={!connected || busy || !lastPart}
-                className={`h-10 text-sm font-bold disabled:opacity-60 ${secondaryButton}`}
+                className={`flex h-10 items-center justify-center gap-2 text-sm font-bold disabled:opacity-60 ${secondaryButton}`}
               >
+                <ConnectorIcon name="upload" className="h-4 w-4" />
                 Publish Rev
               </button>
             </div>
