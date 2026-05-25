@@ -1873,12 +1873,15 @@ export default function OnshapeDesignAppPage() {
 
       setLastPart(nextPart);
       setSelectedMatch(nextPart);
-      setPublishMode("new_revision");
       setPublishMatches([]);
       setLibraryLoaded(false);
       setState("connected");
       setPublishStatus("published");
-      setLastPublishedFingerprint(effectiveFingerprint);
+      setLastPublishedFingerprint(
+        effectiveMode === "new_revision"
+          ? buildPublishFingerprint(effectiveMode, nextPart.part_id)
+          : effectiveFingerprint,
+      );
       updatePublishStep("package", "done", "Package saved in Kordyne");
       setStatus(
         payload.revision
@@ -1887,6 +1890,11 @@ export default function OnshapeDesignAppPage() {
       );
       window.setTimeout(() => {
         setPublishSteps([]);
+        setPublishStatus("idle");
+        setStepFile(null);
+        setStlFile(null);
+        setThumbnailFile(null);
+        setPropertiesFile(null);
       }, 3500);
     } catch (error) {
       setPublishStatus("idle");
@@ -2481,6 +2489,42 @@ export default function OnshapeDesignAppPage() {
     resolvedPart?.name ||
     (partName && !partName.startsWith("Onshape element") ? partName : "") ||
     contextName;
+  const cadPartNumber = context?.partNumber || resolvedPart?.partNumber || partNumber || "";
+  const normalizedActivePartName = activePartName.trim().toLowerCase();
+  const normalizedCadPartNumber = cadPartNumber.trim().toLowerCase();
+  const activeVaultPart =
+    selectedMatch ||
+    lastPart ||
+    libraryItems.find((item) => {
+      const itemName = (item.name ?? "").trim().toLowerCase();
+      const itemNumber = (item.part_number ?? "").trim().toLowerCase();
+
+      return (
+        (normalizedCadPartNumber && itemNumber === normalizedCadPartNumber) ||
+        (normalizedActivePartName && itemName === normalizedActivePartName)
+      );
+    }) ||
+    null;
+  const activePartNumber = cadPartNumber || activeVaultPart?.part_number || "";
+  const activeContextRows = [
+    ["Name", fieldOrDash(activePartName)],
+    ["Part no.", fieldOrDash(activePartNumber)],
+    [
+      "Vault part",
+      activeVaultPart ? partDisplayName(activeVaultPart) : "Not linked yet",
+    ],
+    [
+      "Revision",
+      activeVaultPart?.revision
+        ? `Rev ${activeVaultPart.revision}`
+        : activePartRevision
+          ? `Rev ${activePartRevision}`
+          : "-",
+    ],
+  ];
+  const duplicatePublishBlocked =
+    Boolean(lastPublishedFingerprint) &&
+    lastPublishedFingerprint === publishFingerprint;
   const publishButtonText =
     lastPublishedFingerprint && lastPublishedFingerprint === publishFingerprint
       ? "Package saved in Kordyne"
@@ -2495,8 +2539,9 @@ export default function OnshapeDesignAppPage() {
               : publishStatus === "checking"
                 ? "Checking Vault..."
                 : "Publish package to Kordyne";
-  const publishButtonClass =
-    publishStatus === "published"
+  const publishButtonClass = duplicatePublishBlocked
+    ? secondaryButton
+    : publishStatus === "published"
       ? "rounded-md bg-emerald-600 text-white"
       : primaryButton;
   const targetLabel =
@@ -2505,22 +2550,6 @@ export default function OnshapeDesignAppPage() {
       : newFamilyMatchOverrideKey === publishMatchKey
         ? "Target: new Kordyne part family - confirmed separate part"
         : "Target: new Kordyne part family";
-  const sourceLocation =
-    context?.documentName ||
-    context?.elementName ||
-    (context?.documentId ? "Current Onshape document" : "No Onshape document");
-  const activePartNumber =
-    context?.partNumber || resolvedPart?.partNumber || partNumber || "";
-  const revisionPlan =
-    publishMode === "new_revision"
-      ? selectedMatch?.revision
-        ? `Next after Rev ${selectedMatch.revision}`
-        : lastPart?.revision
-          ? `Next after Rev ${lastPart.revision}`
-          : "Existing part revision"
-      : revisionScheme === "numeric"
-        ? "New part family, Rev 1"
-        : "New part family, Rev A";
   const publishProgressPercent =
     publishSteps.length === 0
       ? 0
@@ -2531,13 +2560,11 @@ export default function OnshapeDesignAppPage() {
             publishSteps.length) *
             100,
         );
-  const duplicatePublishBlocked =
-    Boolean(lastPublishedFingerprint) &&
-    lastPublishedFingerprint === publishFingerprint;
   const formRowClass =
     "grid grid-cols-[28px_1fr] gap-x-3 gap-y-2 text-sm sm:grid-cols-[28px_118px_1fr] sm:items-center";
   const formLabelClass = `font-bold ${muted}`;
   const formControlClass = `col-span-2 h-11 w-full border px-3 text-sm sm:col-span-1 ${inputClass}`;
+  const formIconClass = `h-5 w-5 self-center ${iconTone}`;
 
   function navButton(tab: ActiveTab, label: string, icon: ConnectorIconName) {
     return (
@@ -2691,7 +2718,7 @@ export default function OnshapeDesignAppPage() {
                   <ConnectorIcon name="cube" className={`h-8 w-8 ${iconTone}`} />
                 </span>
                 <div className="min-w-0">
-                  <h2 className="text-lg font-bold">Active design context</h2>
+                  <h2 className="text-lg font-bold">Active Onshape part</h2>
                   <p className="mt-2 truncate text-sm font-bold">{activePartName}</p>
                 </div>
               </div>
@@ -2710,13 +2737,7 @@ export default function OnshapeDesignAppPage() {
             </div>
 
             <dl className={`mt-5 border-t ${rowBorder}`}>
-              {[
-                ["Source", fieldOrDash(sourceLocation)],
-                ["CAD part", fieldOrDash(activePartName)],
-                ["Part no.", fieldOrDash(activePartNumber)],
-                ["Kordyne target", fieldOrDash(selectedMatch?.name || lastPart?.name)],
-                ["Revision plan", revisionPlan],
-              ].map(([label, value]) => (
+              {activeContextRows.map(([label, value]) => (
                 <div
                   key={label}
                   className={`grid grid-cols-[132px_1fr] gap-3 border-b py-3 text-sm last:border-b-0 ${rowBorder}`}
@@ -2823,7 +2844,7 @@ export default function OnshapeDesignAppPage() {
 
             <div className="mt-5 grid gap-4">
               <div className={formRowClass}>
-                <ConnectorIcon name="text" className={`mt-2 h-5 w-5 sm:mt-0 ${iconTone}`} />
+                <ConnectorIcon name="text" className={formIconClass} />
                 <label htmlFor="onshape-part-name" className={formLabelClass}>
                   Part Name
                 </label>
@@ -2836,7 +2857,7 @@ export default function OnshapeDesignAppPage() {
               </div>
 
               <div className={formRowClass}>
-                <ConnectorIcon name="hash" className={`mt-2 h-5 w-5 sm:mt-0 ${iconTone}`} />
+                <ConnectorIcon name="hash" className={formIconClass} />
                 <label htmlFor="onshape-part-number" className={formLabelClass}>
                   Part Number
                 </label>
@@ -2850,7 +2871,7 @@ export default function OnshapeDesignAppPage() {
               </div>
 
               <div className={formRowClass}>
-                <ConnectorIcon name="description" className={`mt-2 h-5 w-5 sm:mt-0 ${iconTone}`} />
+                <ConnectorIcon name="description" className={formIconClass} />
                 <label htmlFor="onshape-description" className={formLabelClass}>
                   Description
                 </label>
@@ -2864,7 +2885,7 @@ export default function OnshapeDesignAppPage() {
               </div>
 
               <div className={formRowClass}>
-                <ConnectorIcon name="gear" className={`mt-2 h-5 w-5 sm:mt-0 ${iconTone}`} />
+                <ConnectorIcon name="gear" className={formIconClass} />
                 <label htmlFor="onshape-process" className={formLabelClass}>
                   Process Type
                 </label>
@@ -2888,7 +2909,7 @@ export default function OnshapeDesignAppPage() {
               </div>
 
               <div className={formRowClass}>
-                <ConnectorIcon name="layers" className={`mt-2 h-5 w-5 sm:mt-0 ${iconTone}`} />
+                <ConnectorIcon name="layers" className={formIconClass} />
                 <label htmlFor="onshape-material" className={formLabelClass}>
                   Material
                 </label>
@@ -2902,7 +2923,7 @@ export default function OnshapeDesignAppPage() {
               </div>
 
               <div className={formRowClass}>
-                <ConnectorIcon name="part" className={`mt-2 h-5 w-5 sm:mt-0 ${iconTone}`} />
+                <ConnectorIcon name="part" className={formIconClass} />
                 <label htmlFor="onshape-publish-mode" className={formLabelClass}>
                   Publish Mode
                 </label>
@@ -2919,7 +2940,7 @@ export default function OnshapeDesignAppPage() {
 
               {publishMode === "new_family" ? (
                 <div className={formRowClass}>
-                  <ConnectorIcon name="text" className={`mt-2 h-5 w-5 sm:mt-0 ${iconTone}`} />
+                  <ConnectorIcon name="text" className={formIconClass} />
                   <label htmlFor="onshape-revision-scheme" className={formLabelClass}>
                     Revision Scheme
                   </label>
@@ -2938,7 +2959,7 @@ export default function OnshapeDesignAppPage() {
               ) : null}
 
               <div className={formRowClass}>
-                <ConnectorIcon name="description" className={`mt-2 h-5 w-5 sm:mt-0 ${iconTone}`} />
+                <ConnectorIcon name="description" className={formIconClass} />
                 <label htmlFor="onshape-revision-note" className={formLabelClass}>
                   Revision Note
                 </label>
@@ -2953,7 +2974,7 @@ export default function OnshapeDesignAppPage() {
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="grid grid-cols-[28px_1fr] gap-x-3 gap-y-2 text-sm">
-                  <ConnectorIcon name="info" className={`mt-2 h-5 w-5 ${iconTone}`} />
+                  <ConnectorIcon name="info" className={formIconClass} />
                   <label htmlFor="onshape-status" className={formLabelClass}>
                     Status
                   </label>
@@ -2969,7 +2990,7 @@ export default function OnshapeDesignAppPage() {
                   </select>
                 </div>
                 <div className="grid grid-cols-[28px_1fr] gap-x-3 gap-y-2 text-sm">
-                  <ConnectorIcon name="tag" className={`mt-2 h-5 w-5 ${iconTone}`} />
+                  <ConnectorIcon name="tag" className={formIconClass} />
                   <label htmlFor="onshape-category" className={formLabelClass}>
                     Category
                   </label>
@@ -3123,6 +3144,7 @@ export default function OnshapeDesignAppPage() {
                   !connected ||
                   busy ||
                   publishStatus === "checking" ||
+                  publishStatus === "published" ||
                   !publishableContext ||
                   duplicatePublishBlocked
                 }
