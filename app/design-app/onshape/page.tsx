@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type ConnectionState =
@@ -2570,14 +2569,17 @@ export default function OnshapeDesignAppPage() {
             href="https://www.kordyne.com"
             target="_blank"
             rel="noreferrer"
-            className="min-w-0 flex-1"
+            className={`min-w-0 flex-1 ${isDark ? "rounded-lg bg-white/5 p-1" : ""}`}
             aria-label="Open Kordyne website"
           >
-            <Image
+            {/* eslint-disable-next-line @next/next/no-img-element -- Static SVG brand asset is more reliable inside the Onshape iframe. */}
+            <img
               src={isDark ? "/kordyne-logo-white.svg" : "/kordyne-logo.svg"}
               alt="Kordyne"
-              width={260}
-              height={72}
+              onError={(event) => {
+                event.currentTarget.src = "/kordyne-logo.svg";
+                event.currentTarget.classList.add("rounded-md", "bg-white", "p-1");
+              }}
               className="h-16 w-full object-contain object-left"
             />
           </a>
