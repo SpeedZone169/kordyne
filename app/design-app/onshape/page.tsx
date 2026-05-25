@@ -2447,6 +2447,9 @@ export default function OnshapeDesignAppPage() {
   const inputClass = isDark
     ? "rounded-lg border-cyan-200/20 bg-[#002836] text-white placeholder:text-cyan-50/45 focus:border-[#00bdde] focus:outline-none focus:ring-2 focus:ring-[#00bdde]/15"
     : "rounded-lg border-[#c9dce3] bg-white text-slate-950 placeholder:text-slate-400 focus:border-[#00bdde] focus:outline-none focus:ring-2 focus:ring-[#00bdde]/15";
+  const tableCellClass = isDark
+    ? "border-cyan-200/10 bg-white/[0.03]"
+    : "border-[#d8e7ec] bg-white";
   const primaryButton =
     "rounded-lg bg-gradient-to-r from-[#00bdde] to-[#008fad] text-white shadow-[0_10px_24px_rgba(0,189,222,0.24)] hover:from-[#16c8e5] hover:to-[#009dbd] focus:outline-none focus:ring-2 focus:ring-[#00bdde]/35";
   const secondaryButton = isDark
@@ -2569,12 +2572,12 @@ export default function OnshapeDesignAppPage() {
             href="https://www.kordyne.com"
             target="_blank"
             rel="noreferrer"
-            className={`min-w-0 flex-1 ${isDark ? "rounded-lg bg-white/5 p-1" : ""}`}
+            className="min-w-0 flex-1"
             aria-label="Open Kordyne website"
           >
             {/* eslint-disable-next-line @next/next/no-img-element -- Static SVG brand asset is more reliable inside the Onshape iframe. */}
             <img
-              src={isDark ? "/kordyne-logo-white.svg" : "/kordyne-logo.svg"}
+              src={isDark ? "/kordyne-logo-dark.png" : "/kordyne-logo.svg"}
               alt="Kordyne"
               onError={(event) => {
                 event.currentTarget.src = "/kordyne-logo.svg";
@@ -2643,62 +2646,64 @@ export default function OnshapeDesignAppPage() {
           ))}
         </dl>
 
-        <section className={`p-5 ${card}`}>
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex min-w-0 gap-4">
-              <span
-                className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full ${
-                  isDark ? "bg-cyan-200/10" : "bg-[#edf8fb]"
-                }`}
-              >
-                <ConnectorIcon name="cube" className={`h-8 w-8 ${iconTone}`} />
-              </span>
-              <div className="min-w-0">
-                <h2 className="text-lg font-bold">Active design context</h2>
-                <p className="mt-2 truncate text-sm font-bold">{activePartName}</p>
+        {activeTab !== "connect" ? (
+          <section className={`p-5 ${card}`}>
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex min-w-0 gap-4">
+                <span
+                  className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full ${
+                    isDark ? "bg-cyan-200/10" : "bg-[#edf8fb]"
+                  }`}
+                >
+                  <ConnectorIcon name="cube" className={`h-8 w-8 ${iconTone}`} />
+                </span>
+                <div className="min-w-0">
+                  <h2 className="text-lg font-bold">Active design context</h2>
+                  <p className="mt-2 truncate text-sm font-bold">{activePartName}</p>
+                </div>
               </div>
+              {onshapeApiConnected ? (
+                <span
+                  className={`flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-bold ${
+                    isDark
+                      ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-200"
+                      : "border-emerald-300 bg-emerald-50 text-emerald-700"
+                  }`}
+                >
+                  <ConnectorIcon name="check" className="h-3.5 w-3.5" />
+                  API connected
+                </span>
+              ) : null}
             </div>
-            {onshapeApiConnected ? (
-              <span
-                className={`flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-bold ${
-                  isDark
-                    ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-200"
-                    : "border-emerald-300 bg-emerald-50 text-emerald-700"
-                }`}
-              >
-                <ConnectorIcon name="check" className="h-3.5 w-3.5" />
-                API connected
-              </span>
+
+            <dl className={`mt-5 border-t ${rowBorder}`}>
+              {[
+                ["Source", fieldOrDash(sourceLocation)],
+                ["CAD part", fieldOrDash(activePartName)],
+                ["Part no.", fieldOrDash(activePartNumber)],
+                ["Kordyne target", fieldOrDash(selectedMatch?.name || lastPart?.name)],
+                ["Revision plan", revisionPlan],
+              ].map(([label, value]) => (
+                <div
+                  key={label}
+                  className={`grid grid-cols-[132px_1fr] gap-3 border-b py-3 text-sm last:border-b-0 ${rowBorder}`}
+                >
+                  <dt className={muted}>{label}</dt>
+                  <dd className="truncate">{value}</dd>
+                </div>
+              ))}
+            </dl>
+
+            {context && !publishableContext ? (
+              <div className={`mt-5 border p-3 text-xs ${panel}`}>
+                <p className="font-bold">Onshape did not pass document context.</p>
+                <code className="mt-2 block break-all text-[11px]">
+                  {ONSHAPE_EXTENSION_ACTION_URL}
+                </code>
+              </div>
             ) : null}
-          </div>
-
-          <dl className={`mt-5 border-t ${rowBorder}`}>
-            {[
-              ["Source", fieldOrDash(sourceLocation)],
-              ["CAD part", fieldOrDash(activePartName)],
-              ["Part no.", fieldOrDash(activePartNumber)],
-              ["Kordyne target", fieldOrDash(selectedMatch?.name || lastPart?.name)],
-              ["Revision plan", revisionPlan],
-            ].map(([label, value]) => (
-              <div
-                key={label}
-                className={`grid grid-cols-[132px_1fr] gap-3 border-b py-3 text-sm last:border-b-0 ${rowBorder}`}
-              >
-                <dt className={muted}>{label}</dt>
-                <dd className="truncate">{value}</dd>
-              </div>
-            ))}
-          </dl>
-
-          {context && !publishableContext ? (
-            <div className={`mt-5 border p-3 text-xs ${panel}`}>
-              <p className="font-bold">Onshape did not pass document context.</p>
-              <code className="mt-2 block break-all text-[11px]">
-                {ONSHAPE_EXTENSION_ACTION_URL}
-              </code>
-            </div>
-          ) : null}
-        </section>
+          </section>
+        ) : null}
 
         <div className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm ${liveStatusClass}`}>
           <ConnectorIcon
@@ -3276,6 +3281,17 @@ export default function OnshapeDesignAppPage() {
                   const selectedForCompare = libraryCompareSelection.some(
                     (part) => part.part_id === item.part_id,
                   );
+                  const metadataCells = [
+                    ["Part no.", fieldOrDash(item.part_number)],
+                    ["Revision", item.revision ? `Rev ${item.revision}` : "-"],
+                    [
+                      "Revisions",
+                      item.revision_count ? String(item.revision_count) : "-",
+                    ],
+                    ["Process", fieldOrDash(item.process_type)],
+                    ["Category", fieldOrDash(item.category)],
+                    ["Status", fieldOrDash(item.status)],
+                  ];
 
                   return (
                     <div key={item.part_id} className={`border p-3 text-sm ${panel}`}>
@@ -3302,18 +3318,30 @@ export default function OnshapeDesignAppPage() {
                           <p className="truncate font-bold">
                             {item.name || item.part_id}
                           </p>
-                          <p className={`mt-1 truncate text-xs ${muted}`}>
-                            {item.part_number ? `${item.part_number} - ` : ""}
-                            {item.revision ? `Rev ${item.revision}` : "No revision"}
-                            {item.revision_count
-                              ? ` - ${item.revision_count} revision${item.revision_count === 1 ? "" : "s"}`
-                              : ""}
-                          </p>
-                          <p className={`mt-1 truncate text-xs ${muted}`}>
-                            {[item.process_type, item.category, item.status]
-                              .filter(Boolean)
-                              .join(" - ") || "No classification"}
-                          </p>
+                          <dl
+                            className={`mt-2 grid grid-cols-2 overflow-hidden rounded-lg border text-[11px] ${rowBorder}`}
+                          >
+                            {metadataCells.map(([label, value]) => (
+                              <div
+                                key={label}
+                                className={`min-w-0 border-b border-r p-2 last:border-r-0 even:border-r-0 [&:nth-last-child(-n+2)]:border-b-0 ${tableCellClass}`}
+                              >
+                                <dt className={`truncate font-semibold ${softMuted}`}>
+                                  {label}
+                                </dt>
+                                <dd
+                                  className={`mt-0.5 truncate font-bold ${
+                                    label === "Status" &&
+                                    value.toLowerCase() === "active"
+                                      ? "text-emerald-400"
+                                      : ""
+                                  }`}
+                                >
+                                  {value}
+                                </dd>
+                              </div>
+                            ))}
+                          </dl>
                           {item.linked_projects?.length ? (
                             <p className={`mt-1 truncate text-xs ${muted}`}>
                               {item.linked_projects
