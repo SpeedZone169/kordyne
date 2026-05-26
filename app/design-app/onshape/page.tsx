@@ -1086,8 +1086,6 @@ export default function OnshapeDesignAppPage() {
         return;
       }
 
-      setActiveVaultMatch(null);
-
       try {
         const payload = await callOnshapeApi<{
           ok: boolean;
@@ -1122,7 +1120,7 @@ export default function OnshapeDesignAppPage() {
           setPartNumber((current) => current || exactMatch.part_number || "");
         }
       } catch {
-        setActiveVaultMatch(null);
+        // Keep the last stable match if a background refresh fails.
       }
     },
     [
