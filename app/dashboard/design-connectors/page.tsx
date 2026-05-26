@@ -4,6 +4,13 @@ import { createClient } from "../../../lib/supabase/server";
 import { DESIGN_CONNECTOR_PROVIDER_LIST } from "../../../lib/design-connectors/contract";
 import Client from "./Client";
 
+const DEFAULT_ONSHAPE_APP_STORE_URL =
+  "https://cad.onshape.com/appstore/apps/Project%20%26%20Data%20Management/6a0974f9ed8d853e7994daac";
+const ONSHAPE_APP_STORE_URL =
+  process.env.NEXT_PUBLIC_ONSHAPE_APP_STORE_URL?.trim() ||
+  process.env.ONSHAPE_APP_STORE_URL?.trim() ||
+  DEFAULT_ONSHAPE_APP_STORE_URL;
+
 const SUPPORTED_PROFILE_PROVIDERS = DESIGN_CONNECTOR_PROVIDER_LIST.map(
   (provider) => provider.key,
 );
@@ -230,6 +237,7 @@ export default async function DesignConnectorsPage() {
             const entitlement = entitlementByProvider.get(providerKey);
             const release = latestReleaseByProvider.get(providerKey);
             const enabled = Boolean(entitlement?.is_enabled);
+            const isOnshape = providerKey === "onshape";
 
             const statusTone = enabled
               ? "border-[#00bdde]/40 bg-[#d6f8fd] text-[#003040]"
@@ -283,13 +291,32 @@ export default async function DesignConnectorsPage() {
                     {runtimeRoles}
                   </div>
                 </div>
-                {meta.setupRoute ? (
-                  <Link
-                    href={meta.setupRoute}
-                    className="mt-4 inline-flex rounded-[8px] border border-[#003040] bg-[#003040] px-3 py-2 text-xs font-medium text-white"
-                  >
-                    Open Onshape add-in
-                  </Link>
+                {meta.setupRoute || isOnshape ? (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {meta.setupRoute ? (
+                      <Link
+                        href={meta.setupRoute}
+                        className="inline-flex rounded-[8px] border border-[#003040] bg-[#003040] px-3 py-2 text-xs font-medium text-white"
+                      >
+                        Open web add-in
+                      </Link>
+                    ) : null}
+                    {isOnshape ? (
+                      <>
+                        <a
+                          href={ONSHAPE_APP_STORE_URL}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex rounded-[8px] border border-[#00bdde] bg-[#00bdde] px-3 py-2 text-xs font-medium text-[#002b38]"
+                        >
+                          Onshape Store
+                        </a>
+                        <span className="inline-flex rounded-[8px] border border-[#c6dce3] bg-white px-3 py-2 text-xs font-medium text-gray-500">
+                          Private beta listing
+                        </span>
+                      </>
+                    ) : null}
+                  </div>
                 ) : null}
               </div>
             );

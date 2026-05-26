@@ -3,6 +3,13 @@ import { redirect } from "next/navigation";
 import { createClient } from "../../../../lib/supabase/server";
 import { DESIGN_CONNECTOR_PROVIDER_LIST } from "../../../../lib/design-connectors/contract";
 
+const DEFAULT_ONSHAPE_APP_STORE_URL =
+  "https://cad.onshape.com/appstore/apps/Project%20%26%20Data%20Management/6a0974f9ed8d853e7994daac";
+const ONSHAPE_APP_STORE_URL =
+  process.env.NEXT_PUBLIC_ONSHAPE_APP_STORE_URL?.trim() ||
+  process.env.ONSHAPE_APP_STORE_URL?.trim() ||
+  DEFAULT_ONSHAPE_APP_STORE_URL;
+
 const CONNECTORS = DESIGN_CONNECTOR_PROVIDER_LIST.map((provider) => ({
   key: provider.key,
   label: provider.label,
@@ -247,12 +254,29 @@ export default async function DesignConnectorDownloadsPage() {
                     ) : null,
                   )
                 ) : connector.setupRoute ? (
-                  <Link
-                    href={connector.setupRoute}
-                    className="inline-flex rounded-[8px] border border-[#003040] bg-[#003040] px-4 py-2 text-sm font-medium text-white"
-                  >
-                    Open Onshape Add-in
-                  </Link>
+                  <>
+                    <Link
+                      href={connector.setupRoute}
+                      className="inline-flex rounded-[8px] border border-[#003040] bg-[#003040] px-4 py-2 text-sm font-medium text-white"
+                    >
+                      Open web add-in
+                    </Link>
+                    {connector.key === "onshape" ? (
+                      <>
+                        <a
+                          href={ONSHAPE_APP_STORE_URL}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex rounded-[8px] border border-[#00bdde] bg-[#00bdde] px-4 py-2 text-sm font-medium text-[#002b38]"
+                        >
+                          Onshape Store
+                        </a>
+                        <span className="inline-flex rounded-[8px] border border-[#c6dce3] bg-white px-4 py-2 text-sm font-medium text-gray-500">
+                          Private beta listing
+                        </span>
+                      </>
+                    ) : null}
+                  </>
                 ) : release ? (
                   <button
                     type="button"
