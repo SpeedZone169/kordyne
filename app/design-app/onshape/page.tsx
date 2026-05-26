@@ -1376,6 +1376,24 @@ export default function OnshapeDesignAppPage() {
   ]);
 
   useEffect(() => {
+    if (!token || !onshapeApiConnected || !publishableContext) return;
+
+    const timer = window.setInterval(() => {
+      if (!document.hidden && activeTab !== "connect") {
+        void loadOnshapePartContext(token, true);
+      }
+    }, 10000);
+
+    return () => window.clearInterval(timer);
+  }, [
+    activeTab,
+    loadOnshapePartContext,
+    onshapeApiConnected,
+    publishableContext,
+    token,
+  ]);
+
+  useEffect(() => {
     if (!token || !publishableContext) {
       setActiveVaultMatch(null);
       return;
@@ -2701,10 +2719,7 @@ export default function OnshapeDesignAppPage() {
   const cadPartNumber = resolvedPart?.partNumber || context?.partNumber || partNumber || "";
   const normalizedActivePartName = activePartName.trim().toLowerCase();
   const normalizedCadPartNumber = cadPartNumber.trim().toLowerCase();
-  const activeVaultPart =
-    selectedMatch ||
-    lastPart ||
-    activeVaultMatch ||
+  const exactLibraryMatch =
     libraryItems.find((item) => {
       const itemName = (item.name ?? "").trim().toLowerCase();
       const itemNumber = (item.part_number ?? "").trim().toLowerCase();
@@ -2713,9 +2728,10 @@ export default function OnshapeDesignAppPage() {
         (normalizedCadPartNumber && itemNumber === normalizedCadPartNumber) ||
         (normalizedActivePartName && itemName === normalizedActivePartName)
       );
-    }) ||
-    null;
-  const activePartNumber = cadPartNumber || activeVaultPart?.part_number || "";
+    }) || null;
+  const activeVaultPart =
+    activeVaultMatch || exactLibraryMatch || selectedMatch || lastPart || null;
+  const activePartNumber = activeVaultPart?.part_number || cadPartNumber || "";
   const activeContextRows = [
     ["Name", fieldOrDash(activePartName)],
     ["Part no.", fieldOrDash(activePartNumber)],
