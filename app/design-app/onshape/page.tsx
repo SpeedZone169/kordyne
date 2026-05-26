@@ -662,6 +662,9 @@ export default function OnshapeDesignAppPage() {
     useState<UploadedDesignFile | null>(null);
   const [onshapeApiConnected, setOnshapeApiConnected] = useState(false);
   const [libraryItems, setLibraryItems] = useState<PublishedPart[]>([]);
+  const [activeVaultMatch, setActiveVaultMatch] = useState<PublishedPart | null>(
+    null,
+  );
   const [libraryQuery, setLibraryQuery] = useState("");
   const [libraryLoaded, setLibraryLoaded] = useState(false);
   const [libraryStatus, setLibraryStatus] = useState("all");
@@ -979,6 +982,78 @@ export default function OnshapeDesignAppPage() {
     [context, token],
   );
 
+  const hydrateActiveVaultMatch = useCallback(
+    async function hydrateActiveVaultMatch(activeToken = token) {
+      if (!activeToken || !context) {
+        setActiveVaultMatch(null);
+        return;
+      }
+
+      const lookupName = (
+        resolvedPart?.name ||
+        context.partName ||
+        displayNameForContext(context)
+      ).trim();
+      const lookupNumber = (
+        context.partNumber ||
+        resolvedPart?.partNumber ||
+        ""
+      ).trim();
+      const query = lookupNumber || lookupName;
+
+      if (!query) {
+        setActiveVaultMatch(null);
+        return;
+      }
+
+      setActiveVaultMatch(null);
+
+      try {
+        const payload = await callOnshapeApi<{
+          ok: boolean;
+          items: Array<PublishedPart>;
+        }>(
+          "/api/design-app/onshape/library-search",
+          {
+            method: "POST",
+            body: JSON.stringify({
+              q: query,
+              limit: 20,
+            }),
+          },
+          activeToken,
+        );
+
+        const cleanName = lookupName.toLowerCase();
+        const cleanNumber = lookupNumber.toLowerCase();
+        const exactMatch =
+          payload.items.find((item) => {
+            const itemName = (item.name ?? "").trim().toLowerCase();
+            const itemNumber = (item.part_number ?? "").trim().toLowerCase();
+
+            return (
+              (cleanNumber && itemNumber === cleanNumber) ||
+              (cleanName && itemName === cleanName)
+            );
+          }) ?? null;
+
+        setActiveVaultMatch(exactMatch);
+        if (exactMatch?.part_number) {
+          setPartNumber((current) => current || exactMatch.part_number || "");
+        }
+      } catch {
+        setActiveVaultMatch(null);
+      }
+    },
+    [
+      callOnshapeApi,
+      context,
+      resolvedPart?.name,
+      resolvedPart?.partNumber,
+      token,
+    ],
+  );
+
   const prepareOnshapeCheckpoint = useCallback(
     async function prepareOnshapeCheckpoint(actionLabel: string) {
       if (
@@ -1172,18 +1247,62 @@ export default function OnshapeDesignAppPage() {
 
   useEffect(() => {
     if (!token || !onshapeApiConnected || !publishableContext) return;
-    if (resolvedPart?.partId && resolvedPart.elementId === context?.elementId) return;
+    if (
+      resolvedPart?.partId &&
+      resolvedPart.elementId === context?.elementId &&
+      resolvedPart.microversionId === context?.microversionId
+    ) {
+      return;
+    }
 
     void loadOnshapePartContext(token, true);
   }, [
     context?.elementId,
+    context?.microversionId,
     loadOnshapePartContext,
     onshapeApiConnected,
     publishableContext,
     resolvedPart?.elementId,
+    resolvedPart?.microversionId,
     resolvedPart?.partId,
     token,
   ]);
+
+  useEffect(() => {
+    if (!token || !onshapeApiConnected || !publishableContext) return;
+
+    function refreshActiveContext() {
+      void loadOnshapePartContext(token, true);
+    }
+
+    function refreshWhenVisible() {
+      if (!document.hidden) {
+        refreshActiveContext();
+      }
+    }
+
+    window.addEventListener("focus", refreshActiveContext);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+
+    return () => {
+      window.removeEventListener("focus", refreshActiveContext);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, [
+    loadOnshapePartContext,
+    onshapeApiConnected,
+    publishableContext,
+    token,
+  ]);
+
+  useEffect(() => {
+    if (!token || !publishableContext) {
+      setActiveVaultMatch(null);
+      return;
+    }
+
+    void hydrateActiveVaultMatch(token);
+  }, [hydrateActiveVaultMatch, publishableContext, token]);
 
   async function connect() {
     setState("opening_browser");
@@ -2415,6 +2534,7 @@ export default function OnshapeDesignAppPage() {
     setStlFile(null);
     setThumbnailFile(null);
     setPropertiesFile(null);
+    setActiveVaultMatch(null);
     setLibraryItems([]);
     setLibraryLoaded(false);
     setExpandedLibraryPartIds([]);
@@ -2495,6 +2615,7 @@ export default function OnshapeDesignAppPage() {
   const activeVaultPart =
     selectedMatch ||
     lastPart ||
+    activeVaultMatch ||
     libraryItems.find((item) => {
       const itemName = (item.name ?? "").trim().toLowerCase();
       const itemNumber = (item.part_number ?? "").trim().toLowerCase();
@@ -2572,6 +2693,9 @@ export default function OnshapeDesignAppPage() {
         type="button"
         onClick={() => {
           setActiveTab(tab);
+          if (connected && onshapeApiConnected && publishableContext) {
+            void loadOnshapePartContext(token, true);
+          }
           if (tab === "library" && connected && !busy && !libraryLoaded) {
             void searchLibrary();
           }
