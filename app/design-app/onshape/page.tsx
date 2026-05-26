@@ -744,6 +744,7 @@ export default function OnshapeDesignAppPage() {
   );
   const [partName, setPartName] = useState("");
   const [partNumber, setPartNumber] = useState("");
+  const partNumberManuallyEditedRef = useRef(false);
   const [description, setDescription] = useState("");
   const [processType, setProcessType] = useState("");
   const [material, setMaterial] = useState("");
@@ -857,6 +858,17 @@ export default function OnshapeDesignAppPage() {
     () => buildPublishFingerprint(),
     [buildPublishFingerprint],
   );
+  const setSystemPartNumber = useCallback((nextPartNumber?: string | null) => {
+    const cleanNext = nextPartNumber?.trim() ?? "";
+
+    setPartNumber((current) => {
+      if (partNumberManuallyEditedRef.current && current.trim()) {
+        return current;
+      }
+
+      return cleanNext;
+    });
+  }, []);
 
   useEffect(() => {
     const savedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
@@ -1045,7 +1057,9 @@ export default function OnshapeDesignAppPage() {
 
           return canReplace ? nextDisplayName || current : current;
         });
-        setPartNumber((current) => current || activePart?.partNumber || "");
+        if (activePart?.partNumber) {
+          setSystemPartNumber(activePart.partNumber);
+        }
         setDescription((current) => current || activePart?.description || "");
       }
 
@@ -1060,7 +1074,7 @@ export default function OnshapeDesignAppPage() {
 
       return activePart;
     },
-    [context, token],
+    [context, setSystemPartNumber, token],
   );
 
   const hydrateActiveVaultMatch = useCallback(
@@ -1116,9 +1130,7 @@ export default function OnshapeDesignAppPage() {
           }) ?? null;
 
         setActiveVaultMatch(exactMatch);
-        if (exactMatch?.part_number) {
-          setPartNumber((current) => current || exactMatch.part_number || "");
-        }
+        setSystemPartNumber(exactMatch?.part_number || lookupNumber);
       } catch {
         // Keep the last stable match if a background refresh fails.
       }
@@ -1128,6 +1140,7 @@ export default function OnshapeDesignAppPage() {
       context,
       resolvedPart?.name,
       resolvedPart?.partNumber,
+      setSystemPartNumber,
       token,
     ],
   );
@@ -1199,7 +1212,9 @@ export default function OnshapeDesignAppPage() {
       setContext(parsedContext);
       setLibraryQuery("");
       setPartName((current) => current || displayNameForContext(parsedContext));
-      setPartNumber((current) => current || parsedContext.partNumber || "");
+      if (parsedContext.partNumber) {
+        setSystemPartNumber(parsedContext.partNumber);
+      }
       setRevisionNote("Published from Onshape.");
 
       const savedToken = window.localStorage.getItem(TOKEN_STORAGE_KEY) ?? "";
@@ -1236,7 +1251,7 @@ export default function OnshapeDesignAppPage() {
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, [loadProfile]);
+  }, [loadProfile, setSystemPartNumber]);
 
   useEffect(() => {
     if (!publishableContext) return;
@@ -1316,6 +1331,10 @@ export default function OnshapeDesignAppPage() {
     setCompareWorkspace(null);
     setLibraryCompareResult(null);
   }, [lastPart?.part_id]);
+
+  useEffect(() => {
+    partNumberManuallyEditedRef.current = false;
+  }, [context?.documentId, context?.elementId, context?.partId]);
 
   useEffect(() => {
     setPublishStatus("idle");
@@ -2288,7 +2307,8 @@ export default function OnshapeDesignAppPage() {
     setSelectedMatch(item);
     setPublishMode("new_revision");
     setPartName((current) => item.name || current);
-    setPartNumber((current) => item.part_number || current);
+    partNumberManuallyEditedRef.current = false;
+    setPartNumber(item.part_number || "");
     setMaterial((current) => item.material || current);
     setProcessType((current) => item.process_type || current);
     setCategory((current) => item.category || current);
@@ -2714,21 +2734,28 @@ export default function OnshapeDesignAppPage() {
     resolvedPartName: resolvedPart?.name,
     formPartName: partName,
   });
-  const cadPartNumber = resolvedPart?.partNumber || context?.partNumber || partNumber || "";
+  const cadPartNumber = resolvedPart?.partNumber || context?.partNumber || "";
   const normalizedActivePartName = activePartName.trim().toLowerCase();
   const normalizedCadPartNumber = cadPartNumber.trim().toLowerCase();
-  const exactLibraryMatch =
-    libraryItems.find((item) => {
-      const itemName = (item.name ?? "").trim().toLowerCase();
-      const itemNumber = (item.part_number ?? "").trim().toLowerCase();
+  const matchesActivePart = (item?: PublishedPart | null) => {
+    if (!item) return false;
 
-      return (
-        (normalizedCadPartNumber && itemNumber === normalizedCadPartNumber) ||
-        (normalizedActivePartName && itemName === normalizedActivePartName)
-      );
-    }) || null;
+    const itemName = (item.name ?? "").trim().toLowerCase();
+    const itemNumber = (item.part_number ?? "").trim().toLowerCase();
+
+    return (
+      (normalizedCadPartNumber && itemNumber === normalizedCadPartNumber) ||
+      (normalizedActivePartName && itemName === normalizedActivePartName)
+    );
+  };
+  const activeMatchedPart = matchesActivePart(activeVaultMatch)
+    ? activeVaultMatch
+    : null;
+  const exactLibraryMatch = libraryItems.find(matchesActivePart) || null;
+  const activeLinkedPart =
+    [selectedMatch, lastPart].find(matchesActivePart) || null;
   const activeVaultPart =
-    activeVaultMatch || exactLibraryMatch || selectedMatch || lastPart || null;
+    activeMatchedPart || exactLibraryMatch || activeLinkedPart || null;
   const activePartNumber = activeVaultPart?.part_number || cadPartNumber || "";
   const activeContextRows = [
     ["Name", fieldOrDash(activePartName)],
@@ -3091,7 +3118,10 @@ export default function OnshapeDesignAppPage() {
                 <input
                   id="onshape-part-number"
                   value={partNumber}
-                  onChange={(event) => setPartNumber(event.target.value)}
+                  onChange={(event) => {
+                    partNumberManuallyEditedRef.current = true;
+                    setPartNumber(event.target.value);
+                  }}
                   placeholder="Optional part number"
                   className={formControlClass}
                 />
