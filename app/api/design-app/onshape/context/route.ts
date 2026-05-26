@@ -31,6 +31,13 @@ type OnshapePart = {
   isMesh?: boolean | null;
 };
 
+type OnshapeElement = {
+  id?: string | null;
+  name?: string | null;
+  elementType?: string | null;
+  microversionId?: string | null;
+};
+
 function asString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -69,6 +76,15 @@ function normalizePart(part: OnshapePart) {
     microversionId: asString(part.microversionId) || null,
     bodyType: asString(part.bodyType) || null,
     isMesh: Boolean(part.isMesh),
+  };
+}
+
+function normalizeElement(element: OnshapeElement) {
+  return {
+    id: asString(element.id) || null,
+    name: asString(element.name) || null,
+    elementType: asString(element.elementType) || null,
+    microversionId: asString(element.microversionId) || null,
   };
 }
 
@@ -186,10 +202,28 @@ export async function POST(request: Request) {
     );
     const normalizedParts = Array.isArray(parts) ? parts.map(normalizePart) : [];
     const activePart = chooseActivePart(normalizedParts, input);
+    let normalizedElements: ReturnType<typeof normalizeElement>[] = [];
+
+    try {
+      const elements = await fetchOnshapeJson<OnshapeElement[]>(
+        buildOnshapeDownloadUrl(
+          `/documents/d/${documentId}/${wv}/${wvid}/elements`,
+        ),
+        storedToken.accessToken,
+      );
+      normalizedElements = Array.isArray(elements)
+        ? elements.map(normalizeElement)
+        : [];
+    } catch {
+      normalizedElements = [];
+    }
+    const activeElement =
+      normalizedElements.find((element) => element.id === elementId) ?? null;
 
     return NextResponse.json({
       ok: true,
       active_part: activePart,
+      active_element: activeElement,
       parts: normalizedParts,
       source: "onshape_parts_api",
     });

@@ -109,6 +109,13 @@ type OnshapeResolvedPart = {
   bodyType?: string | null;
 };
 
+type OnshapeResolvedElement = {
+  id?: string | null;
+  name?: string | null;
+  elementType?: string | null;
+  microversionId?: string | null;
+};
+
 type ThemeMode = "light" | "dark";
 type ActiveTab = "connect" | "publish" | "library" | "pull" | "compare";
 type PublishMode = "new_family" | "new_revision";
@@ -354,14 +361,63 @@ function contextStorageKey(context: OnshapeContext) {
 }
 
 function displayNameForContext(context: OnshapeContext) {
-  if (context.partName) return context.partName;
+  if (context.partName && !isGenericOnshapeName(context.partName)) {
+    return context.partName;
+  }
   if (context.elementName) return context.elementName;
+  if (context.partName) return context.partName;
   if (context.documentName) return context.documentName;
   if (context.partNumber) return context.partNumber;
   if (context.partId) return `Onshape part ${context.partId}`;
   if (context.elementId) return `Onshape element ${context.elementId}`;
   if (context.documentId) return `Onshape document ${context.documentId}`;
   return "Onshape design";
+}
+
+function isGenericOnshapeName(value?: string | null) {
+  const clean = value?.trim() ?? "";
+
+  return (
+    !clean ||
+    /^part\s+\d+$/i.test(clean) ||
+    /^onshape\s+(part|element|document)\b/i.test(clean)
+  );
+}
+
+function preferredOnshapeDisplayName(input: {
+  context: OnshapeContext | null;
+  resolvedPartName?: string | null;
+  formPartName?: string | null;
+}) {
+  const resolvedPartName = input.resolvedPartName?.trim() ?? "";
+  const formPartName = input.formPartName?.trim() ?? "";
+  const contextPartName = input.context?.partName?.trim() ?? "";
+  const elementName = input.context?.elementName?.trim() ?? "";
+  const documentName = input.context?.documentName?.trim() ?? "";
+  const partNumber = input.context?.partNumber?.trim() ?? "";
+
+  if (resolvedPartName && !isGenericOnshapeName(resolvedPartName)) {
+    return resolvedPartName;
+  }
+  if (elementName && !isGenericOnshapeName(elementName)) {
+    return elementName;
+  }
+  if (formPartName && !isGenericOnshapeName(formPartName)) {
+    return formPartName;
+  }
+  if (contextPartName && !isGenericOnshapeName(contextPartName)) {
+    return contextPartName;
+  }
+
+  return (
+    elementName ||
+    resolvedPartName ||
+    formPartName ||
+    contextPartName ||
+    documentName ||
+    partNumber ||
+    "Onshape design"
+  );
 }
 
 function fieldOrDash(value?: string | null) {
@@ -905,6 +961,7 @@ export default function OnshapeDesignAppPage() {
         ok?: boolean;
         needs_onshape_oauth?: boolean;
         active_part?: OnshapeResolvedPart | null;
+        active_element?: OnshapeResolvedElement | null;
         error?: string;
       };
 
@@ -938,34 +995,58 @@ export default function OnshapeDesignAppPage() {
       }
 
       const activePart = payload.active_part ?? null;
+      const activeElement = payload.active_element ?? null;
       setResolvedPart(activePart);
 
-      if (activePart) {
+      if (activePart || activeElement) {
+        const nextContext = context
+          ? {
+              ...context,
+              partId: activePart?.partId || context.partId,
+              partNumber: activePart?.partNumber || context.partNumber,
+              partName: activePart?.name || context.partName,
+              revision: activePart?.revision || context.revision,
+              elementName: activeElement?.name || context.elementName,
+              microversionId:
+                activePart?.microversionId ||
+                activeElement?.microversionId ||
+                context.microversionId,
+            }
+          : null;
+        const nextDisplayName = preferredOnshapeDisplayName({
+          context: nextContext,
+          resolvedPartName: activePart?.name,
+        });
+
         setContext((current) =>
           current
             ? {
                 ...current,
-                partId: activePart.partId || current.partId,
-                partNumber: activePart.partNumber || current.partNumber,
-                partName: activePart.name || current.partName,
-                revision: activePart.revision || current.revision,
+                partId: activePart?.partId || current.partId,
+                partNumber: activePart?.partNumber || current.partNumber,
+                partName: activePart?.name || current.partName,
+                revision: activePart?.revision || current.revision,
+                elementName: activeElement?.name || current.elementName,
                 microversionId:
-                  activePart.microversionId || current.microversionId,
+                  activePart?.microversionId ||
+                  activeElement?.microversionId ||
+                  current.microversionId,
               }
             : current,
         );
-        setPartName((current) =>
-          current &&
-          current !== displayNameForContext(context) &&
-          current !== context.partNumber &&
-          !current.startsWith("Onshape element") &&
-          !current.startsWith("Onshape document") &&
-          !current.startsWith("Onshape part")
-            ? current
-            : activePart.name || current,
-        );
-        setPartNumber((current) => current || activePart.partNumber || "");
-        setDescription((current) => current || activePart.description || "");
+        setPartName((current) => {
+          const clean = current.trim();
+          const canReplace =
+            !clean ||
+            clean === displayNameForContext(context) ||
+            clean === context.partNumber ||
+            clean === context.elementName ||
+            isGenericOnshapeName(clean);
+
+          return canReplace ? nextDisplayName || current : current;
+        });
+        setPartNumber((current) => current || activePart?.partNumber || "");
+        setDescription((current) => current || activePart?.description || "");
       }
 
       if (!silent) {
@@ -989,11 +1070,10 @@ export default function OnshapeDesignAppPage() {
         return;
       }
 
-      const lookupName = (
-        resolvedPart?.name ||
-        context.partName ||
-        displayNameForContext(context)
-      ).trim();
+      const lookupName = preferredOnshapeDisplayName({
+        context,
+        resolvedPartName: resolvedPart?.name,
+      }).trim();
       const lookupNumber = (
         context.partNumber ||
         resolvedPart?.partNumber ||
@@ -2557,7 +2637,6 @@ export default function OnshapeDesignAppPage() {
     state === "opening_browser" ||
     state === "waiting" ||
     state === "working";
-  const contextName = context ? displayNameForContext(context) : "Onshape design";
   const isDark = theme === "dark";
   const surface = isDark
     ? "bg-[#002532] text-white"
@@ -2604,12 +2683,22 @@ export default function OnshapeDesignAppPage() {
       : isDark
         ? "border-cyan-200/15 bg-cyan-200/5 text-cyan-50"
         : "border-[#d5e8ef] bg-[#f3fbfe] text-[#17394a]";
-  const activePartRevision = context?.revision || resolvedPart?.revision || "";
-  const activePartName =
-    resolvedPart?.name ||
-    (partName && !partName.startsWith("Onshape element") ? partName : "") ||
-    contextName;
-  const cadPartNumber = context?.partNumber || resolvedPart?.partNumber || partNumber || "";
+  const isLibraryResultStatus =
+    /^Showing \d+ Kordyne parts?\./.test(status) ||
+    status === "No Kordyne parts found for this search.";
+  const visibleStatus =
+    activeTab !== "library" && isLibraryResultStatus
+      ? activeTab === "connect"
+        ? connectionDetail
+        : "Ready to publish this Onshape part to Kordyne."
+      : status;
+  const activePartRevision = resolvedPart?.revision || context?.revision || "";
+  const activePartName = preferredOnshapeDisplayName({
+    context,
+    resolvedPartName: resolvedPart?.name,
+    formPartName: partName,
+  });
+  const cadPartNumber = resolvedPart?.partNumber || context?.partNumber || partNumber || "";
   const normalizedActivePartName = activePartName.trim().toLowerCase();
   const normalizedCadPartNumber = cadPartNumber.trim().toLowerCase();
   const activeVaultPart =
@@ -2888,7 +2977,7 @@ export default function OnshapeDesignAppPage() {
             name={state === "error" ? "alert" : "info"}
             className="mt-0.5 h-5 w-5 shrink-0"
           />
-          <p>{status}</p>
+          <p>{visibleStatus}</p>
         </div>
 
         <div className={`grid grid-cols-3 overflow-hidden rounded-lg border ${rowBorder}`}>
