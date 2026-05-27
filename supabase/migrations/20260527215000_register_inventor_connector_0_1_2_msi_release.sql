@@ -38,9 +38,9 @@ with upserted_release as (
     'inventor/Kordyne-Inventor-Connector-0.1.2-beta.msi',
     'Kordyne-Inventor-Connector-0.1.2-beta.msi',
     'application/x-msi',
-    4612096,
-    '52E205DA82ABEC5591816104D2A94AB6391DE3A641063C964E6B91E196BB8885',
-    'Inventor connector MSI refreshes Kordyne branding and strengthens upgrades by closing Inventor and replacing stale add-in files.',
+    4616192,
+    'CFE1364112BFD051718792347B6EC86650ED86164396C591ADBE522395BEEA27',
+    'Inventor connector MSI refreshes Kordyne branding, installs the add-in manifest into the standard Inventor discovery folder, forces production login to kordyne.com in Release builds, and strengthens upgrades by closing Inventor and replacing stale add-in files.',
     true,
     jsonb_build_object(
       'downloadable', true,
