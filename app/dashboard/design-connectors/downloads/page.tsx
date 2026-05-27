@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "../../../../lib/supabase/server";
 import { DESIGN_CONNECTOR_PROVIDER_LIST } from "../../../../lib/design-connectors/contract";
@@ -9,6 +9,7 @@ const ONSHAPE_APP_STORE_URL =
   process.env.NEXT_PUBLIC_ONSHAPE_APP_STORE_URL?.trim() ||
   process.env.ONSHAPE_APP_STORE_URL?.trim() ||
   DEFAULT_ONSHAPE_APP_STORE_URL;
+const ONSHAPE_APP_STORE_VERSION = "0.1.0";
 
 const CONNECTORS = DESIGN_CONNECTOR_PROVIDER_LIST.map((provider) => ({
   key: provider.key,
@@ -25,9 +26,9 @@ const DOWNLOAD_FORMATS = [
 ] as const;
 
 function formatUtc(value?: string | null) {
-  if (!value) return "—";
+  if (!value) return "-";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
+  if (Number.isNaN(date.getTime())) return "-";
 
   const year = date.getUTCFullYear();
   const month = String(date.getUTCMonth() + 1).padStart(2, "0");
@@ -112,7 +113,7 @@ export default async function DesignConnectorDownloadsPage() {
               Connector Downloads
             </h1>
             <p className="mt-1 max-w-2xl text-sm text-cyan-50/75">
-              Install desktop connectors or open the Onshape web handoff route
+              Install desktop connectors or open the Onshape Store listing
               for your organization.
             </p>
           </div>
@@ -139,13 +140,19 @@ export default async function DesignConnectorDownloadsPage() {
             connectorReleases.find((item) => item.release)?.release ?? null;
 
           const enabled = Boolean(entitlement?.is_enabled);
-          const version = release?.version ?? "—";
-          const published = formatUtc(release?.created_at);
+          const isOnshape = connector.key === "onshape";
+          const version =
+            release?.version ?? (isOnshape ? ONSHAPE_APP_STORE_VERSION : "-");
+          const published = release?.created_at
+            ? formatUtc(release.created_at)
+            : isOnshape
+              ? "Private beta"
+              : "-";
           const runtimeRoles =
             Array.isArray(entitlement?.allowed_runtime_roles) &&
             entitlement.allowed_runtime_roles.length > 0
               ? entitlement.allowed_runtime_roles.join(", ")
-              : "—";
+              : "-";
 
           const hasRelease = connectorReleases.some((item) => item.release);
           const isDesktopPackage =
@@ -162,13 +169,15 @@ export default async function DesignConnectorDownloadsPage() {
             ? "Checksum recorded"
             : release
               ? "Checksum pending"
-              : "—";
+              : "-";
           const runtimeLabel = connector.runtimes
             .map((runtime) => runtime.replace(/_/g, " "))
             .join(", ");
 
           const statusLabel = enabled
             ? "Enabled"
+            : isOnshape
+              ? "Onshape Store"
             : connector.setupRoute
               ? "Web app"
             : release
@@ -177,6 +186,8 @@ export default async function DesignConnectorDownloadsPage() {
 
           const statusClasses = enabled
             ? "border-[#00bdde]/40 bg-[#d6f8fd] text-[#003040]"
+            : isOnshape
+              ? "border-[#00bdde]/40 bg-[#e8fbff] text-[#006f87]"
             : connector.setupRoute
               ? "border-[#00bdde]/40 bg-[#e8fbff] text-[#006f87]"
             : release
@@ -220,7 +231,7 @@ export default async function DesignConnectorDownloadsPage() {
                       ) : null,
                     )
                   ) : (
-                    <div>—</div>
+                    <div>-</div>
                   )}
                 </div>
                 <div>
@@ -228,7 +239,7 @@ export default async function DesignConnectorDownloadsPage() {
                 </div>
                 <div>
                   <span className="font-medium">Runtime:</span>{" "}
-                  {runtimeRoles !== "—" ? runtimeRoles : runtimeLabel}
+                  {runtimeRoles !== "-" ? runtimeRoles : runtimeLabel}
                 </div>
                 <div>
                   <span className="font-medium">Security:</span>{" "}
@@ -253,30 +264,22 @@ export default async function DesignConnectorDownloadsPage() {
                       </a>
                     ) : null,
                   )
+                ) : connector.key === "onshape" ? (
+                  <a
+                    href={ONSHAPE_APP_STORE_URL}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex rounded-[8px] border border-[#00bdde] bg-[#00bdde] px-4 py-2 text-sm font-medium text-[#002b38]"
+                  >
+                    Onshape Store
+                  </a>
                 ) : connector.setupRoute ? (
-                  <>
-                    <Link
-                      href={connector.setupRoute}
-                      className="inline-flex rounded-[8px] border border-[#003040] bg-[#003040] px-4 py-2 text-sm font-medium text-white"
-                    >
-                      Open web add-in
-                    </Link>
-                    {connector.key === "onshape" ? (
-                      <>
-                        <a
-                          href={ONSHAPE_APP_STORE_URL}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex rounded-[8px] border border-[#00bdde] bg-[#00bdde] px-4 py-2 text-sm font-medium text-[#002b38]"
-                        >
-                          Onshape Store
-                        </a>
-                        <span className="inline-flex rounded-[8px] border border-[#c6dce3] bg-white px-4 py-2 text-sm font-medium text-gray-500">
-                          Private beta listing
-                        </span>
-                      </>
-                    ) : null}
-                  </>
+                  <Link
+                    href={connector.setupRoute}
+                    className="inline-flex rounded-[8px] border border-[#003040] bg-[#003040] px-4 py-2 text-sm font-medium text-white"
+                  >
+                    Open web add-in
+                  </Link>
                 ) : release ? (
                   <button
                     type="button"

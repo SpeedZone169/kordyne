@@ -10,15 +10,16 @@ const ONSHAPE_APP_STORE_URL =
   process.env.NEXT_PUBLIC_ONSHAPE_APP_STORE_URL?.trim() ||
   process.env.ONSHAPE_APP_STORE_URL?.trim() ||
   DEFAULT_ONSHAPE_APP_STORE_URL;
+const ONSHAPE_APP_STORE_VERSION = "0.1.0";
 
 const SUPPORTED_PROFILE_PROVIDERS = DESIGN_CONNECTOR_PROVIDER_LIST.map(
   (provider) => provider.key,
 );
 
 function formatUtcDate(value?: string | null) {
-  if (!value) return "—";
+  if (!value) return "-";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
+  if (Number.isNaN(date.getTime())) return "-";
 
   const year = date.getUTCFullYear();
   const month = String(date.getUTCMonth() + 1).padStart(2, "0");
@@ -238,9 +239,18 @@ export default async function DesignConnectorsPage() {
             const release = latestReleaseByProvider.get(providerKey);
             const enabled = Boolean(entitlement?.is_enabled);
             const isOnshape = providerKey === "onshape";
+            const displayVersion =
+              release?.version ?? (isOnshape ? ONSHAPE_APP_STORE_VERSION : "-");
+            const displayPublished = release?.created_at
+              ? formatUtcDate(release.created_at)
+              : isOnshape
+                ? "Private beta"
+                : "-";
 
             const statusTone = enabled
               ? "border-[#00bdde]/40 bg-[#d6f8fd] text-[#003040]"
+              : isOnshape
+                ? "border-[#00bdde]/40 bg-[#e8fbff] text-[#006f87]"
               : meta.setupRoute
                 ? "border-[#00bdde]/40 bg-[#e8fbff] text-[#006f87]"
                 : release
@@ -249,6 +259,8 @@ export default async function DesignConnectorsPage() {
 
             const statusLabel = enabled
               ? "Enabled"
+              : isOnshape
+                ? "Onshape Store"
               : meta.setupRoute
                 ? "Web app"
               : release
@@ -259,7 +271,7 @@ export default async function DesignConnectorsPage() {
               Array.isArray(entitlement?.allowed_runtime_roles) &&
               entitlement.allowed_runtime_roles.length > 0
                 ? entitlement.allowed_runtime_roles.join(", ")
-                : "—";
+                : "-";
 
             return (
               <div
@@ -280,11 +292,11 @@ export default async function DesignConnectorsPage() {
                 <div className="mt-4 space-y-2 text-sm text-gray-600">
                   <div>
                     <span className="font-medium text-gray-700">Version:</span>{" "}
-                    {release?.version ?? "—"}
+                    {displayVersion}
                   </div>
                   <div>
                     <span className="font-medium text-gray-700">Published:</span>{" "}
-                    {formatUtcDate(release?.created_at)}
+                    {displayPublished}
                   </div>
                   <div>
                     <span className="font-medium text-gray-700">Runtime:</span>{" "}
@@ -293,28 +305,22 @@ export default async function DesignConnectorsPage() {
                 </div>
                 {meta.setupRoute || isOnshape ? (
                   <div className="mt-4 flex flex-wrap gap-2">
-                    {meta.setupRoute ? (
+                    {isOnshape ? (
+                      <a
+                        href={ONSHAPE_APP_STORE_URL}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex rounded-[8px] border border-[#00bdde] bg-[#00bdde] px-3 py-2 text-xs font-medium text-[#002b38]"
+                      >
+                        Onshape Store
+                      </a>
+                    ) : meta.setupRoute ? (
                       <Link
                         href={meta.setupRoute}
                         className="inline-flex rounded-[8px] border border-[#003040] bg-[#003040] px-3 py-2 text-xs font-medium text-white"
                       >
                         Open web add-in
                       </Link>
-                    ) : null}
-                    {isOnshape ? (
-                      <>
-                        <a
-                          href={ONSHAPE_APP_STORE_URL}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex rounded-[8px] border border-[#00bdde] bg-[#00bdde] px-3 py-2 text-xs font-medium text-[#002b38]"
-                        >
-                          Onshape Store
-                        </a>
-                        <span className="inline-flex rounded-[8px] border border-[#c6dce3] bg-white px-3 py-2 text-xs font-medium text-gray-500">
-                          Private beta listing
-                        </span>
-                      </>
                     ) : null}
                   </div>
                 ) : null}
