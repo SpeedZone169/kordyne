@@ -60,7 +60,12 @@ function inferAssetCategory(role: string) {
 }
 
 function isAllowedFileRole(role: string) {
-  return role === "step" || role === "native" || role === "thumbnail";
+  return (
+    role === "step" ||
+    role === "native" ||
+    role === "thumbnail" ||
+    role === "properties"
+  );
 }
 
 function isValidIdempotencyKey(value: string) {
@@ -206,7 +211,7 @@ export async function POST(request: Request) {
           {
             ok: false,
             error:
-              "Only STEP, native Inventor and preview thumbnail files can be published from this flow.",
+              "Only STEP, native Inventor, properties text, and preview thumbnail files can be published from this flow.",
           },
           { status: 400 },
         );

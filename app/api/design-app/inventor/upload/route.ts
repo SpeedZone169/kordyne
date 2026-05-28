@@ -5,9 +5,10 @@ import { createDesignAppAdminClient } from "../../../../../lib/design-app/admin"
 const DESIGN_UPLOAD_BUCKET =
   process.env.NEXT_PUBLIC_SUPABASE_DESIGN_UPLOAD_BUCKET || "part-files";
 
-const ALLOWED_ROLES = new Set(["step", "native", "thumbnail"]);
+const ALLOWED_ROLES = new Set(["step", "native", "thumbnail", "properties"]);
 const MAX_DESIGN_FILE_SIZE_BYTES = 250 * 1024 * 1024;
 const MAX_THUMBNAIL_FILE_SIZE_BYTES = 15 * 1024 * 1024;
+const MAX_PROPERTIES_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 
 function sanitizeFileName(name: string) {
   return name.replace(/[^a-zA-Z0-9._-]/g, "_");
@@ -37,11 +38,16 @@ function isAllowedExtensionForRole(role: string, extension: string) {
     );
   }
 
+  if (role === "properties") {
+    return extension === ".txt";
+  }
+
   return false;
 }
 
 function defaultContentTypeForRole(role: string, extension = "") {
   if (role === "step") return "application/step";
+  if (role === "properties") return "text/plain";
 
   if (role === "thumbnail") {
     if (extension === ".jpg" || extension === ".jpeg") return "image/jpeg";
@@ -53,6 +59,8 @@ function defaultContentTypeForRole(role: string, extension = "") {
 }
 
 function maxFileSizeForRole(role: string) {
+  if (role === "properties") return MAX_PROPERTIES_FILE_SIZE_BYTES;
+
   return role === "thumbnail"
     ? MAX_THUMBNAIL_FILE_SIZE_BYTES
     : MAX_DESIGN_FILE_SIZE_BYTES;
@@ -61,6 +69,7 @@ function maxFileSizeForRole(role: string) {
 function uploadMessageForRole(role: string) {
   if (role === "native") return "Inventor native file uploaded successfully.";
   if (role === "thumbnail") return "Inventor preview thumbnail uploaded successfully.";
+  if (role === "properties") return "Inventor properties text file uploaded successfully.";
   return "Inventor STEP file uploaded successfully.";
 }
 
@@ -71,6 +80,10 @@ function invalidExtensionMessageForRole(role: string) {
 
   if (role === "thumbnail") {
     return "Only PNG, JPG, JPEG and WebP files are allowed for preview thumbnail upload.";
+  }
+
+  if (role === "properties") {
+    return "Only TXT files are allowed for Inventor properties upload.";
   }
 
   return "Only STEP files are allowed for STEP upload.";
@@ -115,6 +128,8 @@ export async function POST(request: Request) {
           error:
             role === "thumbnail"
               ? "Thumbnail size is invalid or exceeds the 15 MB limit."
+              : role === "properties"
+                ? "Properties file size is invalid or exceeds the 5 MB limit."
               : "File size is invalid or exceeds the maximum allowed size.",
         },
         { status: 400 },
