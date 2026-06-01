@@ -5,9 +5,7 @@ import {
 } from "../../../../lib/design-app/request-auth";
 
 function maskToken(token: string | null) {
-  if (!token) return null;
-  if (token.length <= 12) return token;
-  return `${token.slice(0, 6)}…${token.slice(-6)}`;
+  return token ? "present" : null;
 }
 
 export async function GET(request: Request) {
@@ -22,7 +20,7 @@ export async function GET(request: Request) {
 
   const debug: Record<string, unknown> = {
     token_present: Boolean(token),
-    token_preview: maskToken(token),
+    token_status: maskToken(token),
     authorization_header_present: Boolean(request.headers.get("authorization")),
     custom_token_header_present: Boolean(
       request.headers.get("x-kordyne-connection-token"),
@@ -40,7 +38,6 @@ export async function GET(request: Request) {
 
     debug.auth_user_error = null;
     debug.auth_user_id = ctx.user.id;
-    debug.auth_user_email = ctx.user.email ?? null;
     debug.membership_error = null;
     debug.membership = {
       organization_id: ctx.organizationId,
