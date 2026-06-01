@@ -13,6 +13,12 @@ function asString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
 function scoreItem(
   q: string,
   item: {
@@ -212,6 +218,35 @@ async function loadThumbnailMap(
   return thumbnailByPartId;
 }
 
+async function loadSourceLinkThumbnailMap(
+  admin: ReturnType<typeof createDesignAppAdminClient>,
+  sourceLinksByFamily: Map<string, Record<string, unknown>>,
+) {
+  const thumbnailByFamilyId = new Map<string, ThumbnailInfo>();
+
+  for (const [familyId, sourceLink] of sourceLinksByFamily.entries()) {
+    const metadata = asRecord(sourceLink.metadata);
+    const storagePath = asString(metadata.thumbnail_storage_path);
+
+    if (!storagePath) continue;
+
+    const { data: signed, error: signedError } = await admin.storage
+      .from(DESIGN_UPLOAD_BUCKET)
+      .createSignedUrl(storagePath, 10 * 60);
+
+    if (signedError || !signed?.signedUrl) continue;
+
+    thumbnailByFamilyId.set(familyId, {
+      thumbnail_file_id: asString(metadata.thumbnail_file_id) || null,
+      thumbnail_file_name: asString(metadata.thumbnail_filename) || null,
+      thumbnail_storage_path: storagePath,
+      thumbnail_url: signed.signedUrl,
+    });
+  }
+
+  return thumbnailByFamilyId;
+}
+
 export async function POST(request: Request) {
   try {
     const ctx = await getDesignAppRequestContext(request, {
@@ -299,6 +334,10 @@ export async function POST(request: Request) {
     }
 
     const thumbnailByPartId = await loadThumbnailMap(admin, partIds);
+    const thumbnailByFamilyId = await loadSourceLinkThumbnailMap(
+      admin,
+      sourceLinksByFamily,
+    );
 
     const items = Array.from(grouped.entries())
       .map(([familyId, familyParts]) => {
@@ -312,6 +351,7 @@ export async function POST(request: Request) {
 
         const latest = revisions[0] ?? null;
         const familyThumbnail = revisions.find((revision) => revision.thumbnail_url);
+        const sourceThumbnail = thumbnailByFamilyId.get(familyId) ?? null;
 
         const searchScore = Math.max(
           ...familyParts.map((part) =>
@@ -334,18 +374,40 @@ export async function POST(request: Request) {
           search_score: searchScore,
           revision_count: revisions.length,
           thumbnail_file_id:
-            latest?.thumbnail_file_id ?? familyThumbnail?.thumbnail_file_id ?? null,
+            latest?.thumbnail_file_id ??
+            familyThumbnail?.thumbnail_file_id ??
+            sourceThumbnail?.thumbnail_file_id ??
+            null,
           thumbnail_file_name:
-            latest?.thumbnail_file_name ?? familyThumbnail?.thumbnail_file_name ?? null,
+            latest?.thumbnail_file_name ??
+            familyThumbnail?.thumbnail_file_name ??
+            sourceThumbnail?.thumbnail_file_name ??
+            null,
           thumbnail_storage_path:
             latest?.thumbnail_storage_path ??
             familyThumbnail?.thumbnail_storage_path ??
+            sourceThumbnail?.thumbnail_storage_path ??
             null,
-          thumbnail_url: latest?.thumbnail_url ?? familyThumbnail?.thumbnail_url ?? null,
+          thumbnail_url:
+            latest?.thumbnail_url ??
+            familyThumbnail?.thumbnail_url ??
+            sourceThumbnail?.thumbnail_url ??
+            null,
           thumbnail_signed_url:
-            latest?.thumbnail_url ?? familyThumbnail?.thumbnail_url ?? null,
-          preview_url: latest?.thumbnail_url ?? familyThumbnail?.thumbnail_url ?? null,
-          image_url: latest?.thumbnail_url ?? familyThumbnail?.thumbnail_url ?? null,
+            latest?.thumbnail_url ??
+            familyThumbnail?.thumbnail_url ??
+            sourceThumbnail?.thumbnail_url ??
+            null,
+          preview_url:
+            latest?.thumbnail_url ??
+            familyThumbnail?.thumbnail_url ??
+            sourceThumbnail?.thumbnail_url ??
+            null,
+          image_url:
+            latest?.thumbnail_url ??
+            familyThumbnail?.thumbnail_url ??
+            sourceThumbnail?.thumbnail_url ??
+            null,
           revisions,
         };
       })
