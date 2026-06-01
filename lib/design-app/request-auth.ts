@@ -68,18 +68,27 @@ export async function getDesignAppRequestContext(
   } = authResult;
 
   if (userError || !user) {
+    const payload: {
+      ok: false;
+      error: string;
+      debug?: {
+        token_present: boolean;
+        auth_mode: string;
+      };
+    } = {
+      ok: false,
+      error: userError?.message ?? "Unauthorized.",
+    };
+
+    if (process.env.NODE_ENV === "development") {
+      payload.debug = {
+        token_present: Boolean(token),
+        auth_mode: token ? "token" : "cookie",
+      };
+    }
+
     return {
-      error: NextResponse.json(
-        {
-          ok: false,
-          error: userError?.message ?? "Unauthorized.",
-          debug: {
-            token_present: Boolean(token),
-            auth_mode: token ? "token" : "cookie",
-          },
-        },
-        { status: 401 },
-      ),
+      error: NextResponse.json(payload, { status: 401 }),
     };
   }
 
