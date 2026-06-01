@@ -113,6 +113,29 @@ function isImageFileName(value: unknown) {
   );
 }
 
+function thumbnailPreferenceScore(file: Record<string, unknown>) {
+  const assetCategory = normalize(file.asset_category);
+  const fileType = normalize(file.file_type);
+  const fileName = normalize(file.file_name);
+
+  let score = 0;
+
+  if (assetCategory === "image") score += 20;
+  if (fileName.includes("preview")) score += 20;
+  if (fileName.includes("thumbnail")) score += 18;
+  if (fileName.endsWith(".png") || fileType.includes("png")) score += 16;
+  if (
+    fileName.endsWith(".jpg") ||
+    fileName.endsWith(".jpeg") ||
+    fileType.includes("jpeg")
+  ) {
+    score += 14;
+  }
+  if (fileName.endsWith(".webp") || fileType.includes("webp")) score += 4;
+
+  return score;
+}
+
 async function loadThumbnailMap(
   admin: ReturnType<typeof createDesignAppAdminClient>,
   partIds: string[],
@@ -135,7 +158,20 @@ async function loadThumbnailMap(
     throw new Error(imageFilesError.message);
   }
 
-  for (const file of imageFiles ?? []) {
+  const sortedImageFiles = [...(imageFiles ?? [])].sort((a, b) => {
+    const left = a as Record<string, unknown>;
+    const right = b as Record<string, unknown>;
+    const scoreDelta =
+      thumbnailPreferenceScore(right) - thumbnailPreferenceScore(left);
+
+    if (scoreDelta !== 0) return scoreDelta;
+
+    return String(right.created_at ?? "").localeCompare(
+      String(left.created_at ?? ""),
+    );
+  });
+
+  for (const file of sortedImageFiles) {
     const record = file as Record<string, unknown>;
     const partId = String(record.part_id ?? "");
 
