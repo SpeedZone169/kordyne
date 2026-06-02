@@ -53,6 +53,10 @@ function isAllowedRevisionScheme(value: string) {
   return value === "alphabetic" || value === "numeric";
 }
 
+function isAllowedFileRole(value: string) {
+  return ["step", "native", "stl", "thumbnail", "properties"].includes(value);
+}
+
 function validateStoragePathPrefix(
   storagePath: string,
   organizationId: string,
@@ -64,6 +68,10 @@ function validateStoragePathPrefix(
 
 function inferAssetCategory(role: string) {
   if (role === "step") return "cad_3d";
+  if (role === "native") return "cad_native";
+  if (role === "stl") return "cad_viewer";
+  if (role === "thumbnail") return "image";
+  if (role === "properties") return "documentation";
   return "other";
 }
 
@@ -169,6 +177,7 @@ export async function POST(request: Request) {
     }
 
     const files = input.files ?? [];
+    let hasStepFile = false;
 
     for (const file of files) {
       const storagePath = asString(file.storage_path);
@@ -193,15 +202,29 @@ export async function POST(request: Request) {
       }
 
       const role = asString(file.role).toLowerCase();
-      if (role !== "step") {
+      if (!isAllowedFileRole(role)) {
         return NextResponse.json(
           {
             ok: false,
-            error: "Only STEP files can be published from this flow.",
+            error: "Unsupported file role.",
           },
           { status: 400 },
         );
       }
+
+      if (role === "step") {
+        hasStepFile = true;
+      }
+    }
+
+    if (!hasStepFile) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "A STEP exchange file is required for Fusion publish.",
+        },
+        { status: 400 },
+      );
     }
 
     let partId: string | null = null;
