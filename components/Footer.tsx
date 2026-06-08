@@ -11,8 +11,8 @@ export default function Footer() {
               &copy; 2026 Kordyne. All rights reserved.
             </p>
             <p className="mt-3 text-sm leading-7 text-slate-600">
-              Digital thread infrastructure for advanced parts, controlled
-              collaboration, and manufacturing execution.
+              CAD-to-manufacturing workspace for controlled part records,
+              revision-aware collaboration, and manufacturing execution.
             </p>
           </div>
 
