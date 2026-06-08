@@ -19,6 +19,26 @@ function asRecord(value: unknown): Record<string, unknown> {
     : {};
 }
 
+function timestampMs(value: unknown) {
+  const parsed = Date.parse(String(value ?? ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function latestTimestamp(...values: unknown[]) {
+  let latestValue: unknown = null;
+  let latestMs = 0;
+
+  for (const value of values) {
+    const parsed = timestampMs(value);
+    if (parsed > latestMs) {
+      latestMs = parsed;
+      latestValue = value;
+    }
+  }
+
+  return latestValue ?? null;
+}
+
 function scoreItem(
   q: string,
   item: {
@@ -320,10 +340,17 @@ export async function POST(request: Request) {
 
     const items = Array.from(grouped.entries())
       .map(([familyId, familyParts]) => {
-        const sortedFamilyParts = familyParts.sort(
-          (a, b) =>
-            Number(b.revision_index ?? -1) - Number(a.revision_index ?? -1),
-        );
+        const sortedFamilyParts = [...familyParts].sort((a, b) => {
+          const revisionDelta =
+            Number(b.revision_index ?? -1) - Number(a.revision_index ?? -1);
+
+          if (revisionDelta !== 0) return revisionDelta;
+
+          return (
+            Math.max(timestampMs(b.updated_at), timestampMs(b.created_at)) -
+            Math.max(timestampMs(a.updated_at), timestampMs(a.created_at))
+          );
+        });
 
         const revisions = sortedFamilyParts.map((part) =>
           toRevisionItem(part, thumbnailByPartId.get(String(part.id ?? ""))),
@@ -333,7 +360,13 @@ export async function POST(request: Request) {
         const familyThumbnail = revisions.find(
           (revision) => revision.thumbnail_url,
         );
+        const sourceLink = sourceLinksByFamily.get(familyId) ?? null;
         const sourceThumbnail = thumbnailByFamilyId.get(familyId) ?? null;
+        const recentAt = latestTimestamp(
+          ...familyParts.flatMap((part) => [part.updated_at, part.created_at]),
+          sourceLink?.updated_at,
+          sourceLink?.last_sync_at,
+        );
 
         const searchScore = Math.max(
           ...familyParts.map((part) =>
@@ -352,7 +385,8 @@ export async function POST(request: Request) {
         return {
           ...(latest ?? {}),
           part_family_id: familyId,
-          latest_source_link: sourceLinksByFamily.get(familyId) ?? null,
+          latest_source_link: sourceLink,
+          recent_at: recentAt,
           search_score: searchScore,
           revision_count: revisions.length,
           thumbnail_file_id:
@@ -397,9 +431,7 @@ export async function POST(request: Request) {
         if ((b.search_score ?? 0) !== (a.search_score ?? 0)) {
           return (b.search_score ?? 0) - (a.search_score ?? 0);
         }
-        return String(b.updated_at ?? "").localeCompare(
-          String(a.updated_at ?? ""),
-        );
+        return timestampMs(b.recent_at) - timestampMs(a.recent_at);
       })
       .slice(0, limit);
 
