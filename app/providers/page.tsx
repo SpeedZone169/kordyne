@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Navbar from "../../components/Navbar";
 import Footer from "../../components/Footer";
-import { WorkflowShowcase } from "@/components/MarketingShowcase";
+import { ProviderPackageShowcase } from "@/components/MarketingShowcase";
 import {
   buildProviderLoginHref,
   buildProviderSignupHref,
@@ -36,14 +36,14 @@ export default function ProvidersLandingPage() {
       <Navbar />
 
       <section className="bg-[#003040] text-white">
-        <div className="mx-auto grid max-w-7xl gap-10 px-5 py-16 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:px-8 lg:py-20">
+        <div className="mx-auto grid max-w-7xl gap-10 px-5 py-12 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:px-8 lg:py-14">
           <div className="self-center">
             <Eyebrow>Kordyne for providers</Eyebrow>
-            <h1 className="mt-4 text-5xl font-black leading-tight text-white sm:text-6xl">
-              A cleaner way to receive packages, ask questions, quote, and
-              return manufacturing evidence.
+            <h1 className="mt-4 text-4xl font-black leading-tight text-white sm:text-5xl">
+              A controlled workspace for supplier packages, quotes, and returned
+              evidence.
             </h1>
-            <p className="mt-6 text-lg leading-8 text-slate-300">
+            <p className="mt-6 text-base leading-8 text-slate-300 sm:text-lg">
               Approved providers get a focused workspace for controlled customer
               packages, revision context, quote response, collaboration, and
               future scheduling or status updates.
@@ -65,7 +65,7 @@ export default function ProvidersLandingPage() {
             </div>
           </div>
 
-          <WorkflowShowcase variant="providers" compact />
+          <ProviderPackageShowcase />
         </div>
       </section>
 

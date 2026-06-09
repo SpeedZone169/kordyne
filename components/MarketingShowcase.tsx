@@ -161,6 +161,375 @@ export function WorkflowShowcase({
   );
 }
 
+export function OperatingLayerShowcase() {
+  const evidence = [
+    "CAD package published",
+    "Revision C selected",
+    "Provider files scoped",
+    "Manufacturing route ready",
+  ];
+
+  return (
+    <div className="relative overflow-hidden rounded-[8px] border border-white/12 bg-[#022836] p-5 text-white shadow-[0_28px_90px_rgba(0,48,64,0.34)]">
+      <div className="absolute inset-0 kordyne-grid-bg opacity-45" />
+      <div className="absolute -right-24 -top-24 h-72 w-72 rounded-full bg-[#00bdde]/18 blur-3xl" />
+      <div className="absolute -bottom-28 left-8 h-64 w-64 rounded-full bg-emerald-300/10 blur-3xl" />
+
+      <div className="relative flex items-start justify-between gap-4 border-b border-white/10 pb-4">
+        <div>
+          <p className="text-xs font-black uppercase text-[#8ceeff]">
+            Live operating picture
+          </p>
+          <h3 className="mt-1 text-xl font-black text-white">
+            One part record, every handoff controlled
+          </h3>
+        </div>
+        <span className="rounded-[8px] border border-emerald-300/30 bg-emerald-300/12 px-3 py-1 text-xs font-black text-emerald-100">
+          Ready
+        </span>
+      </div>
+
+      <div className="relative mt-5 grid gap-4 lg:grid-cols-[1fr_0.92fr]">
+        <div className="rounded-[8px] border border-white/12 bg-white/[0.07] p-4">
+          <div className="flex items-start gap-4">
+            <div className="relative h-28 w-28 shrink-0 overflow-hidden rounded-[8px] border border-[#8ceeff]/25 bg-[#dffaff]/10">
+              <div className="absolute left-6 top-7 h-16 w-16 rotate-[-12deg] rounded-[8px] border border-[#8ceeff]/40 bg-[#8b98a8]/70 shadow-[0_18px_40px_rgba(0,0,0,0.28)]" />
+              <div className="absolute left-10 top-3 h-14 w-14 rounded-full border-[10px] border-[#657282] bg-[#1d2d38]" />
+              <div className="absolute bottom-4 left-4 h-4 w-4 rounded-full border-4 border-[#263746] bg-[#003040]" />
+              <div className="absolute bottom-4 right-5 h-4 w-4 rounded-full border-4 border-[#263746] bg-[#003040]" />
+            </div>
+
+            <div className="min-w-0">
+              <p className="text-xs font-black uppercase text-white/45">
+                Controlled part
+              </p>
+              <h4 className="mt-1 text-2xl font-black text-white">
+                Actuator bracket
+              </h4>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {["Rev C", "CNC", "Aluminium", "RFQ ready"].map((item) => (
+                  <span
+                    key={item}
+                    className="rounded-[8px] border border-white/12 bg-white/[0.07] px-3 py-1 text-xs font-bold text-white/80"
+                  >
+                    {item}
+                  </span>
+                ))}
+              </div>
+              <p className="mt-4 text-sm leading-6 text-white/65">
+                CAD source, STEP/STL, preview image, drawing, properties, and
+                release notes are linked to the same revision.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-2 border-t border-white/10 pt-4 sm:grid-cols-2">
+            {evidence.map((item, index) => (
+              <div
+                key={item}
+                className="kordyne-animate-in rounded-[8px] border border-white/10 bg-[#003040]/70 px-3 py-2"
+                style={{ animationDelay: `${index * 80}ms` }}
+              >
+                <p className="text-xs font-bold text-white/75">{item}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid gap-3">
+          {[
+            ["CAD release", "Inventor, Fusion, and Onshape packages enter the vault."],
+            ["Selected sharing", "Only approved files move to the provider workspace."],
+            ["Manufacturing response", "Quotes, questions, returned files, and evidence stay linked."],
+          ].map(([title, body], index) => (
+            <div
+              key={title}
+              className="kordyne-animate-in rounded-[8px] border border-white/12 bg-white/[0.06] p-4"
+              style={{ animationDelay: `${index * 110}ms` }}
+            >
+              <div className="flex items-center gap-3">
+                <span className="flex h-9 w-9 items-center justify-center rounded-[8px] bg-[#00bdde] text-sm font-black text-[#003040]">
+                  {index + 1}
+                </span>
+                <h4 className="text-base font-black text-white">{title}</h4>
+              </div>
+              <p className="mt-3 text-sm leading-6 text-white/65">{body}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="relative mt-4 rounded-[8px] border border-[#00bdde]/25 bg-[#00bdde]/10 px-4 py-3 text-sm font-bold text-[#dffaff]">
+        The engineering record stays alive as work moves from design release to
+        provider review, internal routing, and manufacturing evidence.
+      </div>
+    </div>
+  );
+}
+
+const productFlowSteps = [
+  {
+    label: "CAD",
+    title: "Publish package",
+    body: "Native reference, STEP/STL, preview image, and properties enter the vault together.",
+  },
+  {
+    label: "Vault",
+    title: "Controlled record",
+    body: "Revision, files, metadata, and source context stay attached to the part family.",
+  },
+  {
+    label: "Workspace",
+    title: "Collaborate selectively",
+    body: "Create part or project spaces only when discussion, review, or sharing is needed.",
+  },
+  {
+    label: "Handoff",
+    title: "Route manufacturing",
+    body: "Send selected files to internal resources or approved providers with context intact.",
+  },
+];
+
+export function ProductFlowShowcase() {
+  return (
+    <div className="relative overflow-hidden rounded-[8px] border border-white/12 bg-[#022836] p-5 text-white shadow-[0_24px_80px_rgba(0,48,64,0.28)]">
+      <div className="absolute inset-0 kordyne-grid-bg opacity-45" />
+
+      <div className="relative">
+        <div className="flex items-center justify-between gap-4 border-b border-white/10 pb-4">
+          <div>
+            <p className="text-xs font-black uppercase text-[#8ceeff]">
+              Product flow
+            </p>
+            <h3 className="mt-1 text-xl font-black text-white">
+              One controlled path from CAD to handoff
+            </h3>
+          </div>
+          <span className="rounded-[8px] border border-emerald-300/30 bg-emerald-300/10 px-3 py-1 text-xs font-black text-emerald-200">
+            Revision-aware
+          </span>
+        </div>
+
+        <div className="mt-5 grid gap-3">
+          {productFlowSteps.map((step, index) => (
+            <div
+              key={step.label}
+              className="kordyne-animate-in grid gap-4 rounded-[8px] border border-white/12 bg-white/[0.06] p-4 sm:grid-cols-[88px_1fr]"
+              style={{ animationDelay: `${index * 90}ms` }}
+            >
+              <div className="flex items-center gap-3">
+                <span className="flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#00bdde]/35 bg-[#00bdde]/12 text-xs font-black text-[#8ceeff]">
+                  {String(index + 1).padStart(2, "0")}
+                </span>
+                <span className="text-xs font-black uppercase text-white/55">
+                  {step.label}
+                </span>
+              </div>
+              <div>
+                <h4 className="text-base font-black text-white">{step.title}</h4>
+                <p className="mt-1 text-sm leading-6 text-white/70">{step.body}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-5 grid gap-3 border-t border-white/10 pt-5 sm:grid-cols-3">
+          {["Part truth", "Selected access", "Returned evidence"].map((item) => (
+            <div
+              key={item}
+              className="rounded-[8px] border border-white/10 bg-[#003040]/75 px-4 py-3 text-sm font-black text-white"
+            >
+              {item}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function ProviderPackageShowcase() {
+  return (
+    <div className="relative overflow-hidden rounded-[8px] border border-white/12 bg-[#022836] p-5 text-white shadow-[0_24px_80px_rgba(0,48,64,0.28)]">
+      <div className="absolute inset-0 kordyne-grid-bg opacity-35" />
+
+      <div className="relative">
+        <div className="rounded-[8px] border border-white/12 bg-white/[0.07] p-4">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-black uppercase text-[#8ceeff]">
+                Provider package
+              </p>
+              <h3 className="mt-2 text-xl font-black text-white">
+                RFQ-4182 / Motor mount Rev C
+              </h3>
+              <p className="mt-2 text-sm leading-6 text-white/70">
+                Scoped files, notes, and customer questions in one response
+                workspace.
+              </p>
+            </div>
+            <span className="rounded-[8px] border border-amber-300/30 bg-amber-300/12 px-3 py-1 text-xs font-black text-amber-100">
+              Due Friday
+            </span>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-4 lg:grid-cols-[0.82fr_1.18fr]">
+          <div className="space-y-3">
+            {[
+              ["STEP", "motor-mount-rev-c.step"],
+              ["PDF", "drawing-pack-c.pdf"],
+              ["PNG", "inspection-view.png"],
+            ].map(([type, name]) => (
+              <div
+                key={name}
+                className="rounded-[8px] border border-white/12 bg-white/[0.06] p-3"
+              >
+                <p className="text-xs font-black text-[#8ceeff]">{type}</p>
+                <p className="mt-1 truncate text-sm font-bold text-white/85">
+                  {name}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          <div className="rounded-[8px] border border-white/12 bg-white/[0.06] p-4">
+            <p className="text-xs font-black uppercase text-white/50">
+              Quote response
+            </p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-[8px] bg-white/[0.07] p-3">
+                <p className="text-xs text-white/50">Lead time</p>
+                <p className="mt-1 text-lg font-black text-white">8 days</p>
+              </div>
+              <div className="rounded-[8px] bg-white/[0.07] p-3">
+                <p className="text-xs text-white/50">Process</p>
+                <p className="mt-1 text-lg font-black text-white">CNC</p>
+              </div>
+            </div>
+            <div className="mt-4 rounded-[8px] border border-[#00bdde]/25 bg-[#00bdde]/10 p-3">
+              <p className="text-sm font-black text-[#dffaff]">
+                Clarification thread
+              </p>
+              <p className="mt-1 text-sm leading-6 text-white/70">
+                “Can radius R4 be opened for tooling access?”
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4 rounded-[8px] border border-emerald-300/20 bg-emerald-300/10 px-4 py-3 text-sm font-bold text-emerald-100">
+          Provider sees only this package, not the full customer vault.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function ControlPanelShowcase() {
+  return (
+    <div className="rounded-[8px] border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-4">
+        <div>
+          <p className="text-xs font-black uppercase text-[#0089a2]">
+            Control model
+          </p>
+          <h3 className="mt-1 text-xl font-black text-slate-950">
+            Share only what the work requires
+          </h3>
+        </div>
+        <span className="rounded-[8px] border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">
+          Protected
+        </span>
+      </div>
+
+      <div className="mt-5 grid gap-3">
+        {[
+          ["Full vault", "Internal engineering and organization admins"],
+          ["Part workspace", "Selected collaborators around one part or revision"],
+          ["Provider package", "Scoped files, notes, quotes, and returned evidence"],
+          ["Viewer access", "Preview-only review without broad download rights"],
+        ].map(([label, detail]) => (
+          <div
+            key={label}
+            className="grid gap-3 rounded-[8px] border border-slate-200 bg-[#f5f8fa] p-4 sm:grid-cols-[150px_1fr]"
+          >
+            <p className="text-sm font-black text-slate-950">{label}</p>
+            <p className="text-sm leading-6 text-slate-600">{detail}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function ConnectorReleaseShowcase() {
+  const publishSteps = [
+    ["STEP", "Exchange geometry saved"],
+    ["STL", "Viewer-ready file generated"],
+    ["PNG", "Preview captured"],
+    ["TXT", "CAD properties attached"],
+  ];
+
+  return (
+    <div className="rounded-[8px] border border-slate-200 bg-white p-5 shadow-[0_22px_60px_rgba(15,23,42,0.08)]">
+      <div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-4">
+        <div>
+          <p className="text-xs font-black uppercase text-[#0089a2]">
+            CAD connector
+          </p>
+          <h3 className="mt-1 text-xl font-black text-slate-950">
+            Publish package to Kordyne
+          </h3>
+        </div>
+        <span className="rounded-[8px] border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">
+          Connected
+        </span>
+      </div>
+
+      <div className="mt-5 rounded-[8px] border border-slate-200 bg-[#f5f8fa] p-4">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-black text-slate-950">Bracket Housing</p>
+            <p className="mt-1 text-sm text-slate-600">
+              New revision package / Rev C
+            </p>
+          </div>
+          <span className="rounded-[8px] bg-[#00bdde] px-3 py-1 text-xs font-black text-[#003040]">
+            Vault match
+          </span>
+        </div>
+
+        <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-200">
+          <div className="h-full w-[82%] rounded-full bg-[#00bdde]" />
+        </div>
+        <p className="mt-2 text-xs font-bold text-slate-500">
+          Preparing controlled release package
+        </p>
+      </div>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        {publishSteps.map(([type, detail]) => (
+          <div
+            key={type}
+            className="rounded-[8px] border border-slate-200 bg-white p-4"
+          >
+            <p className="text-xs font-black text-[#0089a2]">{type}</p>
+            <p className="mt-1 text-sm font-bold leading-6 text-slate-800">
+              {detail}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-4 rounded-[8px] bg-[#003040] px-4 py-3 text-sm font-bold text-white">
+        Engineers publish once. The vault receives the files, preview, metadata,
+        and revision decision together.
+      </div>
+    </div>
+  );
+}
+
 export function WorkflowStrip() {
   return (
     <div className="grid gap-3 md:grid-cols-5">

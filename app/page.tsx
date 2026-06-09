@@ -2,7 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
-import { WorkflowShowcase } from "@/components/MarketingShowcase";
+import {
+  ConnectorReleaseShowcase,
+  ControlPanelShowcase,
+  OperatingLayerShowcase,
+} from "@/components/MarketingShowcase";
 
 export const metadata: Metadata = {
   title: "Kordyne | CAD-to-Manufacturing Workspace for Engineering Teams",
@@ -71,13 +75,6 @@ function DarkCard({
     </article>
   );
 }
-
-const heroSignals = [
-  "CAD release",
-  "Part vault",
-  "Controlled collaboration",
-  "Manufacturing handoff",
-];
 
 const problemCards = [
   {
@@ -215,51 +212,38 @@ export default function Home() {
         <div className="absolute inset-0 kordyne-grid-bg opacity-70" />
         <div className="absolute inset-x-0 bottom-0 h-px bg-[#00bdde]/35" />
 
-        <div className="relative mx-auto max-w-7xl px-5 py-16 sm:px-6 lg:px-8 lg:py-20">
-          <div className="max-w-5xl">
-            <Eyebrow>CAD-to-manufacturing workspace</Eyebrow>
-            <h1 className="mt-5 max-w-5xl text-4xl font-black leading-tight text-white sm:text-5xl lg:text-6xl">
-              From CAD release to manufacturing handoff, controlled in one
-              workspace.
-            </h1>
-            <p className="mt-7 max-w-4xl text-lg leading-8 text-slate-200 sm:text-xl">
-              Kordyne connects CAD files, part revisions, live previews,
-              collaboration, supplier quotes, manufacturing routes, and returned
-              evidence so engineering teams can move from design to production
-              without losing context.
-            </p>
+        <div className="relative mx-auto max-w-7xl px-5 py-12 sm:px-6 lg:px-8 lg:py-14">
+          <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
+            <div>
+              <Eyebrow>CAD-to-manufacturing workspace</Eyebrow>
+              <h1 className="mt-5 max-w-5xl text-4xl font-black leading-tight text-white sm:text-[3rem] lg:text-[3.25rem]">
+                CAD release to manufacturing handoff, controlled in one
+                workspace.
+              </h1>
+              <p className="mt-6 max-w-4xl text-base leading-8 text-slate-200 sm:text-lg">
+                Kordyne connects CAD files, part revisions, live previews,
+                collaboration, supplier quotes, manufacturing routes, and returned
+                evidence so engineering teams can move from design to production
+                without losing context.
+              </p>
 
-            <div className="mt-9 flex flex-wrap gap-3">
-              <Link
-                href="/contact"
-                className="rounded-[8px] bg-[#00bdde] px-5 py-3 text-sm font-black text-[#003040] shadow-[0_16px_34px_rgba(0,189,222,0.22)] transition hover:bg-[#8ceeff]"
-              >
-                Request Demo
-              </Link>
-              <Link
-                href="/platform"
-                className="rounded-[8px] border border-white/18 bg-white/10 px-5 py-3 text-sm font-black text-white transition hover:bg-white/15"
-              >
-                View Platform
-              </Link>
-            </div>
-          </div>
-
-          <div className="mt-12 border-t border-white/12 pt-6">
-            <div className="grid gap-3 md:grid-cols-4">
-              {heroSignals.map((signal, index) => (
-                <div
-                  key={signal}
-                  className="kordyne-animate-in rounded-[8px] border border-white/12 bg-white/[0.06] p-4"
-                  style={{ animationDelay: `${index * 90}ms` }}
+              <div className="mt-9 flex flex-wrap gap-3">
+                <Link
+                  href="/contact"
+                  className="rounded-[8px] bg-[#00bdde] px-5 py-3 text-sm font-black text-[#003040] shadow-[0_16px_34px_rgba(0,189,222,0.22)] transition hover:bg-[#8ceeff]"
                 >
-                  <p className="text-xs font-black uppercase text-[#8ceeff]">
-                    Step {index + 1}
-                  </p>
-                  <p className="mt-2 text-sm font-bold text-white">{signal}</p>
-                </div>
-              ))}
+                  Request Demo
+                </Link>
+                <Link
+                  href="/platform"
+                  className="rounded-[8px] border border-white/18 bg-white/10 px-5 py-3 text-sm font-black text-white transition hover:bg-white/15"
+                >
+                  View Product
+                </Link>
+              </div>
             </div>
+
+            <OperatingLayerShowcase />
           </div>
         </div>
       </section>
@@ -351,7 +335,7 @@ export default function Home() {
             </div>
           </div>
 
-          <WorkflowShowcase variant="hero" compact />
+          <ConnectorReleaseShowcase />
         </div>
       </section>
 
@@ -426,7 +410,7 @@ export default function Home() {
             </div>
           </div>
 
-          <WorkflowShowcase variant="enterprise" compact />
+          <ControlPanelShowcase />
         </div>
       </section>
 
@@ -455,7 +439,7 @@ export default function Home() {
                 href="/platform"
                 className="rounded-[8px] border border-white/18 bg-white/10 px-5 py-3 text-center text-sm font-black text-white transition hover:bg-white/15"
               >
-                View Platform
+                View Product
               </Link>
             </div>
           </div>

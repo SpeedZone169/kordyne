@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Navbar from "../../components/Navbar";
 import Footer from "../../components/Footer";
-import { WorkflowShowcase } from "@/components/MarketingShowcase";
+import { ProductFlowShowcase } from "@/components/MarketingShowcase";
 
 function Eyebrow({ children }: { children: React.ReactNode }) {
   return (
@@ -32,21 +32,34 @@ export default function PlatformPage() {
       <Navbar />
 
       <section className="bg-[#003040] text-white">
-        <div className="mx-auto grid max-w-7xl gap-10 px-5 py-16 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:px-8 lg:py-20">
+        <div className="mx-auto grid max-w-7xl gap-10 px-5 py-12 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:px-8 lg:py-14">
           <div className="self-center">
-            <Eyebrow>Platform</Eyebrow>
-            <h1 className="mt-4 text-5xl font-black leading-tight text-white sm:text-6xl">
-              The operating layer for part vaults, revisions, requests, and
-              collaboration.
+            <Eyebrow>Product</Eyebrow>
+            <h1 className="mt-4 text-4xl font-black leading-tight text-white sm:text-5xl">
+              How Kordyne carries part context from CAD to manufacturing.
             </h1>
-            <p className="mt-6 text-lg leading-8 text-slate-300">
+            <p className="mt-6 text-base leading-8 text-slate-300 sm:text-lg">
               Kordyne connects the design release, live part review, selected
               file packages, internal scheduling, external provider routing, and
               project-level collaboration spaces.
             </p>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <Link
+                href="/contact"
+                className="rounded-[8px] bg-[#00bdde] px-5 py-3 text-sm font-black text-[#003040] transition hover:bg-[#8ceeff]"
+              >
+                Request Demo
+              </Link>
+              <Link
+                href="/providers"
+                className="rounded-[8px] border border-white/18 bg-white/10 px-5 py-3 text-sm font-black text-white transition hover:bg-white/15"
+              >
+                Provider Workflow
+              </Link>
+            </div>
           </div>
 
-          <WorkflowShowcase variant="platform" compact />
+          <ProductFlowShowcase />
         </div>
       </section>
 
@@ -125,7 +138,7 @@ export default function PlatformPage() {
         <div className="mt-12 rounded-[8px] border border-slate-200 bg-white p-6 shadow-sm lg:p-9">
           <div className="grid gap-8 lg:grid-cols-[1fr_0.8fr] lg:items-center">
             <div>
-              <Eyebrow>Platform direction</Eyebrow>
+              <Eyebrow>Product direction</Eyebrow>
               <h2 className="mt-4 text-4xl font-black leading-tight text-slate-950">
                 From vault to operating system for advanced manufacturing
                 collaboration.
@@ -138,16 +151,16 @@ export default function PlatformPage() {
             </div>
             <div className="flex flex-col gap-3">
               <Link
-                href="/enterprise"
+                href="/contact"
                 className="rounded-[8px] bg-[#003040] px-5 py-3 text-center text-sm font-black text-white transition hover:bg-[#005169]"
               >
-                Enterprise Direction
+                Request Demo
               </Link>
               <Link
-                href="/contact"
+                href="/providers"
                 className="rounded-[8px] border border-slate-300 px-5 py-3 text-center text-sm font-black text-slate-950 transition hover:bg-slate-50"
               >
-                Talk to Kordyne
+                Provider Workflow
               </Link>
             </div>
           </div>

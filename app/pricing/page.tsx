@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { WorkflowShowcase } from "@/components/MarketingShowcase";
+import { ControlPanelShowcase } from "@/components/MarketingShowcase";
 
 const plans = [
   {
@@ -85,12 +85,12 @@ export default function PricingPage() {
                 href="/platform"
                 className="rounded-[8px] border border-white/18 bg-white/10 px-5 py-3 text-sm font-black text-white transition hover:bg-white/15"
               >
-                View platform
+                View product
               </Link>
             </div>
           </div>
 
-          <WorkflowShowcase variant="enterprise" compact />
+          <ControlPanelShowcase />
         </div>
       </section>
 
