@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Navbar from "../../components/Navbar";
 import Footer from "../../components/Footer";
-import { ProviderPackageShowcase } from "@/components/MarketingShowcase";
+import { ProviderWorkShowcase } from "@/components/MarketingShowcase";
 import {
   buildProviderLoginHref,
   buildProviderSignupHref,
@@ -40,48 +40,47 @@ export default function ProvidersLandingPage() {
           <div className="self-center">
             <Eyebrow>Kordyne for providers</Eyebrow>
             <h1 className="mt-4 text-4xl font-black leading-tight text-white sm:text-5xl">
-              A controlled workspace for supplier packages, quotes, and returned
-              evidence.
+              Quote manufacturing work with clearer files and less back-and-forth.
             </h1>
             <p className="mt-6 text-base leading-8 text-slate-300 sm:text-lg">
-              Approved providers get a focused workspace for controlled customer
-              packages, revision context, quote response, collaboration, and
-              future scheduling or status updates.
+              Kordyne gives approved manufacturing providers a clean workspace
+              for incoming RFQs, revision context, technical questions, quote
+              responses, and returned production evidence.
             </p>
 
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
-                href={buildProviderLoginHref("/provider")}
+                href={buildProviderSignupHref("/provider")}
                 className="rounded-[8px] bg-[#00bdde] px-5 py-3 text-sm font-black text-[#003040] transition hover:bg-[#8ceeff]"
               >
-                Provider sign in
+                Request provider access
               </Link>
               <Link
-                href={buildProviderSignupHref("/provider")}
+                href={buildProviderLoginHref("/provider")}
                 className="rounded-[8px] border border-white/18 bg-white/10 px-5 py-3 text-sm font-black text-white transition hover:bg-white/15"
               >
-                Request provider access
+                Provider sign in
               </Link>
             </div>
           </div>
 
-          <ProviderPackageShowcase />
+          <ProviderWorkShowcase />
         </div>
       </section>
 
       <section className="mx-auto max-w-7xl px-5 py-16 sm:px-6 lg:px-8 lg:py-20">
         <div className="grid gap-4 md:grid-cols-3">
           <ProviderCard
-            title="Controlled package access"
-            body="Review only the files, requirements, comments, and customer context intentionally shared with your organization."
+            title="Complete RFQ context"
+            body="Receive the part files, drawings, previews, notes, and revision context needed to quote with fewer missing details."
           />
           <ProviderCard
-            title="Structured response"
-            body="Prepare quotes, lead-time details, manufacturability notes, and clarification responses in one provider workspace."
+            title="Faster quote response"
+            body="Keep lead time, process notes, manufacturability questions, and commercial response in one structured workspace."
           />
           <ProviderCard
-            title="Collaboration without inbox drift"
-            body="Keep customer questions, returned files, images, results, and message history tied to the package."
+            title="Cleaner customer collaboration"
+            body="Ask technical questions and return production files without losing the thread across email and shared folders."
           />
         </div>
 
@@ -90,14 +89,14 @@ export default function ProvidersLandingPage() {
             <div>
               <Eyebrow>Provider workflow</Eyebrow>
               <h2 className="mt-4 text-4xl font-black leading-tight text-slate-950">
-                Customers keep the vault controlled. Providers get the context
-                needed to manufacture with confidence.
+                A professional workspace for the manufacturing work you are
+                invited to quote.
               </h2>
               <p className="mt-5 text-lg leading-8 text-slate-600">
-                Kordyne is designed so manufacturers can receive scoped
-                packages, collaborate on exact features, submit commercial
-                responses, and eventually share production status or inspection
-                results back into the same thread.
+                Instead of receiving disconnected files and unclear email
+                threads, providers can review a focused package, ask questions,
+                submit quote details, and return files against the same job
+                record.
               </p>
             </div>
 
@@ -107,11 +106,11 @@ export default function ProvidersLandingPage() {
               </p>
               <div className="mt-4 space-y-3">
                 {[
-                  "Package review",
+                  "Incoming RFQs",
+                  "File and drawing review",
+                  "Technical questions",
                   "Quote response",
-                  "Clarification thread",
-                  "Returned files",
-                  "Future status updates",
+                  "Returned files and evidence",
                 ].map((item) => (
                   <div
                     key={item}

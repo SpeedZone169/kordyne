@@ -19,10 +19,7 @@ export default function Footer() {
           <div className="flex flex-col gap-3 md:items-end">
             <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm font-semibold text-slate-600">
               <Link href="/platform" className="transition hover:text-[#003040]">
-                Product
-              </Link>
-              <Link href="/pricing" className="transition hover:text-[#003040]">
-                Pricing
+                Platform
               </Link>
               <Link href="/providers" className="transition hover:text-[#003040]">
                 Providers

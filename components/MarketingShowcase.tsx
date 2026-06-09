@@ -161,6 +161,156 @@ export function WorkflowShowcase({
   );
 }
 
+export function HomeWorkflowShowcase() {
+  const flow = [
+    ["CAD tools", "Publish package"],
+    ["Parts Vault", "Control revision"],
+    ["Workspace", "Share selectively"],
+    ["Handoff", "Return evidence"],
+  ];
+
+  return (
+    <div className="relative overflow-hidden rounded-[8px] border border-white/12 bg-[#022836] p-5 text-white shadow-[0_28px_90px_rgba(0,48,64,0.34)]">
+      <div className="absolute inset-0 kordyne-grid-bg opacity-35" />
+      <div className="absolute right-0 top-0 h-full w-1/2 bg-gradient-to-l from-[#00bdde]/12 to-transparent" />
+
+      <div className="relative flex items-start justify-between gap-4 border-b border-white/10 pb-5">
+        <div>
+          <p className="text-xs font-black uppercase text-[#8ceeff]">
+            Kordyne operating layer
+          </p>
+          <h3 className="mt-1 text-xl font-black text-white">
+            One controlled record from release to production
+          </h3>
+        </div>
+        <span className="rounded-[8px] border border-emerald-300/30 bg-emerald-300/12 px-3 py-1 text-xs font-black text-emerald-100">
+          Live context
+        </span>
+      </div>
+
+      <div className="relative mt-5 rounded-[8px] border border-white/12 bg-white/[0.06] p-4">
+        <div className="grid gap-3 lg:grid-cols-4">
+          {flow.map(([label, action], index) => (
+            <div
+              key={label}
+              className="kordyne-animate-in rounded-[8px] border border-white/12 bg-[#003040]/80 p-4"
+              style={{ animationDelay: `${index * 90}ms` }}
+            >
+              <span className="flex h-9 w-9 items-center justify-center rounded-[8px] bg-[#00bdde] text-xs font-black text-[#003040]">
+                {index + 1}
+              </span>
+              <p className="mt-4 text-xs font-black uppercase text-white/45">
+                {label}
+              </p>
+              <p className="mt-1 text-base font-black text-white">{action}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-5 grid gap-3 border-t border-white/10 pt-5 sm:grid-cols-3">
+          {[
+            ["Part truth", "Files, previews, revisions, and metadata stay together."],
+            ["Access control", "Collaborators see only the selected context."],
+            ["Manufacturing memory", "Quotes, notes, and returned files remain linked."],
+          ].map(([title, body]) => (
+            <div
+              key={title}
+              className="rounded-[8px] border border-white/10 bg-white/[0.06] p-4"
+            >
+              <h4 className="text-sm font-black text-white">{title}</h4>
+              <p className="mt-2 text-xs leading-5 text-white/65">{body}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="relative mt-4 rounded-[8px] border border-[#00bdde]/25 bg-[#00bdde]/10 px-4 py-3 text-sm font-bold text-[#dffaff]">
+        Built to keep engineering decisions, manufacturing handoffs, and
+        external collaboration connected to the part record.
+      </div>
+    </div>
+  );
+}
+
+export function ProviderWorkShowcase() {
+  return (
+    <div className="relative overflow-hidden rounded-[8px] border border-white/12 bg-[#022836] p-5 text-white shadow-[0_24px_80px_rgba(0,48,64,0.28)]">
+      <div className="absolute inset-0 kordyne-grid-bg opacity-35" />
+
+      <div className="relative">
+        <div className="rounded-[8px] border border-white/12 bg-white/[0.07] p-4">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-black uppercase text-[#8ceeff]">
+                Provider workspace
+              </p>
+              <h3 className="mt-2 text-xl font-black text-white">
+                Incoming manufacturing package
+              </h3>
+              <p className="mt-2 text-sm leading-6 text-white/70">
+                Complete files, requirements, questions, and quote response in
+                one place.
+              </p>
+            </div>
+            <span className="rounded-[8px] border border-amber-300/30 bg-amber-300/12 px-3 py-1 text-xs font-black text-amber-100">
+              New RFQ
+            </span>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-4 lg:grid-cols-[0.82fr_1.18fr]">
+          <div className="space-y-3">
+            {[
+              ["CAD", "STEP, drawing, preview"],
+              ["REQ", "Tolerance and quantity notes"],
+              ["THREAD", "Customer questions attached"],
+            ].map(([type, name]) => (
+              <div
+                key={name}
+                className="rounded-[8px] border border-white/12 bg-white/[0.06] p-3"
+              >
+                <p className="text-xs font-black text-[#8ceeff]">{type}</p>
+                <p className="mt-1 truncate text-sm font-bold text-white/85">
+                  {name}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          <div className="rounded-[8px] border border-white/12 bg-white/[0.06] p-4">
+            <p className="text-xs font-black uppercase text-white/50">
+              Provider response
+            </p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-[8px] bg-white/[0.07] p-3">
+                <p className="text-xs text-white/50">Lead time</p>
+                <p className="mt-1 text-lg font-black text-white">Quote faster</p>
+              </div>
+              <div className="rounded-[8px] bg-white/[0.07] p-3">
+                <p className="text-xs text-white/50">Files</p>
+                <p className="mt-1 text-lg font-black text-white">No chasing</p>
+              </div>
+            </div>
+            <div className="mt-4 rounded-[8px] border border-[#00bdde]/25 bg-[#00bdde]/10 p-3">
+              <p className="text-sm font-black text-[#dffaff]">
+                Clarification thread
+              </p>
+              <p className="mt-1 text-sm leading-6 text-white/70">
+                Ask technical questions against the same package instead of a
+                scattered email chain.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4 rounded-[8px] border border-emerald-300/20 bg-emerald-300/10 px-4 py-3 text-sm font-bold text-emerald-100">
+          A cleaner way for manufacturers to receive, quote, and return work.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function OperatingLayerShowcase() {
   const evidence = [
     "CAD package published",
@@ -299,7 +449,7 @@ export function ProductFlowShowcase() {
         <div className="flex items-center justify-between gap-4 border-b border-white/10 pb-4">
           <div>
             <p className="text-xs font-black uppercase text-[#8ceeff]">
-              Product flow
+              Platform flow
             </p>
             <h3 className="mt-1 text-xl font-black text-white">
               One controlled path from CAD to handoff

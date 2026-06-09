@@ -34,9 +34,9 @@ export default function PlatformPage() {
       <section className="bg-[#003040] text-white">
         <div className="mx-auto grid max-w-7xl gap-10 px-5 py-12 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:px-8 lg:py-14">
           <div className="self-center">
-            <Eyebrow>Product</Eyebrow>
+            <Eyebrow>Platform</Eyebrow>
             <h1 className="mt-4 text-4xl font-black leading-tight text-white sm:text-5xl">
-              How Kordyne carries part context from CAD to manufacturing.
+              How Kordyne carries part context from CAD into manufacturing.
             </h1>
             <p className="mt-6 text-base leading-8 text-slate-300 sm:text-lg">
               Kordyne connects the design release, live part review, selected
@@ -138,7 +138,7 @@ export default function PlatformPage() {
         <div className="mt-12 rounded-[8px] border border-slate-200 bg-white p-6 shadow-sm lg:p-9">
           <div className="grid gap-8 lg:grid-cols-[1fr_0.8fr] lg:items-center">
             <div>
-              <Eyebrow>Product direction</Eyebrow>
+              <Eyebrow>Platform direction</Eyebrow>
               <h2 className="mt-4 text-4xl font-black leading-tight text-slate-950">
                 From vault to operating system for advanced manufacturing
                 collaboration.

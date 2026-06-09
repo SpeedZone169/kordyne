@@ -55,7 +55,7 @@ export default function EnterprisePage() {
                 href="/platform"
                 className="rounded-[8px] border border-white/18 bg-white/10 px-5 py-3 text-sm font-black text-white transition hover:bg-white/15"
               >
-                View Product
+                View Platform
               </Link>
             </div>
           </div>

@@ -5,13 +5,13 @@ import Footer from "../components/Footer";
 import {
   ConnectorReleaseShowcase,
   ControlPanelShowcase,
-  OperatingLayerShowcase,
+  HomeWorkflowShowcase,
 } from "@/components/MarketingShowcase";
 
 export const metadata: Metadata = {
-  title: "Kordyne | CAD-to-Manufacturing Workspace for Engineering Teams",
+  title: "Kordyne | Controlled CAD-to-Manufacturing Handoff",
   description:
-    "Kordyne helps engineering teams control CAD releases, part revisions, selected file sharing, supplier collaboration, internal manufacturing handoff, and returned manufacturing evidence.",
+    "Kordyne helps engineering and manufacturing teams move approved parts, revisions, files, supplier packages, and manufacturing responses through one controlled workspace.",
 };
 
 function Eyebrow({ children }: { children: React.ReactNode }) {
@@ -79,33 +79,47 @@ function DarkCard({
 const problemCards = [
   {
     title: "Files live in too many places",
-    body: "CAD files, STEP files, drawings, screenshots, and previews end up spread across folders, email, chat, and disconnected systems.",
+    body: "CAD files, drawings, STEP files, quotes, and messages are often spread across emails, drives, and local folders.",
   },
   {
-    title: "Decisions happen somewhere else",
-    body: "Comments, approvals, supplier questions, quote decisions, and manufacturing notes drift away from the part record.",
+    title: "Revision control becomes unclear",
+    body: "Teams struggle to know which version was approved, released, quoted, or manufactured.",
   },
   {
-    title: "Manufacturing loses the thread",
-    body: "Internal teams and external providers receive packages without the full revision, access, discussion, and evidence context.",
+    title: "Supplier handoff is unstructured",
+    body: "External providers receive files without full context, selected exposure rules, or a clear response workflow.",
+  },
+  {
+    title: "Manufacturing decisions are hard to trace",
+    body: "Internal versus external routing, quote decisions, and production history are not always connected to the part record.",
   },
 ];
 
 const workflowSteps = [
   {
     number: "01",
-    title: "Release from CAD",
-    body: "Publish part files, thumbnails, STEP/STL, drawings, previews, and CAD metadata into a controlled Kordyne vault record.",
+    title: "Release",
+    body: "Publish the approved part package from CAD into the vault with files, thumbnails, previews, and metadata.",
   },
   {
     number: "02",
-    title: "Control the part record",
-    body: "Manage revisions, selected files, preview context, notes, source links, and technical history around the part itself.",
+    title: "Package",
+    body: "Select the files, drawings, preview geometry, properties, and revision context needed for manufacturing.",
   },
   {
     number: "03",
-    title: "Create the handoff",
-    body: "Package the right files for internal manufacturing, external providers, or project collaborators without losing the thread.",
+    title: "Route",
+    body: "Choose internal manufacturing, external providers, or project collaborators without exposing the full vault.",
+  },
+  {
+    number: "04",
+    title: "Respond",
+    body: "Capture quotes, questions, lead times, returned files, and production feedback in the same workspace.",
+  },
+  {
+    number: "05",
+    title: "Trace",
+    body: "Keep manufacturing decisions and evidence tied to the correct part, revision, package, and project.",
   },
 ];
 
@@ -177,22 +191,22 @@ const collaborationControls = [
   },
 ];
 
-const teamCards = [
+const networkModules = [
   {
-    title: "Engineering",
-    body: "Release CAD data, manage revisions, and keep part records clean before work moves downstream.",
+    title: "Engineering release",
+    body: "Approved parts, revisions, CAD files, and manufacturing-ready packages.",
   },
   {
-    title: "R&D",
-    body: "Create focused workspaces for prototypes, trials, build reviews, and technical collaboration.",
+    title: "Supplier collaboration",
+    body: "Controlled file exposure, quote responses, provider questions, and returned files.",
   },
   {
-    title: "Manufacturing",
-    body: "Receive controlled packages with the correct revision, drawings, files, and context.",
+    title: "Internal manufacturing",
+    body: "Routing, capability matching, resource visibility, and production handoff.",
   },
   {
-    title: "Providers",
-    body: "Review selected files, ask questions, submit quotes, and return manufacturing evidence in one place.",
+    title: "Project collaboration",
+    body: "Shared workspaces for R&D, prototypes, customer programs, and cross-company work.",
   },
 ];
 
@@ -217,14 +231,17 @@ export default function Home() {
             <div>
               <Eyebrow>CAD-to-manufacturing workspace</Eyebrow>
               <h1 className="mt-5 max-w-5xl text-4xl font-black leading-tight text-white sm:text-[3rem] lg:text-[3.25rem]">
-                CAD release to manufacturing handoff, controlled in one
-                workspace.
+                Controlled CAD-to-manufacturing handoff.
               </h1>
               <p className="mt-6 max-w-4xl text-base leading-8 text-slate-200 sm:text-lg">
-                Kordyne connects CAD files, part revisions, live previews,
-                collaboration, supplier quotes, manufacturing routes, and returned
-                evidence so engineering teams can move from design to production
-                without losing context.
+                Kordyne helps engineering and manufacturing teams move approved
+                parts, revisions, files, and supplier packages through one
+                controlled workspace, reducing file confusion, missing context,
+                and uncontrolled handovers.
+              </p>
+              <p className="mt-4 max-w-4xl text-base leading-8 text-slate-300">
+                Keep the part record clear from design release through internal
+                manufacturing, external providers, and project collaboration.
               </p>
 
               <div className="mt-9 flex flex-wrap gap-3">
@@ -238,12 +255,12 @@ export default function Home() {
                   href="/platform"
                   className="rounded-[8px] border border-white/18 bg-white/10 px-5 py-3 text-sm font-black text-white transition hover:bg-white/15"
                 >
-                  View Product
+                  View Platform
                 </Link>
               </div>
             </div>
 
-            <OperatingLayerShowcase />
+            <HomeWorkflowShowcase />
           </div>
         </div>
       </section>
@@ -256,13 +273,16 @@ export default function Home() {
               Hardware work breaks when part context breaks.
             </h2>
             <p className="mt-5 text-base leading-8 text-slate-600">
-              Teams rarely lose momentum because one file is missing. They lose
-              it because the file, revision, decision, quote, and manufacturing
-              evidence are disconnected.
+              Engineering teams often rely on shared drives, emails,
+              spreadsheets, and informal messages to move parts into
+              manufacturing. As revisions change, teams lose clarity on which
+              files are approved, what was sent, who received it, and what
+              manufacturing route was chosen. This creates rework, quoting
+              delays, supplier confusion, and weak traceability.
             </p>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             {problemCards.map((item) => (
               <FeatureCard key={item.title} title={item.title} body={item.body} />
             ))}
@@ -273,11 +293,11 @@ export default function Home() {
       <section className="mx-auto max-w-7xl px-5 py-16 sm:px-6 lg:px-8 lg:py-24">
         <SectionIntro
           eyebrow="How work moves"
-          title="A cleaner path from design release to manufacturing decision."
-          body="Kordyne keeps the part record as the source of truth. Workspaces and projects appear only when teams need collaboration, supplier review, internal manufacturing, or customer program control."
+          title="Release, package, route, respond, and trace."
+          body="Kordyne keeps the part record as the source of truth while each handoff creates the context needed for manufacturing, supplier review, internal production, or project collaboration."
         />
 
-        <div className="mt-10 grid gap-4 lg:grid-cols-3">
+        <div className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-5">
           {workflowSteps.map((step) => (
             <article
               key={step.number}
@@ -375,14 +395,14 @@ export default function Home() {
       <section className="bg-[#edf8fb] py-16 lg:py-20">
         <div className="mx-auto max-w-7xl px-5 sm:px-6 lg:px-8">
           <SectionIntro
-            eyebrow="Built for hardware teams"
-            title="For teams moving parts from design to production."
-            body="Kordyne helps engineering, R&D, manufacturing, procurement, and provider teams work from the same controlled part context."
+            eyebrow="Manufacturing networks"
+            title="Built for modern manufacturing networks."
+            body="Kordyne is designed for companies that need to move controlled part data between engineering, internal production teams, external suppliers, and project partners."
             align="center"
           />
 
           <div className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {teamCards.map((item) => (
+            {networkModules.map((item) => (
               <FeatureCard key={item.title} title={item.title} body={item.body} />
             ))}
           </div>
@@ -439,7 +459,7 @@ export default function Home() {
                 href="/platform"
                 className="rounded-[8px] border border-white/18 bg-white/10 px-5 py-3 text-center text-sm font-black text-white transition hover:bg-white/15"
               >
-                View Product
+                View Platform
               </Link>
             </div>
           </div>
