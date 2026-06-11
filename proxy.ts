@@ -27,6 +27,75 @@ function isExcludedPath(pathname: string) {
   );
 }
 
+function constantTimeEqual(left: string, right: string) {
+  if (left.length !== right.length) return false;
+
+  let mismatch = 0;
+  for (let index = 0; index < left.length; index += 1) {
+    mismatch |= left.charCodeAt(index) ^ right.charCodeAt(index);
+  }
+
+  return mismatch === 0;
+}
+
+function parseBasicCredentials(authHeader: string) {
+  if (!authHeader.startsWith("Basic ")) return null;
+
+  const encoded = authHeader.split(" ")[1] ?? "";
+  const decoded = atob(encoded);
+  const separatorIndex = decoded.indexOf(":");
+
+  if (separatorIndex < 1) return null;
+
+  return {
+    username: decoded.slice(0, separatorIndex),
+    password: decoded.slice(separatorIndex + 1),
+  };
+}
+
+function parseAdditionalCredentials(rawCredentials: string | undefined) {
+  if (!rawCredentials?.trim()) return [];
+
+  return rawCredentials
+    .split(/[\n,]+/)
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .map((entry) => {
+      const separatorIndex = entry.indexOf(":");
+
+      if (separatorIndex < 1) return null;
+
+      return {
+        username: entry.slice(0, separatorIndex),
+        password: entry.slice(separatorIndex + 1),
+      };
+    })
+    .filter(
+      (credential): credential is { username: string; password: string } =>
+        Boolean(credential?.username && credential.password)
+    );
+}
+
+function isAllowedSiteLockCredential(username: string, password: string) {
+  const credentials = [
+    ...(process.env.SITE_LOCK_USERNAME && process.env.SITE_LOCK_PASSWORD
+      ? [
+          {
+            username: process.env.SITE_LOCK_USERNAME,
+            password: process.env.SITE_LOCK_PASSWORD,
+          },
+        ]
+      : []),
+    ...parseAdditionalCredentials(process.env.SITE_LOCK_ADDITIONAL_CREDENTIALS),
+  ];
+
+  return credentials.some(
+    (credential) =>
+      constantTimeEqual(username, credential.username) &&
+      constantTimeEqual(password, credential.password)
+  );
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -39,18 +108,16 @@ export async function proxy(request: NextRequest) {
   if (siteLockEnabled) {
     const authHeader = request.headers.get("authorization");
 
-    if (!authHeader?.startsWith("Basic ")) {
+    if (!authHeader) {
       return unauthorized();
     }
 
     try {
-      const encoded = authHeader.split(" ")[1] ?? "";
-      const decoded = atob(encoded);
-      const [username, password] = decoded.split(":");
+      const credentials = parseBasicCredentials(authHeader);
 
       if (
-        username !== process.env.SITE_LOCK_USERNAME ||
-        password !== process.env.SITE_LOCK_PASSWORD
+        !credentials ||
+        !isAllowedSiteLockCredential(credentials.username, credentials.password)
       ) {
         return unauthorized();
       }
