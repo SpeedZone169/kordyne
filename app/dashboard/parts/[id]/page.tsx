@@ -100,15 +100,49 @@ type FamilySourceFile = {
   };
 };
 
-type PartCollaborationMessageRow = {
+type PartReviewAnnotationRow = {
   id: string;
   part_id: string;
-  revision_part_id: string | null;
-  sender_user_id: string | null;
-  sender_org_id: string;
-  message_body: string;
-  viewer_annotation: unknown | null;
+  part_file_id: string;
+  created_by: string;
+  assigned_to: string | null;
+  title: string;
+  status: "open" | "in_review" | "resolved" | "reopened";
+  severity: "info" | "question" | "issue" | "critical";
+  category:
+    | "design"
+    | "manufacturability"
+    | "quality"
+    | "supplier_question"
+    | "internal_note"
+    | "other";
+  visibility: "internal" | "shared";
+  position: unknown;
+  normal: unknown | null;
+  camera: unknown | null;
+  due_date: string | null;
+  resolved_at: string | null;
   created_at: string;
+  updated_at: string;
+};
+
+type PartReviewAnnotationSummaryRow = {
+  id: string;
+  part_id: string;
+  status: string;
+};
+
+type PartReviewMessageRow = {
+  id: string;
+  annotation_id: string;
+  created_by: string;
+  body: string;
+  created_at: string;
+};
+
+type OrgMemberRow = {
+  user_id: string;
+  role: string;
 };
 
 type ProjectRow = {
@@ -121,32 +155,6 @@ type ProjectRow = {
 type ProjectPartLinkRow = {
   project_id: string;
   is_primary_part: boolean;
-};
-
-type ViewerAnnotationPayload = {
-  kind: "stl_surface_point";
-  fileId: string;
-  fileName: string;
-  label: string;
-  point: {
-    x: number;
-    y: number;
-    z: number;
-  };
-  normal: {
-    x: number;
-    y: number;
-    z: number;
-  } | null;
-  screen: {
-    x: number;
-    y: number;
-  };
-  cameraPosition: {
-    x: number;
-    y: number;
-    z: number;
-  };
 };
 
 function groupFilesByCategory(files: PartFileWithUrls[]) {
@@ -247,13 +255,9 @@ function getPreviewKind(
   return "other";
 }
 
-function asRecord(value: unknown): Record<string, unknown> | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  return value as Record<string, unknown>;
-}
-
 function parseVector(value: unknown) {
-  const vector = asRecord(value);
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const vector = value as Record<string, unknown>;
   if (!vector) return null;
 
   const x = typeof vector.x === "number" ? vector.x : null;
@@ -274,53 +278,24 @@ function parseVector(value: unknown) {
   return { x, y, z };
 }
 
-function parseViewerAnnotation(value: unknown): ViewerAnnotationPayload | null {
-  const annotation = asRecord(value);
-  if (!annotation || annotation.kind !== "stl_surface_point") return null;
-
-  const point = parseVector(annotation.point);
-  const cameraPosition = parseVector(annotation.cameraPosition);
-  const screen = asRecord(annotation.screen);
-  const screenX = typeof screen?.x === "number" ? screen.x : null;
-  const screenY = typeof screen?.y === "number" ? screen.y : null;
-
-  if (
-    !point ||
-    !cameraPosition ||
-    screenX === null ||
-    screenY === null ||
-    !Number.isFinite(screenX) ||
-    !Number.isFinite(screenY)
-  ) {
-    return null;
-  }
-
-  const normal =
-    annotation.normal === null || annotation.normal === undefined
+function parseCamera(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const camera = value as Record<string, unknown>;
+  const position = parseVector(camera.position);
+  const target =
+    camera.target === null || camera.target === undefined
       ? null
-      : parseVector(annotation.normal);
+      : parseVector(camera.target);
+  const zoom = typeof camera.zoom === "number" ? camera.zoom : null;
+  const distance = typeof camera.distance === "number" ? camera.distance : null;
 
-  if (annotation.normal && !normal) return null;
+  if (!position) return null;
 
   return {
-    kind: "stl_surface_point",
-    fileId:
-      typeof annotation.fileId === "string" ? annotation.fileId.slice(0, 80) : "",
-    fileName:
-      typeof annotation.fileName === "string"
-        ? annotation.fileName.slice(0, 180)
-        : "STL file",
-    label:
-      typeof annotation.label === "string"
-        ? annotation.label.slice(0, 80)
-        : "Feature tag",
-    point,
-    normal,
-    screen: {
-      x: screenX,
-      y: screenY,
-    },
-    cameraPosition,
+    position,
+    target,
+    zoom: zoom && Number.isFinite(zoom) ? zoom : null,
+    distance: distance && Number.isFinite(distance) ? distance : null,
   };
 }
 
@@ -339,6 +314,8 @@ export default async function PartDetailPage({ params }: PageProps) {
   const { data: orgRole } = await supabase.rpc("get_current_org_role");
   const canEditPart = orgRole === "admin" || orgRole === "engineer";
   const canRequest = canEditPart;
+  const canComment = true;
+  const canManageReview = canEditPart;
 
   const { data: part, error } = await supabase
     .from("parts")
@@ -465,55 +442,180 @@ export default async function PartDetailPage({ params }: PageProps) {
     ];
   });
 
-  const { data: collaborationMessagesRaw } = await supabase
-    .from("part_collaboration_messages")
-    .select(
-      "id, part_id, revision_part_id, sender_user_id, sender_org_id, message_body, viewer_annotation, created_at",
-    )
+  const { data: orgMembersRaw } = await supabase
+    .from("organization_members")
+    .select("user_id, role")
+    .eq("organization_id", part.organization_id);
+
+  const orgMembers = (orgMembersRaw as OrgMemberRow[] | null) ?? [];
+
+  const { data: reviewAnnotationsRaw } = await supabase
+    .from("part_review_annotations")
+    .select("*")
     .eq("part_id", part.id)
-    .order("created_at", { ascending: false })
-    .limit(12);
+    .order("updated_at", { ascending: false });
 
-  const collaborationMessages =
-    (collaborationMessagesRaw as PartCollaborationMessageRow[] | null) ?? [];
+  const reviewAnnotationRows =
+    (reviewAnnotationsRaw as PartReviewAnnotationRow[] | null) ?? [];
 
-  const collaborationSenderIds = Array.from(
+  const reviewAnnotationIds = reviewAnnotationRows.map(
+    (annotation) => annotation.id,
+  );
+
+  const { data: reviewMessagesRaw } =
+    reviewAnnotationIds.length > 0
+      ? await supabase
+          .from("part_review_annotation_messages")
+          .select("id, annotation_id, created_by, body, created_at")
+          .in("annotation_id", reviewAnnotationIds)
+          .order("created_at", { ascending: true })
+      : { data: [] as PartReviewMessageRow[] };
+
+  const reviewMessages =
+    (reviewMessagesRaw as PartReviewMessageRow[] | null) ?? [];
+
+  const { data: familyReviewAnnotationRowsRaw } =
+    revisionIds.length > 0
+      ? await supabase
+          .from("part_review_annotations")
+          .select("id, part_id, status")
+          .in("part_id", revisionIds)
+      : { data: [] as PartReviewAnnotationSummaryRow[] };
+
+  const familyReviewAnnotationRows =
+    (familyReviewAnnotationRowsRaw as PartReviewAnnotationSummaryRow[] | null) ??
+    [];
+
+  const reviewProfileIds = Array.from(
     new Set(
-      collaborationMessages
-        .map((message) => message.sender_user_id)
-        .filter((value): value is string => Boolean(value)),
+      [
+        ...orgMembers.map((member) => member.user_id),
+        ...reviewAnnotationRows.map((annotation) => annotation.created_by),
+        ...reviewAnnotationRows
+          .map((annotation) => annotation.assigned_to)
+          .filter((value): value is string => Boolean(value)),
+        ...reviewMessages.map((message) => message.created_by),
+      ].filter(Boolean),
     ),
   );
 
-  const { data: collaborationSenderProfiles } =
-    collaborationSenderIds.length > 0
+  const missingReviewProfileIds = reviewProfileIds.filter(
+    (profileId) => !profileMap.has(profileId),
+  );
+
+  const { data: reviewProfiles } =
+    missingReviewProfileIds.length > 0
       ? await supabase
           .from("profiles")
           .select("user_id, full_name, email, avatar_url")
-          .in("user_id", collaborationSenderIds)
+          .in("user_id", missingReviewProfileIds)
       : { data: [] as ProfileRow[] };
 
-  const collaborationProfileMap = new Map(profileMap);
+  const reviewProfileMap = new Map(profileMap);
 
-  for (const profile of (collaborationSenderProfiles as ProfileRow[] | null) ?? []) {
-    collaborationProfileMap.set(profile.user_id, profile);
+  for (const profile of (reviewProfiles as ProfileRow[] | null) ?? []) {
+    reviewProfileMap.set(profile.user_id, profile);
   }
 
-  const collaborationThreadMessages = collaborationMessages.map((message) => {
-    const senderProfile = message.sender_user_id
-      ? collaborationProfileMap.get(message.sender_user_id)
+  const reviewMessagesByAnnotationId = new Map<string, PartReviewMessageRow[]>();
+
+  for (const message of reviewMessages) {
+    const existingMessages =
+      reviewMessagesByAnnotationId.get(message.annotation_id) ?? [];
+    existingMessages.push(message);
+    reviewMessagesByAnnotationId.set(message.annotation_id, existingMessages);
+  }
+
+  const fileNameById = new Map(filesWithUrls.map((file) => [file.id, file.file_name]));
+
+  const reviewAnnotations = reviewAnnotationRows.flatMap((annotation) => {
+    const position = parseVector(annotation.position);
+    if (!position) return [];
+
+    const normal =
+      annotation.normal === null || annotation.normal === undefined
+        ? null
+        : parseVector(annotation.normal);
+    const camera = parseCamera(annotation.camera);
+    const creatorProfile = reviewProfileMap.get(annotation.created_by);
+    const assigneeProfile = annotation.assigned_to
+      ? reviewProfileMap.get(annotation.assigned_to)
       : null;
+    const messagesForAnnotation =
+      reviewMessagesByAnnotationId.get(annotation.id) ?? [];
+
+    return [
+      {
+        id: annotation.id,
+        partId: annotation.part_id,
+        partFileId: annotation.part_file_id,
+        fileName: fileNameById.get(annotation.part_file_id) ?? "Part file",
+        title: annotation.title,
+        status: annotation.status,
+        severity: annotation.severity,
+        category: annotation.category,
+        visibility: annotation.visibility,
+        position,
+        normal,
+        camera,
+        dueDate: annotation.due_date,
+        createdAt: annotation.created_at,
+        updatedAt: annotation.updated_at,
+        resolvedAt: annotation.resolved_at,
+        creatorUserId: annotation.created_by,
+        creatorName: getDisplayName(creatorProfile),
+        creatorEmail: creatorProfile?.email ?? null,
+        creatorAvatarUrl: creatorProfile?.avatar_url ?? null,
+        assignedToUserId: annotation.assigned_to,
+        assigneeName: assigneeProfile ? getDisplayName(assigneeProfile) : null,
+        messages: messagesForAnnotation.map((message) => {
+          const messageProfile = reviewProfileMap.get(message.created_by);
+
+          return {
+            id: message.id,
+            annotationId: message.annotation_id,
+            body: message.body,
+            createdAt: message.created_at,
+            creatorUserId: message.created_by,
+            creatorName: getDisplayName(messageProfile),
+            creatorEmail: messageProfile?.email ?? null,
+            creatorAvatarUrl: messageProfile?.avatar_url ?? null,
+          };
+        }),
+      },
+    ];
+  });
+
+  const memberOptions = orgMembers.map((member) => {
+    const memberProfile = reviewProfileMap.get(member.user_id);
 
     return {
-      id: message.id,
-      messageBody: message.message_body,
-      viewerAnnotation: parseViewerAnnotation(message.viewer_annotation),
-      createdAt: message.created_at,
-      senderName: getDisplayName(senderProfile),
-      senderEmail: senderProfile?.email ?? null,
-      senderAvatarUrl: senderProfile?.avatar_url ?? null,
+      userId: member.user_id,
+      name: getDisplayName(memberProfile),
+      email: memberProfile?.email ?? null,
+      role: member.role,
     };
   });
+
+  const revisionReviewSummaries = revisionRows.map((revisionPart) => {
+    const rowsForRevision = familyReviewAnnotationRows.filter(
+      (annotation) => annotation.part_id === revisionPart.id,
+    );
+    const resolvedCount = rowsForRevision.filter(
+      (annotation) => annotation.status === "resolved",
+    ).length;
+
+    return {
+      partId: revisionPart.id,
+      revision: revisionPart.revision,
+      isCurrent: revisionPart.id === part.id,
+      openCount: rowsForRevision.length - resolvedCount,
+      resolvedCount,
+    };
+  });
+
+  const latestRevision = revisionRows[revisionRows.length - 1] ?? null;
+  const isLatestRevision = latestRevision ? latestRevision.id === part.id : true;
 
   const viewerFiles = filesWithUrls.map((file) => ({
     id: file.id,
@@ -660,11 +762,15 @@ export default async function PartDetailPage({ params }: PageProps) {
 
       <PartWorkspaceClient
         files={viewerFiles}
-        messages={collaborationThreadMessages}
+        annotations={reviewAnnotations}
         partId={part.id}
-        revisionPartId={part.id}
         revisionLabel={part.revision}
-        canComment
+        latestRevisionLabel={latestRevision?.revision ?? null}
+        isLatestRevision={isLatestRevision}
+        memberOptions={memberOptions}
+        canComment={canComment}
+        canManageReview={canManageReview}
+        revisionReviewSummaries={revisionReviewSummaries}
       />
 
       <div className="mt-5 rounded-[12px] border border-slate-200 bg-white p-5 shadow-sm">

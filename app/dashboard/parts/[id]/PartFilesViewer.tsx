@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import StlPreview, {
-  type PendingStlAnnotation,
+  type StlAnnotationDraft,
   type StlViewerAnnotation,
 } from "./StlPreview";
 import ApsStepPreview from "./ApsStepPreview";
@@ -23,7 +23,17 @@ export type PreviewFile = {
 type Props = {
   files: PreviewFile[];
   annotations?: StlViewerAnnotation[];
-  onCreateAnnotation?: (annotation: PendingStlAnnotation) => void;
+  pendingAnnotation?: StlAnnotationDraft | null;
+  selectedAnnotationId?: string | null;
+  requestedFileId?: string | null;
+  focusRequest?: {
+    annotationId: string;
+    nonce: number;
+  } | null;
+  onCreateAnnotation?: (annotation: StlAnnotationDraft) => void;
+  onCancelPendingAnnotation?: () => void;
+  onSelectAnnotation?: (annotation: StlViewerAnnotation) => void;
+  onManualFileSelect?: () => void;
 };
 
 const CATEGORY_ORDER = [
@@ -184,7 +194,14 @@ function OpenWithMenu({ file }: { file: PreviewFile }) {
 export default function PartFilesViewer({
   files,
   annotations = [],
+  pendingAnnotation = null,
+  selectedAnnotationId = null,
+  requestedFileId = null,
+  focusRequest = null,
   onCreateAnnotation,
+  onCancelPendingAnnotation,
+  onSelectAnnotation,
+  onManualFileSelect,
 }: Props) {
   const groupedFiles = useMemo(() => buildGroupedFiles(files), [files]);
 
@@ -198,8 +215,11 @@ export default function PartFilesViewer({
     initialSelected?.id ?? null,
   );
 
+  const requestedFile = requestedFileId
+    ? files.find((file) => file.id === requestedFileId)
+    : null;
   const selectedFile =
-    files.find((file) => file.id === selectedFileId) ?? initialSelected;
+    requestedFile ?? files.find((file) => file.id === selectedFileId) ?? initialSelected;
 
   if (!files.length) {
     return (
@@ -259,7 +279,10 @@ export default function PartFilesViewer({
                       <button
                         key={file.id}
                         type="button"
-                        onClick={() => setSelectedFileId(file.id)}
+                        onClick={() => {
+                          onManualFileSelect?.();
+                          setSelectedFileId(file.id);
+                        }}
                         className={`w-full rounded-[12px] border p-3 text-left transition ${
                           isSelected
                             ? "border-slate-900 bg-white shadow-sm"
@@ -343,6 +366,12 @@ export default function PartFilesViewer({
                   {formatBytes(selectedFile.fileSizeBytes)} -{" "}
                   {getCategoryLabel(selectedFile.assetCategory)}
                 </p>
+                {selectedFileAnnotations.length > 0 ? (
+                  <p className="mt-2 text-xs font-bold uppercase tracking-[0.14em] text-cyan-700">
+                    {selectedFileAnnotations.length} review annotation
+                    {selectedFileAnnotations.length === 1 ? "" : "s"} on this file
+                  </p>
+                ) : null}
               </div>
 
               <div className="flex flex-wrap gap-3">
@@ -399,7 +428,16 @@ export default function PartFilesViewer({
                     url={selectedFile.previewUrl}
                     fileName={selectedFile.fileName}
                     annotations={selectedFileAnnotations}
+                    pendingAnnotation={
+                      pendingAnnotation?.fileId === selectedFile.id
+                        ? pendingAnnotation
+                        : null
+                    }
+                    selectedAnnotationId={selectedAnnotationId}
+                    focusRequest={focusRequest}
                     onCreateAnnotation={onCreateAnnotation}
+                    onCancelPendingAnnotation={onCancelPendingAnnotation}
+                    onSelectAnnotation={onSelectAnnotation}
                   />
                 ) : null}
 
