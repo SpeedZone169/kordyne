@@ -7,8 +7,7 @@ import PartStatusEditor from "./PartStatusEditor";
 import ServiceRequestActions from "./ServiceRequestActions";
 import ServiceRequestHistory from "./ServiceRequestHistory";
 import CreateRevisionButton from "./CreateRevisionButton";
-import PartFilesViewer from "./PartFilesViewer";
-import PartCollaborationPanel from "./PartCollaborationPanel";
+import PartWorkspaceClient from "./PartWorkspaceClient";
 import PartProjectActions from "./PartProjectActions";
 import { getPartCategoryLabel, getProcessTypeLabel } from "@/lib/parts";
 
@@ -108,6 +107,7 @@ type PartCollaborationMessageRow = {
   sender_user_id: string | null;
   sender_org_id: string;
   message_body: string;
+  viewer_annotation: unknown | null;
   created_at: string;
 };
 
@@ -121,6 +121,32 @@ type ProjectRow = {
 type ProjectPartLinkRow = {
   project_id: string;
   is_primary_part: boolean;
+};
+
+type ViewerAnnotationPayload = {
+  kind: "stl_surface_point";
+  fileId: string;
+  fileName: string;
+  label: string;
+  point: {
+    x: number;
+    y: number;
+    z: number;
+  };
+  normal: {
+    x: number;
+    y: number;
+    z: number;
+  } | null;
+  screen: {
+    x: number;
+    y: number;
+  };
+  cameraPosition: {
+    x: number;
+    y: number;
+    z: number;
+  };
 };
 
 function groupFilesByCategory(files: PartFileWithUrls[]) {
@@ -219,6 +245,83 @@ function getPreviewKind(
   }
 
   return "other";
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+function parseVector(value: unknown) {
+  const vector = asRecord(value);
+  if (!vector) return null;
+
+  const x = typeof vector.x === "number" ? vector.x : null;
+  const y = typeof vector.y === "number" ? vector.y : null;
+  const z = typeof vector.z === "number" ? vector.z : null;
+
+  if (
+    x === null ||
+    y === null ||
+    z === null ||
+    !Number.isFinite(x) ||
+    !Number.isFinite(y) ||
+    !Number.isFinite(z)
+  ) {
+    return null;
+  }
+
+  return { x, y, z };
+}
+
+function parseViewerAnnotation(value: unknown): ViewerAnnotationPayload | null {
+  const annotation = asRecord(value);
+  if (!annotation || annotation.kind !== "stl_surface_point") return null;
+
+  const point = parseVector(annotation.point);
+  const cameraPosition = parseVector(annotation.cameraPosition);
+  const screen = asRecord(annotation.screen);
+  const screenX = typeof screen?.x === "number" ? screen.x : null;
+  const screenY = typeof screen?.y === "number" ? screen.y : null;
+
+  if (
+    !point ||
+    !cameraPosition ||
+    screenX === null ||
+    screenY === null ||
+    !Number.isFinite(screenX) ||
+    !Number.isFinite(screenY)
+  ) {
+    return null;
+  }
+
+  const normal =
+    annotation.normal === null || annotation.normal === undefined
+      ? null
+      : parseVector(annotation.normal);
+
+  if (annotation.normal && !normal) return null;
+
+  return {
+    kind: "stl_surface_point",
+    fileId:
+      typeof annotation.fileId === "string" ? annotation.fileId.slice(0, 80) : "",
+    fileName:
+      typeof annotation.fileName === "string"
+        ? annotation.fileName.slice(0, 180)
+        : "STL file",
+    label:
+      typeof annotation.label === "string"
+        ? annotation.label.slice(0, 80)
+        : "Feature tag",
+    point,
+    normal,
+    screen: {
+      x: screenX,
+      y: screenY,
+    },
+    cameraPosition,
+  };
 }
 
 export default async function PartDetailPage({ params }: PageProps) {
@@ -362,14 +465,10 @@ export default async function PartDetailPage({ params }: PageProps) {
     ];
   });
 
-  const previewableFilesCount = filesWithUrls.filter(
-    (file) => file.previewKind !== "other",
-  ).length;
-
   const { data: collaborationMessagesRaw } = await supabase
     .from("part_collaboration_messages")
     .select(
-      "id, part_id, revision_part_id, sender_user_id, sender_org_id, message_body, created_at",
+      "id, part_id, revision_part_id, sender_user_id, sender_org_id, message_body, viewer_annotation, created_at",
     )
     .eq("part_id", part.id)
     .order("created_at", { ascending: false })
@@ -408,6 +507,7 @@ export default async function PartDetailPage({ params }: PageProps) {
     return {
       id: message.id,
       messageBody: message.message_body,
+      viewerAnnotation: parseViewerAnnotation(message.viewer_annotation),
       createdAt: message.created_at,
       senderName: getDisplayName(senderProfile),
       senderEmail: senderProfile?.email ?? null,
@@ -558,30 +658,14 @@ export default async function PartDetailPage({ params }: PageProps) {
         />
       </div>
 
-      <div className="mt-5 rounded-[12px] border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <h2 className="text-xl font-black text-slate-950">
-              Live file viewer
-            </h2>
-            <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
-              Review STEP, STL, PDF, image, and controlled vault files directly
-              against this revision.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700">
-              {filesWithUrls.length} file{filesWithUrls.length === 1 ? "" : "s"}
-            </div>
-            <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700">
-              {previewableFilesCount} preview-ready
-            </div>
-          </div>
-        </div>
-
-        <PartFilesViewer files={viewerFiles} />
-      </div>
+      <PartWorkspaceClient
+        files={viewerFiles}
+        messages={collaborationThreadMessages}
+        partId={part.id}
+        revisionPartId={part.id}
+        revisionLabel={part.revision}
+        canComment
+      />
 
       <div className="mt-5 rounded-[12px] border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -652,16 +736,6 @@ export default async function PartDetailPage({ params }: PageProps) {
         ) : (
           <p className="mt-4 text-sm text-slate-600">No linked revisions found.</p>
         )}
-      </div>
-
-      <div id="part-workspace" className="mt-5 max-w-3xl">
-        <PartCollaborationPanel
-          partId={part.id}
-          revisionPartId={part.id}
-          revisionLabel={part.revision}
-          messages={collaborationThreadMessages}
-          canComment
-        />
       </div>
 
       <div className="mt-5 grid gap-5 lg:grid-cols-[320px_minmax(0,1fr)] lg:items-stretch">

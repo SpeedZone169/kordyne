@@ -1,10 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import StlPreview from "./StlPreview";
+import StlPreview, {
+  type PendingStlAnnotation,
+  type StlViewerAnnotation,
+} from "./StlPreview";
 import ApsStepPreview from "./ApsStepPreview";
 
-type PreviewFile = {
+export type PreviewFile = {
   id: string;
   fileName: string;
   fileType: string | null;
@@ -19,6 +22,8 @@ type PreviewFile = {
 
 type Props = {
   files: PreviewFile[];
+  annotations?: StlViewerAnnotation[];
+  onCreateAnnotation?: (annotation: PendingStlAnnotation) => void;
 };
 
 const CATEGORY_ORDER = [
@@ -176,7 +181,11 @@ function OpenWithMenu({ file }: { file: PreviewFile }) {
   );
 }
 
-export default function PartFilesViewer({ files }: Props) {
+export default function PartFilesViewer({
+  files,
+  annotations = [],
+  onCreateAnnotation,
+}: Props) {
   const groupedFiles = useMemo(() => buildGroupedFiles(files), [files]);
 
   const initialSelected =
@@ -203,6 +212,9 @@ export default function PartFilesViewer({ files }: Props) {
   const selectedExtension = selectedFile ? getFileExtension(selectedFile.fileName) : "";
   const isStlSelected = selectedExtension === "stl";
   const isStepSelected = selectedExtension === "step" || selectedExtension === "stp";
+  const selectedFileAnnotations = selectedFile
+    ? annotations.filter((annotation) => annotation.fileId === selectedFile.id)
+    : [];
 
   return (
     <div className="grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
@@ -383,8 +395,11 @@ export default function PartFilesViewer({ files }: Props) {
                 isStlSelected &&
                 selectedFile.previewUrl ? (
                   <StlPreview
+                    fileId={selectedFile.id}
                     url={selectedFile.previewUrl}
                     fileName={selectedFile.fileName}
+                    annotations={selectedFileAnnotations}
+                    onCreateAnnotation={onCreateAnnotation}
                   />
                 ) : null}
 
