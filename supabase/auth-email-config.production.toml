@@ -1,0 +1,48 @@
+# Production Auth email settings for the linked Kordyne Supabase project.
+#
+# This file is intentionally separate from supabase/config.toml so the normal
+# project config is not accidentally pushed wholesale to production. Apply these
+# settings through the Supabase Dashboard, or copy them into config.toml only
+# after auditing every other production auth setting.
+
+[auth]
+site_url = "https://www.kordyne.com"
+additional_redirect_urls = [
+  "https://www.kordyne.com/auth/callback",
+  "https://kordyne.com/auth/callback",
+  "http://localhost:3000/auth/callback",
+  "http://127.0.0.1:3000/auth/callback"
+]
+
+[auth.email.smtp]
+enabled = true
+host = "smtp.resend.com"
+port = 587
+user = "resend"
+pass = "env(RESEND_API_KEY)"
+admin_email = "noreply@kordyne.com"
+sender_name = "Kordyne"
+
+[auth.email.template.confirmation]
+subject = "Confirm your Kordyne account"
+content_path = "./supabase/templates/confirmation.html"
+
+[auth.email.template.invite]
+subject = "You have been invited to Kordyne"
+content_path = "./supabase/templates/invite.html"
+
+[auth.email.template.magic_link]
+subject = "Sign in to Kordyne"
+content_path = "./supabase/templates/magic_link.html"
+
+[auth.email.template.email_change]
+subject = "Confirm your new Kordyne email"
+content_path = "./supabase/templates/email_change.html"
+
+[auth.email.template.recovery]
+subject = "Reset your Kordyne password"
+content_path = "./supabase/templates/recovery.html"
+
+[auth.email.template.reauthentication]
+subject = "Your Kordyne verification code"
+content_path = "./supabase/templates/reauthentication.html"

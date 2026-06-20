@@ -4,10 +4,14 @@ import { Resend } from "resend";
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 const CONTACT_TO_EMAIL =
-  process.env.CONTACT_TO_EMAIL || "speedzonefamily@gmail.com";
+  process.env.CONTACT_TO_EMAIL ||
+  process.env.RESEND_REPLY_TO ||
+  "speedzonefamily@gmail.com";
 
 const CONTACT_FROM_EMAIL =
-  process.env.CONTACT_FROM_EMAIL || "Kordyne <onboarding@resend.dev>";
+  process.env.CONTACT_FROM_EMAIL ||
+  process.env.RESEND_FROM_EMAIL ||
+  "Kordyne <noreply@kordyne.com>";
 
 const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
 const RATE_LIMIT_MAX_REQUESTS = 5;
@@ -36,6 +40,94 @@ function escapeHtml(value: string) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function buildContactEmailHtml({
+  name,
+  email,
+  company,
+  teamSize,
+  manufacturingProcess,
+  message,
+}: {
+  name: string;
+  email: string;
+  company: string;
+  teamSize: string;
+  manufacturingProcess: string;
+  message: string;
+}) {
+  const rows = [
+    ["Full name", name],
+    ["Work email", email],
+    ["Company", company || "Not provided"],
+    ["Team size", teamSize || "Not provided"],
+    ["Primary interest", manufacturingProcess || "Not provided"],
+  ]
+    .map(
+      ([label, value]) => `
+        <tr>
+          <td style="padding: 9px 0; color: #5f7485; font-size: 13px; vertical-align: top; width: 150px;">
+            ${escapeHtml(label)}
+          </td>
+          <td style="padding: 9px 0; color: #0b2530; font-size: 14px; font-weight: 700;">
+            ${escapeHtml(value)}
+          </td>
+        </tr>
+      `
+    )
+    .join("");
+
+  return `
+    <!doctype html>
+    <html>
+      <head>
+        <meta charSet="utf-8" />
+        <meta name="viewport" content="width=device-width,initial-scale=1" />
+        <title>New Kordyne demo request</title>
+      </head>
+      <body style="margin: 0; padding: 0; background: #eef9fb; font-family: Arial, Helvetica, sans-serif;">
+        <div style="display: none; max-height: 0; overflow: hidden; opacity: 0;">
+          New Kordyne demo request from ${escapeHtml(company || name)}.
+        </div>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background: #eef9fb; padding: 32px 16px;">
+          <tr>
+            <td align="center">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width: 640px; background: #ffffff; border: 1px solid #c8e2e8; border-radius: 24px; overflow: hidden;">
+                <tr>
+                  <td style="padding: 28px 28px 18px 28px; border-bottom: 4px solid #00bdde;">
+                    <div style="font-size: 18px; font-weight: 800; color: #003040;">KORDYNE</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 28px;">
+                    <div style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.16em; color: #0086a0;">
+                      Demo request
+                    </div>
+                    <h1 style="margin: 14px 0 0 0; font-size: 28px; line-height: 1.2; color: #003040;">
+                      ${escapeHtml(company || name)} wants to talk about Kordyne
+                    </h1>
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top: 24px; background: #f5fbfc; border: 1px solid #d5e9ee; border-radius: 18px; padding: 16px 18px;">
+                      ${rows}
+                    </table>
+                    <div style="margin-top: 24px;">
+                      <div style="font-size: 13px; font-weight: 800; color: #003040;">What they want Kordyne to help coordinate</div>
+                      <div style="margin-top: 10px; color: #38546a; font-size: 15px; line-height: 1.75;">
+                        ${escapeHtml(message).replaceAll("\n", "<br />")}
+                      </div>
+                    </div>
+                    <div style="margin-top: 28px; font-size: 12px; line-height: 1.7; color: #5f7485;">
+                      Reply directly to this email to contact ${escapeHtml(name)}.
+                    </div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+    </html>
+  `;
 }
 
 function isValidEmail(value: string) {
@@ -182,19 +274,15 @@ export async function POST(req: Request) {
       from: CONTACT_FROM_EMAIL,
       to: CONTACT_TO_EMAIL,
       replyTo: email,
-      subject: `New Kordyne demo request from ${name}`,
-      html: `
-        <h2>New Kordyne demo request</h2>
-        <p><strong>Name:</strong> ${escapeHtml(name)}</p>
-        <p><strong>Email:</strong> ${escapeHtml(email)}</p>
-        <p><strong>Company:</strong> ${escapeHtml(company || "Not provided")}</p>
-        <p><strong>Team size:</strong> ${escapeHtml(teamSize || "Not provided")}</p>
-        <p><strong>Primary manufacturing interest:</strong> ${escapeHtml(
-          manufacturingProcess || "Not provided"
-        )}</p>
-        <p><strong>Message:</strong></p>
-        <p>${escapeHtml(message).replaceAll("\n", "<br />")}</p>
-      `,
+      subject: `Kordyne demo request: ${company || name}`,
+      html: buildContactEmailHtml({
+        name,
+        email,
+        company,
+        teamSize,
+        manufacturingProcess,
+        message,
+      }),
       text: [
         "New Kordyne demo request",
         "",

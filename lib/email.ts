@@ -61,6 +61,43 @@ function escapeHtml(value: string) {
     .replaceAll("'", "&#39;");
 }
 
+function buildWorkflowEmailText(input: WorkflowEmailInput) {
+  const lines: string[] = [];
+
+  if (input.eyebrow) {
+    lines.push(input.eyebrow.toUpperCase(), "");
+  }
+
+  lines.push(input.headline, "", input.intro);
+
+  if (input.detailRows?.length) {
+    lines.push("", "Details:");
+    input.detailRows.forEach((row) => {
+      lines.push(`${row.label}: ${row.value}`);
+    });
+  }
+
+  if (input.primaryActionLabel && input.primaryActionUrl) {
+    lines.push("", `${input.primaryActionLabel}: ${input.primaryActionUrl}`);
+  }
+
+  if (input.secondaryActionLabel && input.secondaryActionUrl) {
+    lines.push(`${input.secondaryActionLabel}: ${input.secondaryActionUrl}`);
+  }
+
+  lines.push(
+    "",
+    input.footerNote ??
+      "This message was sent by Kordyne because this workflow event requires attention.",
+  );
+
+  return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+function getEmailDomain(value: string) {
+  return value.match(/@([^>\s]+)/)?.[1] ?? null;
+}
+
 export function absoluteUrl(path: string) {
   if (/^https?:\/\//i.test(path)) return path;
   if (!appBaseUrl) return path;
@@ -121,10 +158,10 @@ function buildWorkflowEmailHtml(input: WorkflowEmailInput) {
     .map(
       (row) => `
         <tr>
-          <td style="padding: 8px 0; color: #64748b; font-size: 13px; vertical-align: top; width: 140px;">
+          <td style="padding: 9px 0; color: #5f7485; font-size: 13px; vertical-align: top; width: 150px;">
             ${escapeHtml(row.label)}
           </td>
-          <td style="padding: 8px 0; color: #0f172a; font-size: 14px; font-weight: 600;">
+          <td style="padding: 9px 0; color: #0b2530; font-size: 14px; font-weight: 700;">
             ${escapeHtml(row.value)}
           </td>
         </tr>
@@ -139,13 +176,13 @@ function buildWorkflowEmailHtml(input: WorkflowEmailInput) {
           href="${escapeHtml(input.primaryActionUrl)}"
           style="
             display: inline-block;
-            background: #020617;
-            color: #ffffff;
+            background: #00bdde;
+            color: #003040;
             text-decoration: none;
             padding: 12px 18px;
-            border-radius: 999px;
+            border-radius: 10px;
             font-size: 14px;
-            font-weight: 600;
+            font-weight: 800;
             margin-right: 10px;
           "
         >
@@ -162,13 +199,13 @@ function buildWorkflowEmailHtml(input: WorkflowEmailInput) {
           style="
             display: inline-block;
             background: #ffffff;
-            color: #0f172a;
+            color: #003040;
             text-decoration: none;
             padding: 12px 18px;
-            border-radius: 999px;
+            border-radius: 10px;
             font-size: 14px;
-            font-weight: 600;
-            border: 1px solid #cbd5e1;
+            font-weight: 800;
+            border: 1px solid #b8d7df;
           "
         >
           ${escapeHtml(input.secondaryActionLabel)}
@@ -185,7 +222,7 @@ function buildWorkflowEmailHtml(input: WorkflowEmailInput) {
       />
     `
     : `
-      <div style="font-size: 14px; font-weight: 700; letter-spacing: 0.18em; color: #0f172a;">
+      <div style="font-size: 18px; font-weight: 800; color: #003040;">
         KORDYNE
       </div>
     `;
@@ -198,17 +235,17 @@ function buildWorkflowEmailHtml(input: WorkflowEmailInput) {
         <meta name="viewport" content="width=device-width,initial-scale=1" />
         <title>${escapeHtml(input.subject)}</title>
       </head>
-      <body style="margin: 0; padding: 0; background: #f1f5f9; font-family: Arial, Helvetica, sans-serif;">
+      <body style="margin: 0; padding: 0; background: #eef9fb; font-family: Arial, Helvetica, sans-serif;">
         <div style="display: none; max-height: 0; overflow: hidden; opacity: 0;">
           ${escapeHtml(input.previewText ?? input.subject)}
         </div>
 
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background: #f1f5f9; padding: 32px 16px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background: #eef9fb; padding: 32px 16px;">
           <tr>
             <td align="center">
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width: 640px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 28px; overflow: hidden;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width: 640px; background: #ffffff; border: 1px solid #c8e2e8; border-radius: 24px; overflow: hidden;">
                 <tr>
-                  <td style="padding: 28px 28px 18px 28px; border-bottom: 1px solid #e2e8f0;">
+                  <td style="padding: 28px 28px 18px 28px; border-bottom: 4px solid #00bdde;">
                     ${logoBlock}
                   </td>
                 </tr>
@@ -218,25 +255,25 @@ function buildWorkflowEmailHtml(input: WorkflowEmailInput) {
                     ${
                       input.eyebrow
                         ? `
-                          <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.22em; color: #64748b;">
+                          <div style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.16em; color: #0086a0;">
                             ${escapeHtml(input.eyebrow)}
                           </div>
                         `
                         : ""
                     }
 
-                    <h1 style="margin: 14px 0 0 0; font-size: 28px; line-height: 1.2; color: #020617;">
+                    <h1 style="margin: 14px 0 0 0; font-size: 28px; line-height: 1.2; color: #003040;">
                       ${escapeHtml(input.headline)}
                     </h1>
 
-                    <p style="margin: 16px 0 0 0; font-size: 15px; line-height: 1.75; color: #475569;">
+                    <p style="margin: 16px 0 0 0; font-size: 15px; line-height: 1.75; color: #38546a;">
                       ${escapeHtml(input.intro)}
                     </p>
 
                     ${
                       details
                         ? `
-                          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top: 24px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 20px; padding: 16px 18px;">
+                          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top: 24px; background: #f5fbfc; border: 1px solid #d5e9ee; border-radius: 18px; padding: 16px 18px;">
                             ${details}
                           </table>
                         `
@@ -254,7 +291,7 @@ function buildWorkflowEmailHtml(input: WorkflowEmailInput) {
                         : ""
                     }
 
-                    <div style="margin-top: 28px; font-size: 12px; line-height: 1.7; color: #64748b;">
+                    <div style="margin-top: 28px; font-size: 12px; line-height: 1.7; color: #5f7485;">
                       ${escapeHtml(
                         input.footerNote ??
                           "This message was sent by Kordyne because this workflow event requires attention.",
@@ -277,9 +314,9 @@ export async function sendWorkflowEmail(input: WorkflowEmailInput) {
     usingDefaultApiKey:
       !process.env.RESEND_NOTIFICATIONS_API_KEY &&
       Boolean(process.env.RESEND_API_KEY),
-    fromEmail,
-    replyTo,
-    logoUrl,
+    fromDomain: getEmailDomain(fromEmail),
+    hasReplyTo: Boolean(replyTo),
+    hasLogoUrl: Boolean(logoUrl),
   });
 
   if (!resend || !fromEmail) {
@@ -303,6 +340,7 @@ export async function sendWorkflowEmail(input: WorkflowEmailInput) {
     to: uniqueRecipients,
     subject: input.subject,
     html: buildWorkflowEmailHtml(input),
+    text: buildWorkflowEmailText(input),
     ...(replyTo ? { replyTo } : {}),
   });
 

@@ -1,0 +1,47 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Reset your Kordyne password</title>
+  </head>
+  <body style="margin:0;padding:0;background:#eef9fb;font-family:Arial,Helvetica,sans-serif;color:#003040;">
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;">
+      Reset your Kordyne password using this secure link.
+    </div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eef9fb;padding:32px 16px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:640px;background:#ffffff;border:1px solid #c8e2e8;border-radius:24px;overflow:hidden;">
+            <tr>
+              <td style="padding:28px 28px 18px 28px;border-bottom:4px solid #00bdde;">
+                <div style="font-size:18px;font-weight:800;color:#003040;">KORDYNE</div>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:28px;">
+                <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.16em;color:#0086a0;">Password reset</div>
+                <h1 style="margin:14px 0 0 0;font-size:28px;line-height:1.2;color:#003040;">Reset your Kordyne password</h1>
+                <p style="margin:16px 0 0 0;font-size:15px;line-height:1.75;color:#38546a;">
+                  We received a request to reset the password for your Kordyne account. Use the secure link below to choose a new password.
+                </p>
+                <p style="margin:26px 0;">
+                  <a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#00bdde;color:#003040;text-decoration:none;padding:12px 18px;border-radius:10px;font-size:14px;font-weight:800;">
+                    Reset password
+                  </a>
+                </p>
+                <p style="margin:0;font-size:13px;line-height:1.7;color:#5f7485;">
+                  If the button does not work, copy and paste this link into your browser:<br />
+                  <a href="{{ .ConfirmationURL }}" style="color:#0086a0;word-break:break-all;">{{ .ConfirmationURL }}</a>
+                </p>
+                <p style="margin:24px 0 0 0;font-size:12px;line-height:1.7;color:#5f7485;">
+                  If you did not request a password reset, you can ignore this email. Your password will not change unless this link is used.
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
