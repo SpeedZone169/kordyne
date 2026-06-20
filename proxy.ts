@@ -1,4 +1,4 @@
-﻿import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
 function unauthorized() {
@@ -17,6 +17,8 @@ function isExcludedPath(pathname: string) {
     pathname === "/favicon.ico" ||
     pathname === "/favicon.png" ||
     pathname === "/kordyne-logo.svg" ||
+    pathname === "/kordyne-email-logo.jpg" ||
+    pathname === "/kordyne-email-logo-dark.png" ||
     pathname === "/robots.txt" ||
     pathname === "/.well-known/security.txt" ||
     pathname === "/sitemap.xml" ||
