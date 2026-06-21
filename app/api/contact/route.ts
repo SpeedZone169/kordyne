@@ -13,6 +13,10 @@ const CONTACT_FROM_EMAIL =
   process.env.RESEND_FROM_EMAIL ||
   "Kordyne <noreply@kordyne.com>";
 
+const CONTACT_EMAIL_LOGO_URL =
+  process.env.KORDYNE_EMAIL_LOGO_URL ||
+  "https://www.kordyne.com/kordyne-email-logo.jpg";
+
 const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
 const RATE_LIMIT_MAX_REQUESTS = 5;
 
@@ -96,7 +100,7 @@ function buildContactEmailHtml({
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width: 640px; background: #ffffff; border: 1px solid #c8e2e8; border-radius: 24px; overflow: hidden;">
                 <tr>
                   <td style="padding: 28px 28px 18px 28px; border-bottom: 4px solid #00bdde;">
-                    <div style="font-size: 18px; font-weight: 800; color: #003040;">KORDYNE</div>
+                    <img src="${escapeHtml(CONTACT_EMAIL_LOGO_URL)}" alt="Kordyne" style="height: 34px; width: auto; display: block; border: 0;" />
                   </td>
                 </tr>
                 <tr>

@@ -1,17 +1,8 @@
 import { NextResponse } from "next/server";
-import { Resend } from "resend";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { hasVerifiedMfaSession } from "@/lib/auth/mfa";
-
-function escapeHtml(value: string) {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
+import { isSkippedWorkflowEmailResult, sendWorkflowEmail } from "@/lib/email";
 
 function getSiteUrl(req: Request) {
   return (
@@ -135,70 +126,41 @@ export async function POST(
     const inviteUrl = `${siteUrl}/invite/${invite.token}`;
     const providerInfoUrl = `${siteUrl}/providers`;
 
-    if (!process.env.RESEND_API_KEY) {
-      return NextResponse.json({
-        success: true,
-        emailSent: false,
-        inviteUrl,
-        message:
-          "Invite created, but RESEND_API_KEY is missing. Copy the invite link manually.",
+    const introLine = fullName
+      ? `Hello ${fullName}. You've been invited to manage ${providerOrg.name} opportunities on Kordyne.`
+      : `You've been invited to manage ${providerOrg.name} opportunities on Kordyne.`;
+
+    try {
+      const emailResult = await sendWorkflowEmail({
+        to: [email],
+        subject: `You're invited to join ${providerOrg.name} on Kordyne`,
+        previewText: `Accept your provider workspace invite for ${providerOrg.name}.`,
+        eyebrow: "Provider invite",
+        headline: "You're invited to join Kordyne",
+        intro: introLine,
+        detailRows: [
+          { label: "Provider", value: providerOrg.name },
+          { label: "Role", value: "Admin" },
+        ],
+        primaryActionLabel: "Accept invite",
+        primaryActionUrl: inviteUrl,
+        secondaryActionLabel: "View provider page",
+        secondaryActionUrl: providerInfoUrl,
+        footerNote:
+          "This provider invitation is intended for the invited email address. If you were not expecting it, you can ignore this message.",
       });
-    }
 
-    const resend = new Resend(process.env.RESEND_API_KEY);
-
-    const introLine = fullName ? `Hello ${fullName},` : "Hello,";
-    const safeIntroLine = escapeHtml(introLine);
-    const safeProviderName = escapeHtml(providerOrg.name);
-    const safeInviteUrl = escapeHtml(inviteUrl);
-    const safeProviderInfoUrl = escapeHtml(providerInfoUrl);
-
-    const { error: emailError } = await resend.emails.send({
-      from: process.env.RESEND_FROM_EMAIL || "Kordyne <noreply@kordyne.com>",
-      to: email,
-      subject: `You're invited to join ${providerOrg.name} on Kordyne`,
-      text: [
-        introLine,
-        "",
-        `You've been invited to join ${providerOrg.name} on Kordyne as an admin.`,
-        "",
-        "Kordyne helps providers manage incoming manufacturing opportunities and work with customers in a structured portal.",
-        "",
-        `Learn more here: ${providerInfoUrl}`,
-        `Accept your invite here: ${inviteUrl}`,
-      ].join("\n"),
-      html: `
-        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111827;">
-          <h2 style="margin-bottom: 16px;">You're invited to join Kordyne</h2>
-          <p>${safeIntroLine}</p>
-          <p>
-            You've been invited to join <strong>${safeProviderName}</strong>
-            as an <strong>admin</strong>.
-          </p>
-          <p>
-            Kordyne helps providers manage incoming manufacturing opportunities
-            and work with customers in a structured portal.
-          </p>
-          <p style="margin: 24px 0;">
-            <a
-              href="${safeInviteUrl}"
-              style="display: inline-block; background: #111827; color: #ffffff; text-decoration: none; padding: 12px 18px; border-radius: 9999px;"
-            >
-              Accept invite
-            </a>
-          </p>
-          <p>
-            Learn more here:
-            <a href="${safeProviderInfoUrl}">${safeProviderInfoUrl}</a>
-          </p>
-          <p>If the button does not work, use this link:</p>
-          <p><a href="${safeInviteUrl}">${safeInviteUrl}</a></p>
-        </div>
-      `,
-    });
-
-    if (emailError) {
-      console.error("Provider invite email send failed:", emailError);
+      if (isSkippedWorkflowEmailResult(emailResult)) {
+        return NextResponse.json({
+          success: true,
+          emailSent: false,
+          inviteUrl,
+          message:
+            "Invite created, but email delivery is not configured. Copy the invite link manually.",
+        });
+      }
+    } catch (error) {
+      console.error("Provider invite email send failed:", error);
 
       return NextResponse.json({
         success: true,

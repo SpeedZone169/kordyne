@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { Resend } from "resend";
 import { createClient } from "../../../../../lib/supabase/server";
+import { isSkippedWorkflowEmailResult, sendWorkflowEmail } from "@/lib/email";
 
 type OrgMemberRow = {
   organization_id: string;
@@ -102,51 +102,35 @@ export async function POST(req: Request) {
 
     const inviteUrl = `${getSiteUrl(req)}/invite/${invite.token}`;
 
-    if (!process.env.RESEND_API_KEY) {
-      return NextResponse.json({
-        success: true,
-        emailSent: false,
-        inviteUrl,
-        message:
-          "Invite is still available, but RESEND_API_KEY is missing. Use Copy Link instead.",
+    try {
+      const emailResult = await sendWorkflowEmail({
+        to: [invite.email],
+        subject: `Reminder: you're invited to join ${organization.organization_name} on Kordyne`,
+        previewText: `Your ${organization.organization_name} invite is still waiting.`,
+        eyebrow: "Invite reminder",
+        headline: "Your Kordyne invite is waiting",
+        intro: `You still have a pending invite to join ${organization.organization_name} as a ${invite.role}.`,
+        detailRows: [
+          { label: "Organization", value: organization.organization_name },
+          { label: "Role", value: invite.role },
+        ],
+        primaryActionLabel: "Accept invite",
+        primaryActionUrl: inviteUrl,
+        footerNote:
+          "This reminder is for a pending Kordyne invitation. If you were not expecting it, you can ignore this message.",
       });
-    }
 
-    const resend = new Resend(process.env.RESEND_API_KEY);
-
-    const { error: emailError } = await resend.emails.send({
-      from: process.env.RESEND_FROM_EMAIL || "Kordyne <noreply@kordyne.com>",
-      to: invite.email,
-      subject: `Reminder: you're invited to join ${organization.organization_name} on Kordyne`,
-      text: [
-        `You still have a pending invite to join ${organization.organization_name} on Kordyne as a ${invite.role}.`,
-        "",
-        `Accept your invite: ${inviteUrl}`,
-      ].join("\n"),
-      html: `
-        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111827;">
-          <h2 style="margin-bottom: 16px;">Your Kordyne invite is waiting</h2>
-          <p>
-            You still have a pending invite to join
-            <strong> ${organization.organization_name}</strong>
-            as <strong>${invite.role}</strong>.
-          </p>
-          <p style="margin: 24px 0;">
-            <a
-              href="${inviteUrl}"
-              style="display: inline-block; background: #111827; color: #ffffff; text-decoration: none; padding: 12px 18px; border-radius: 12px;"
-            >
-              Accept Invite
-            </a>
-          </p>
-          <p>If the button does not work, use this link:</p>
-          <p><a href="${inviteUrl}">${inviteUrl}</a></p>
-        </div>
-      `,
-    });
-
-    if (emailError) {
-      console.error("Invite resend failed:", emailError);
+      if (isSkippedWorkflowEmailResult(emailResult)) {
+        return NextResponse.json({
+          success: true,
+          emailSent: false,
+          inviteUrl,
+          message:
+            "Invite is still available, but email delivery is not configured. Use Copy Link instead.",
+        });
+      }
+    } catch (error) {
+      console.error("Invite resend failed:", error);
 
       return NextResponse.json({
         success: true,

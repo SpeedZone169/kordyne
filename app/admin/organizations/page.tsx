@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { Resend } from "resend";
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requirePlatformOwner } from "@/lib/auth/platform-owner";
+import { isSkippedWorkflowEmailResult, sendWorkflowEmail } from "@/lib/email";
 import CopyInviteLinkButton from "@/components/admin/CopyInviteLinkButton";
 
 type OrganizationRow = {
@@ -220,10 +220,6 @@ async function resendCompanyAdminInvite(formData: FormData) {
     throw new Error("Missing invite id.");
   }
 
-  if (!process.env.RESEND_API_KEY) {
-    throw new Error("Missing RESEND_API_KEY.");
-  }
-
   const supabase = createAdminClient();
 
   const { data: invite, error: inviteError } = await supabase
@@ -253,44 +249,26 @@ async function resendCompanyAdminInvite(formData: FormData) {
   const siteUrl = getSiteUrl();
   const inviteUrl = `${siteUrl}/invite/${invite.token}`;
 
-  const resend = new Resend(process.env.RESEND_API_KEY);
-
-  const { error: emailError } = await resend.emails.send({
-    from: process.env.RESEND_FROM_EMAIL || "Kordyne <noreply@kordyne.com>",
-    to: invite.email,
+  const emailResult = await sendWorkflowEmail({
+    to: [invite.email],
     subject: `Reminder: you're invited to administer ${organization.name} on Kordyne`,
-    text: [
-      `You've been invited to join ${organization.name} on Kordyne as an admin.`,
-      "",
-      "Kordyne is the bridge between engineering, part control, and manufacturing coordination.",
-      "",
-      `Learn more here: ${siteUrl}`,
-      `Accept your invite here: ${inviteUrl}`,
-    ].join("\n"),
-    html: `
-      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111827;">
-        <h2 style="margin-bottom: 16px;">Reminder: you're invited to join Kordyne</h2>
-        <p>
-          You've been invited to join <strong>${organization.name}</strong>
-          as an <strong>admin</strong>.
-        </p>
-        <p>
-          Kordyne is the bridge between engineering, part control, and manufacturing coordination.
-        </p>
-        <p style="margin: 24px 0;">
-          <a
-            href="${inviteUrl}"
-            style="display: inline-block; background: #111827; color: #ffffff; text-decoration: none; padding: 12px 18px; border-radius: 9999px;"
-          >
-            Accept invite
-          </a>
-        </p>
-        <p><a href="${inviteUrl}">${inviteUrl}</a></p>
-      </div>
-    `,
+    previewText: `Your admin invite for ${organization.name} is still waiting.`,
+    eyebrow: "Admin invite reminder",
+    headline: "Your Kordyne invite is waiting",
+    intro: `You've been invited to administer ${organization.name} on Kordyne.`,
+    detailRows: [
+      { label: "Organization", value: organization.name },
+      { label: "Role", value: "Admin" },
+    ],
+    primaryActionLabel: "Accept invite",
+    primaryActionUrl: inviteUrl,
+    secondaryActionLabel: "View Kordyne",
+    secondaryActionUrl: siteUrl,
+    footerNote:
+      "This reminder is for a pending Kordyne admin invitation. If you were not expecting it, you can ignore this message.",
   });
 
-  if (emailError) {
+  if (isSkippedWorkflowEmailResult(emailResult)) {
     throw new Error("Invite email could not be resent.");
   }
 

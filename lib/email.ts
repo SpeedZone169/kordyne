@@ -50,7 +50,9 @@ const appBaseUrl = (
   ""
 ).replace(/\/+$/, "");
 
-const logoUrl = process.env.KORDYNE_EMAIL_LOGO_URL ?? "";
+const logoUrl =
+  process.env.KORDYNE_EMAIL_LOGO_URL ??
+  "https://www.kordyne.com/kordyne-email-logo.jpg";
 
 function escapeHtml(value: string) {
   return value
@@ -306,6 +308,17 @@ function buildWorkflowEmailHtml(input: WorkflowEmailInput) {
       </body>
     </html>
   `;
+}
+
+export function isSkippedWorkflowEmailResult(
+  result: unknown,
+): result is { skipped: true } {
+  if (!result || typeof result !== "object") return false;
+
+  return (
+    "skipped" in result &&
+    (result as { skipped?: unknown }).skipped === true
+  );
 }
 
 export async function sendWorkflowEmail(input: WorkflowEmailInput) {

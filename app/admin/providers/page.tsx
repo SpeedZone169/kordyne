@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { Resend } from "resend";
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requirePlatformOwner } from "@/lib/auth/platform-owner";
+import { isSkippedWorkflowEmailResult, sendWorkflowEmail } from "@/lib/email";
 import CopyInviteLinkButton from "@/components/admin/CopyInviteLinkButton";
 
 type OrganizationRow = {
@@ -166,10 +166,6 @@ async function resendProviderAdminInvite(formData: FormData) {
     throw new Error("Missing invite id.");
   }
 
-  if (!process.env.RESEND_API_KEY) {
-    throw new Error("Missing RESEND_API_KEY.");
-  }
-
   const supabase = createAdminClient();
 
   const { data: invite, error: inviteError } = await supabase
@@ -200,45 +196,26 @@ async function resendProviderAdminInvite(formData: FormData) {
   const inviteUrl = `${siteUrl}/invite/${invite.token}`;
   const providerInfoUrl = `${siteUrl}/providers`;
 
-  const resend = new Resend(process.env.RESEND_API_KEY);
-
-  const { error: emailError } = await resend.emails.send({
-    from: process.env.RESEND_FROM_EMAIL || "Kordyne <noreply@kordyne.com>",
-    to: invite.email,
+  const emailResult = await sendWorkflowEmail({
+    to: [invite.email],
     subject: `Reminder: you're invited to join ${providerOrg.name} on Kordyne`,
-    text: [
-      `You've been invited to join ${providerOrg.name} on Kordyne as an admin.`,
-      "",
-      "Kordyne helps providers manage incoming manufacturing opportunities and work with customers in a structured portal.",
-      "",
-      `Learn more here: ${providerInfoUrl}`,
-      `Accept your invite here: ${inviteUrl}`,
-    ].join("\n"),
-    html: `
-      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111827;">
-        <h2 style="margin-bottom: 16px;">Reminder: you're invited to join Kordyne</h2>
-        <p>
-          You've been invited to join <strong>${providerOrg.name}</strong>
-          as an <strong>admin</strong>.
-        </p>
-        <p>
-          Kordyne helps providers manage incoming manufacturing opportunities
-          and work with customers in a structured portal.
-        </p>
-        <p style="margin: 24px 0;">
-          <a
-            href="${inviteUrl}"
-            style="display: inline-block; background: #111827; color: #ffffff; text-decoration: none; padding: 12px 18px; border-radius: 9999px;"
-          >
-            Accept invite
-          </a>
-        </p>
-        <p><a href="${inviteUrl}">${inviteUrl}</a></p>
-      </div>
-    `,
+    previewText: `Your provider workspace invite for ${providerOrg.name} is still waiting.`,
+    eyebrow: "Provider invite reminder",
+    headline: "Your Kordyne invite is waiting",
+    intro: `You've been invited to manage ${providerOrg.name} opportunities on Kordyne.`,
+    detailRows: [
+      { label: "Provider", value: providerOrg.name },
+      { label: "Role", value: "Admin" },
+    ],
+    primaryActionLabel: "Accept invite",
+    primaryActionUrl: inviteUrl,
+    secondaryActionLabel: "View provider page",
+    secondaryActionUrl: providerInfoUrl,
+    footerNote:
+      "This reminder is for a pending Kordyne provider invitation. If you were not expecting it, you can ignore this message.",
   });
 
-  if (emailError) {
+  if (isSkippedWorkflowEmailResult(emailResult)) {
     throw new Error("Invite email could not be resent.");
   }
 

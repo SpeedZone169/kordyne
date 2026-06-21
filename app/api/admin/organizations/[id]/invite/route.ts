@@ -1,17 +1,8 @@
 import { NextResponse } from "next/server";
-import { Resend } from "resend";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { hasVerifiedMfaSession } from "@/lib/auth/mfa";
-
-function escapeHtml(value: string) {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
+import { isSkippedWorkflowEmailResult, sendWorkflowEmail } from "@/lib/email";
 
 function getSiteUrl(req: Request) {
   return (
@@ -169,71 +160,41 @@ export async function POST(
 
     const inviteUrl = `${getSiteUrl(req)}/invite/${invite.token}`;
 
-    if (!process.env.RESEND_API_KEY) {
-      return NextResponse.json({
-        success: true,
-        emailSent: false,
-        inviteUrl,
-        message:
-          "Invite created, but RESEND_API_KEY is missing. Copy the invite link manually.",
-      });
-    }
-
-    const resend = new Resend(process.env.RESEND_API_KEY);
-
     const introLine = fullName
-      ? `Hello ${fullName},`
-      : "Hello,";
-    const safeIntroLine = escapeHtml(introLine);
-    const safeOrganizationName = escapeHtml(organization.name);
-    const safeInviteUrl = escapeHtml(inviteUrl);
-    const safeSiteUrl = escapeHtml(getSiteUrl(req));
+      ? `Hello ${fullName}. You've been invited to administer ${organization.name} on Kordyne.`
+      : `You've been invited to administer ${organization.name} on Kordyne.`;
 
-    const { error: emailError } = await resend.emails.send({
-      from: process.env.RESEND_FROM_EMAIL || "Kordyne <noreply@kordyne.com>",
-      to: email,
-      subject: `You're invited to administer ${organization.name} on Kordyne`,
-      text: [
-        introLine,
-        "",
-        `You've been invited to join ${organization.name} on Kordyne as an admin.`,
-        "",
-        "Kordyne is the bridge between engineering, part control, and manufacturing coordination.",
-        "",
-        `You can review the platform here: ${getSiteUrl(req)}`,
-        `Accept your invite here: ${inviteUrl}`,
-      ].join("\n"),
-      html: `
-        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111827;">
-          <h2 style="margin-bottom: 16px;">You're invited to join Kordyne</h2>
-          <p>${safeIntroLine}</p>
-          <p>
-            You've been invited to join <strong>${safeOrganizationName}</strong>
-            as an <strong>admin</strong>.
-          </p>
-          <p>
-            Kordyne is the bridge between engineering, part control, and manufacturing coordination.
-          </p>
-          <p style="margin: 24px 0;">
-            <a
-              href="${safeInviteUrl}"
-              style="display: inline-block; background: #111827; color: #ffffff; text-decoration: none; padding: 12px 18px; border-radius: 9999px;"
-            >
-              Accept invite
-            </a>
-          </p>
-          <p>
-            You can also learn more here:
-            <a href="${safeSiteUrl}">${safeSiteUrl}</a>
-          </p>
-          <p>If the button does not work, use this link:</p>
-          <p><a href="${safeInviteUrl}">${safeInviteUrl}</a></p>
-        </div>
-      `,
-    });
+    try {
+      const emailResult = await sendWorkflowEmail({
+        to: [email],
+        subject: `You're invited to administer ${organization.name} on Kordyne`,
+        previewText: `Accept your admin invite for ${organization.name}.`,
+        eyebrow: "Admin invite",
+        headline: "You're invited to join Kordyne",
+        intro: introLine,
+        detailRows: [
+          { label: "Organization", value: organization.name },
+          { label: "Role", value: "Admin" },
+        ],
+        primaryActionLabel: "Accept invite",
+        primaryActionUrl: inviteUrl,
+        secondaryActionLabel: "View Kordyne",
+        secondaryActionUrl: getSiteUrl(req),
+        footerNote:
+          "This admin invitation is intended for the invited email address. If you were not expecting it, you can ignore this message.",
+      });
 
-    if (emailError) {
-      console.error("Admin organization invite email failed:", emailError);
+      if (isSkippedWorkflowEmailResult(emailResult)) {
+        return NextResponse.json({
+          success: true,
+          emailSent: false,
+          inviteUrl,
+          message:
+            "Invite created, but email delivery is not configured. Copy the invite link manually.",
+        });
+      }
+    } catch (error) {
+      console.error("Admin organization invite email failed:", error);
 
       return NextResponse.json({
         success: true,
