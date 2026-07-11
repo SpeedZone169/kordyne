@@ -89,6 +89,7 @@ function isAllowedSiteLockCredential(username: string, password: string) {
         ]
       : []),
     ...parseAdditionalCredentials(process.env.SITE_LOCK_ADDITIONAL_CREDENTIALS),
+    ...parseAdditionalCredentials(process.env.SITE_LOCK_SMOKE_TEST_CREDENTIALS),
   ];
 
   return credentials.some(
