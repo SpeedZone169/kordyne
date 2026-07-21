@@ -25,7 +25,12 @@ export async function POST(request: Request) {
       clientType?: string;
     };
 
-    const allowedClientTypes = new Set(["fusion", "inventor", "onshape"]);
+    const allowedClientTypes = new Set([
+      "fusion",
+      "inventor",
+      "onshape",
+      "solidworks",
+    ]);
     const requestedClientType = body.clientType?.trim().toLowerCase() || "fusion";
 
     const clientType = allowedClientTypes.has(requestedClientType)

@@ -16,6 +16,7 @@ const CLIENT_LABELS: Record<string, string> = {
   fusion: "Fusion",
   inventor: "Inventor",
   onshape: "Onshape",
+  solidworks: "SolidWorks",
 };
 
 function getRedirectKey(code: string) {
