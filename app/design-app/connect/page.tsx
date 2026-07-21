@@ -1,8 +1,12 @@
 "use client";
 
-import Image from "next/image";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createBrowserClient } from "@supabase/ssr";
+
+import MarketingNav from "@/components/MarketingNav";
+
+import styles from "./connect.module.css";
 
 type Status =
   | "checking"
@@ -201,63 +205,120 @@ export default function DesignAppConnectPage() {
         )}`
       : "/login";
 
+  const isPending =
+    status === "checking" ||
+    status === "approving" ||
+    status === "redirecting_to_login";
+
+  const statusLabel =
+    status === "approved"
+      ? "Connection approved"
+      : status === "error"
+        ? "Connection interrupted"
+        : status === "needs_login"
+          ? "Sign in required"
+          : status === "redirecting_to_login"
+            ? "Opening secure login"
+            : status === "approving"
+              ? "Approving connection"
+              : "Checking secure session";
+
   return (
-    <div className="min-h-screen bg-[#003040] bg-[linear-gradient(rgba(255,255,255,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.035)_1px,transparent_1px)] bg-[size:36px_36px] p-6">
-      <div className="mx-auto max-w-2xl space-y-6">
-        <div className="rounded-[8px] border border-cyan-100/20 bg-[#062f3d]/95 p-6 text-white shadow-sm">
-          <Image
-            src="/kordyne-logo-white.svg"
-            alt="Kordyne"
-            width={228}
-            height={58}
-            className="h-10 w-auto"
-          />
-          <h1 className="mt-8 text-2xl font-semibold">
-            Connect {clientLabel} to Kordyne
-          </h1>
+    <main className={`${styles.page} marketing-site`}>
+      <section className={styles.hero}>
+        <MarketingNav />
 
-          <p className="mt-3 text-sm leading-6 text-cyan-50/75">{message}</p>
+        <div className={styles.connectRail}>
+          <article className={styles.connectCard} aria-live="polite">
+            <header className={styles.cardHeader}>
+              <p className={styles.eyebrow}>SECURE CONNECTOR ACCESS</p>
+              <h1>Connect {clientLabel} to Kordyne</h1>
+              <p className={styles.intro}>
+                Approve this browser session to connect your CAD workspace to
+                your controlled Kordyne Vault.
+              </p>
+            </header>
 
-          <div className="mt-6 flex flex-wrap gap-3">
-            {status === "needs_login" ? (
-              <>
-                <a
-                  href={loginHref}
-                  className="rounded-[8px] border border-[#00bdde] bg-[#00bdde] px-4 py-2 text-sm font-medium text-[#002b38]"
-                >
-                  Open Kordyne Login
-                </a>
-                <button
-                  type="button"
-                  onClick={() => void approve(code)}
-                  className="rounded-[8px] border border-cyan-100/25 px-4 py-2 text-sm font-medium"
-                >
-                  I already logged in
-                </button>
-              </>
-            ) : null}
+            <div
+              className={`${styles.statusPanel} ${styles[status]}`}
+              role={status === "error" ? "alert" : "status"}
+            >
+              <span className={styles.statusIcon} aria-hidden="true">
+                {isPending ? <span className={styles.spinner} /> : null}
+                {status === "approved" ? "✓" : null}
+                {status === "needs_login" ? "→" : null}
+                {status === "error" ? "!" : null}
+              </span>
+              <span className={styles.statusCopy}>
+                <strong>{statusLabel}</strong>
+                <span>{message}</span>
+              </span>
+            </div>
 
-            {status === "error" ? (
-              <button
-                type="button"
-                onClick={() => void approve(code)}
-                className="rounded-[8px] border border-cyan-100/25 px-4 py-2 text-sm font-medium"
-              >
-                Retry
-              </button>
-            ) : null}
-          </div>
+            <div className={styles.connectionSummary}>
+              <div className={styles.connectorMark} aria-hidden="true">
+                <span />
+                <span />
+                <span />
+              </div>
+              <div>
+                <span>CONNECTING</span>
+                <strong>{clientLabel}</strong>
+              </div>
+              <span className={styles.connectionLine} aria-hidden="true" />
+              <div className={styles.destination}>
+                <span>DESTINATION</span>
+                <strong>Kordyne Vault</strong>
+              </div>
+            </div>
 
-          <div className="mt-6 rounded-[8px] border border-cyan-100/20 bg-white/5 p-4 text-sm leading-6 text-cyan-50/70">
-            <p>
-              Keep {clientLabel} open while Kordyne completes the connection.
-            </p>
-            <p className="mt-2">
-              After approval, this tab will close if your browser allows it.
-            </p>
-          </div>
+            {(status === "needs_login" || status === "error") && (
+              <div className={styles.actions}>
+                {status === "needs_login" ? (
+                  <>
+                    <a href={loginHref} className={styles.primaryButton}>
+                      <span>Open Kordyne Login</span>
+                      <span aria-hidden="true">→</span>
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => void approve(code)}
+                      className={styles.secondaryButton}
+                    >
+                      I already logged in
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => void approve(code)}
+                    className={styles.primaryButton}
+                  >
+                    <span>Retry secure connection</span>
+                    <span aria-hidden="true">→</span>
+                  </button>
+                )}
+              </div>
+            )}
+
+            <div className={styles.securityNote}>
+              <span className={styles.lockIcon} aria-hidden="true" />
+              <p>
+                Keep {clientLabel} open during approval. This one-time browser
+                handoff does not expose your Kordyne password to the connector.
+              </p>
+            </div>
+          </article>
         </div>
-      </div>
-    </div>
+
+        <footer className={styles.footer}>
+          <p>&copy; 2026 Kordyne. All rights reserved.</p>
+          <div>
+            <Link href="/terms">Terms &amp; Conditions</Link>
+            <Link href="/privacy">Privacy Policy</Link>
+          </div>
+        </footer>
+      </section>
+    </main>
   );
 }
