@@ -1,0 +1,252 @@
+.signupRail {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  width: min(1200px, calc(100% - 48px));
+  flex: 1 1 auto;
+  flex-direction: column;
+  justify-content: center;
+  margin: 0 auto;
+  padding: 44px 0 34px;
+}
+
+.signupGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 500px;
+  gap: 72px;
+  align-items: center;
+}
+
+.signupCopy {
+  max-width: 590px;
+}
+
+.eyebrow,
+.flowLabel {
+  color: #00c8e8;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+
+.eyebrow {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  padding: 0 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  backdrop-filter: blur(10px);
+}
+
+.signupCopy h1 {
+  max-width: 580px;
+  margin: 18px 0 0;
+  color: #fff;
+  font-size: clamp(40px, 3.5vw, 52px);
+  font-weight: 500;
+  line-height: 1.05;
+  letter-spacing: 0;
+}
+
+.intro {
+  max-width: 570px;
+  margin: 20px 0 0 !important;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 15px;
+  line-height: 24px;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 26px;
+}
+
+.primaryAction,
+.secondaryAction {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 0 20px;
+  border-radius: 9px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 650;
+  text-decoration: none;
+  transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+
+.primaryAction {
+  border: 1px solid rgba(0, 189, 222, 0.58);
+  background: #f7feff;
+  box-shadow: 0 0 18px rgba(0, 189, 222, 0.5);
+  color: #002536;
+}
+
+.secondaryAction {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(91, 119, 143, 0.36);
+  backdrop-filter: blur(12px);
+}
+
+.primaryAction:hover,
+.secondaryAction:hover {
+  transform: translateY(-1px);
+}
+
+.primaryAction:hover {
+  box-shadow: 0 0 24px rgba(0, 189, 222, 0.72);
+}
+
+.secondaryAction:hover {
+  background: rgba(108, 137, 161, 0.46);
+}
+
+.onboardingCard {
+  padding: 28px 30px 24px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 19px;
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.24);
+  backdrop-filter: blur(20px);
+}
+
+.flowLabel {
+  margin: 0;
+}
+
+.steps {
+  padding: 0;
+  margin: 14px 0 0;
+  list-style: none;
+}
+
+.steps li {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+  padding: 18px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.13);
+}
+
+.steps li:first-child {
+  border-top: 0;
+}
+
+.stepNumber {
+  display: inline-flex;
+  width: 40px;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(0, 189, 222, 0.42);
+  border-radius: 50%;
+  background: rgba(0, 189, 222, 0.12);
+  color: #72e9f8;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.steps h2 {
+  margin: 0;
+  color: #fff;
+  font-size: 17px;
+  font-weight: 550;
+  line-height: 21px;
+}
+
+.steps p {
+  margin: 6px 0 0 !important;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.capabilities {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 28px;
+}
+
+.capabilities > div {
+  display: flex;
+  min-height: 62px;
+  align-items: center;
+  gap: 13px;
+  padding: 12px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(14px);
+}
+
+.capabilities span {
+  color: #5de3f5;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.capabilities p {
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 12px;
+  font-weight: 550;
+  line-height: 16px;
+}
+
+@media (max-width: 900px) {
+  .signupRail {
+    justify-content: flex-start;
+    padding: 64px 0 42px;
+  }
+
+  .signupGrid {
+    grid-template-columns: 1fr;
+    gap: 40px;
+  }
+
+  .signupCopy {
+    max-width: 680px;
+  }
+
+  .onboardingCard {
+    width: min(680px, 100%);
+  }
+}
+
+@media (max-width: 767px) {
+  .signupRail {
+    width: calc(100% - 32px);
+    padding: 54px 0 38px;
+  }
+
+  .signupCopy h1 {
+    font-size: clamp(36px, 11vw, 45px);
+  }
+
+  .actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .primaryAction,
+  .secondaryAction {
+    width: 100%;
+  }
+
+  .onboardingCard {
+    padding: 24px 20px 18px;
+  }
+
+  .capabilities {
+    grid-template-columns: 1fr;
+  }
+}

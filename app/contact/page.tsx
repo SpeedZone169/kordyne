@@ -1,12 +1,17 @@
 "use client";
 
-import { useState } from "react";
-import Navbar from "../../components/Navbar";
-import Footer from "../../components/Footer";
+import Image from "next/image";
+import Link from "next/link";
+import { useState, type ChangeEvent, type FormEvent } from "react";
+
+import MarketingNav from "@/components/MarketingNav";
 import TurnstileWidget from "../../components/TurnstileWidget";
 
+import styles from "./contact.module.css";
+
 type ContactForm = {
-  name: string;
+  firstName: string;
+  lastName: string;
   email: string;
   company: string;
   teamSize: string;
@@ -15,7 +20,8 @@ type ContactForm = {
 };
 
 const emptyForm: ContactForm = {
-  name: "",
+  firstName: "",
+  lastName: "",
   email: "",
   company: "",
   teamSize: "",
@@ -29,23 +35,6 @@ const contactTopics = [
   "CAD connector and manufacturing handoff",
 ];
 
-const inputClass =
-  "w-full rounded-[8px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-[#00bdde] focus:ring-4 focus:ring-[#00bdde]/10";
-
-const labelClass = "mb-2 block text-sm font-black text-slate-900";
-
-function GlobalMapBackdrop() {
-  return (
-    <div aria-hidden="true" className="absolute inset-0 overflow-hidden">
-      <div className="absolute inset-0 bg-[#003040]" />
-      <div className="absolute inset-0 kordyne-grid-bg opacity-35" />
-      <div className="absolute -left-24 top-20 h-80 w-80 rounded-full bg-[#00bdde]/10 blur-3xl" />
-      <div className="absolute right-0 top-0 h-full w-1/2 bg-gradient-to-l from-[#00bdde]/10 to-transparent" />
-      <div className="absolute bottom-0 left-0 right-0 h-40 bg-gradient-to-t from-[#002531] to-transparent" />
-    </div>
-  );
-}
-
 export default function ContactPage() {
   const [form, setForm] = useState<ContactForm>(emptyForm);
   const [turnstileToken, setTurnstileToken] = useState("");
@@ -54,32 +43,39 @@ export default function ContactPage() {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("");
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     setStatus("");
 
     if (!turnstileToken) {
-      setStatus(turnstileError || "Please complete the security check before sending.");
+      setStatus(
+        turnstileError || "Please complete the security check before sending.",
+      );
       return;
     }
 
     setLoading(true);
 
     try {
-      const res = await fetch("/api/contact", {
+      const response = await fetch("/api/contact", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          ...form,
+          name: `${form.firstName} ${form.lastName}`.trim(),
+          email: form.email,
+          company: form.company,
+          teamSize: form.teamSize,
+          process: form.process,
+          message: form.message,
           turnstileToken,
         }),
       });
 
-      const data = await res.json().catch(() => null);
+      const data = await response.json().catch(() => null);
 
-      if (res.ok && data?.success) {
+      if (response.ok && data?.success) {
         setStatus("Thanks - your request has been sent.");
         setForm(emptyForm);
       } else {
@@ -97,148 +93,153 @@ export default function ContactPage() {
   }
 
   function handleChange(
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
+    event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
   ) {
-    setForm({ ...form, [e.target.name]: e.target.value });
+    setForm((current) => ({
+      ...current,
+      [event.target.name]: event.target.value,
+    }));
   }
 
   return (
-    <main className="min-h-screen bg-[#f5f7fa] text-slate-900">
-      <Navbar />
+    <main className={`${styles.page} marketing-site`}>
+      <section className={styles.hero}>
+        <MarketingNav active="contact" />
 
-      <section className="relative overflow-hidden border-b-4 border-[#00bdde] text-white">
-        <GlobalMapBackdrop />
-
-        <div className="relative mx-auto grid max-w-7xl gap-10 px-5 py-12 sm:px-6 lg:grid-cols-[0.86fr_1.14fr] lg:px-8 lg:py-16">
-          <div className="self-center lg:pr-6">
-            <p className="text-xs font-black uppercase text-[#00bdde]">
-              Request a demo
-            </p>
-            <h1 className="mt-4 max-w-2xl text-4xl font-black leading-tight text-white sm:text-[3.25rem]">
-              Plan your CAD release and manufacturing handoff.
-            </h1>
-            <p className="mt-5 max-w-xl text-base leading-7 text-slate-300">
+        <div className={styles.contactRail}>
+          <div className={styles.contactCopy}>
+            <p className={styles.eyebrow}>Request a demo</p>
+            <h1>Plan your CAD release &amp; manufacturing handoff.</h1>
+            <p className={styles.intro}>
               Share where design release, supplier review, or production handoff
               is getting messy. We will help map the right Kordyne setup.
             </p>
 
-            <div className="mt-8 space-y-3 border-l border-[#00bdde]/45 pl-5">
-              <p className="text-xs font-black uppercase tracking-[0.14em] text-white/55">
-                Useful for
-              </p>
-              {contactTopics.map((item) => (
-                <div key={item} className="flex items-center gap-3 text-sm font-bold text-white">
-                  <span className="h-2 w-2 rounded-full bg-[#00bdde]" />
-                  <span>{item}</span>
-                </div>
-              ))}
+            <div className={styles.usefulFor}>
+              <p className={styles.usefulHeading}>Useful for</p>
+              <ul>
+                {contactTopics.map((topic) => (
+                  <li key={topic}>
+                    <Image
+                      src="/marketing/icons/contact-check.svg"
+                      alt=""
+                      width={24}
+                      height={24}
+                    />
+                    <span>{topic}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
           </div>
 
-          <div className="rounded-[8px] border border-white/12 bg-white/95 p-5 text-slate-900 shadow-[0_28px_80px_rgba(2,8,23,0.26)] backdrop-blur lg:p-6">
-            <div className="mb-5 flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.14em] text-[#0089a2]">
-                  Contact
-                </p>
-                <h2 className="mt-1 text-2xl font-black text-slate-950">
-                  Tell us what you need
-                </h2>
-              </div>
-              <p className="max-w-xs text-sm leading-6 text-slate-500">
-                A short note is enough. We can fill the details in together.
-              </p>
-            </div>
+          <article className={styles.formCard}>
+            <header className={styles.formHeader}>
+              <h2>Tell us what you need</h2>
+              <p>A short note is enough. We can fill the details in.</p>
+            </header>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className={labelClass}>Full name</label>
+            <form onSubmit={handleSubmit} className={styles.form}>
+              <div className={styles.twoColumns}>
+                <label>
+                  <span className={styles.srOnly}>First name</span>
                   <input
                     type="text"
-                    name="name"
+                    name="firstName"
                     required
-                    value={form.name}
+                    autoComplete="given-name"
+                    value={form.firstName}
                     onChange={handleChange}
-                    className={inputClass}
+                    placeholder="First Name"
                   />
-                </div>
+                </label>
+                <label>
+                  <span className={styles.srOnly}>Last name</span>
+                  <input
+                    type="text"
+                    name="lastName"
+                    required
+                    autoComplete="family-name"
+                    value={form.lastName}
+                    onChange={handleChange}
+                    placeholder="Last Name"
+                  />
+                </label>
+              </div>
 
-                <div>
-                  <label className={labelClass}>Work email</label>
+              <div className={styles.twoColumns}>
+                <label>
+                  <span className={styles.srOnly}>Work email</span>
                   <input
                     type="email"
                     name="email"
                     required
+                    autoComplete="email"
                     value={form.email}
                     onChange={handleChange}
-                    className={inputClass}
+                    placeholder="Work Email"
                   />
-                </div>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className={labelClass}>Company</label>
+                </label>
+                <label>
+                  <span className={styles.srOnly}>Company</span>
                   <input
                     type="text"
                     name="company"
+                    autoComplete="organization"
                     value={form.company}
                     onChange={handleChange}
-                    className={inputClass}
+                    placeholder="Company"
                   />
-                </div>
-
-                <div>
-                  <label className={labelClass}>Team size</label>
-                  <select
-                    name="teamSize"
-                    value={form.teamSize}
-                    onChange={handleChange}
-                    className={inputClass}
-                  >
-                    <option value="">Select</option>
-                    <option value="1-10">1-10</option>
-                    <option value="11-50">11-50</option>
-                    <option value="51-200">51-200</option>
-                    <option value="200+">200+</option>
-                  </select>
-                </div>
+                </label>
               </div>
 
-              <div>
-                <label className={labelClass}>
-                  Primary manufacturing interest
-                </label>
+              <label>
+                <span className={styles.srOnly}>Team size</span>
+                <select
+                  name="teamSize"
+                  value={form.teamSize}
+                  onChange={handleChange}
+                  aria-label="Team size"
+                >
+                  <option value="">Team Size</option>
+                  <option value="1-10">1-10</option>
+                  <option value="11-50">11-50</option>
+                  <option value="51-200">51-200</option>
+                  <option value="200+">200+</option>
+                </select>
+              </label>
+
+              <label>
+                <span className={styles.srOnly}>Primary manufacturing interest</span>
                 <select
                   name="process"
                   value={form.process}
                   onChange={handleChange}
-                  className={inputClass}
+                  aria-label="Primary manufacturing interest"
                 >
-                  <option value="">Select</option>
+                  <option value="">Primary Manufacturing Interest</option>
                   <option value="3D Printing">3D printing</option>
                   <option value="CNC">CNC</option>
                   <option value="Composites">Composites</option>
                   <option value="Mixed manufacturing">Mixed manufacturing</option>
-                  <option value="OEM digital parts catalog">OEM digital parts catalog</option>
+                  <option value="OEM digital parts catalog">
+                    OEM digital parts catalog
+                  </option>
                 </select>
-              </div>
+              </label>
 
-              <div>
-                <label className={labelClass}>What should Kordyne help with?</label>
+              <label>
+                <span className={styles.srOnly}>What should Kordyne help with?</span>
                 <textarea
                   name="message"
-                  rows={4}
                   required
                   value={form.message}
                   onChange={handleChange}
-                  className={inputClass}
-                  placeholder="Part vault, supplier collaboration, machine connectors, quote workflow, or spare-parts catalog."
+                  placeholder="What should Kordyne help you coordinate?"
                 />
-              </div>
+              </label>
 
-              <div className="rounded-[8px] border border-slate-200 bg-slate-50 px-4 py-3">
+              <div className={styles.turnstilePanel}>
                 <TurnstileWidget
                   key={turnstileKey}
                   onVerify={(token) => {
@@ -254,18 +255,28 @@ export default function ContactPage() {
               <button
                 type="submit"
                 disabled={loading || !turnstileToken}
-                className="w-full rounded-[8px] bg-[#00bdde] px-6 py-3.5 text-sm font-black text-[#003040] transition hover:bg-[#8ceeff] disabled:cursor-not-allowed disabled:opacity-50"
+                className={styles.submitButton}
               >
-                {loading ? "Sending..." : "Send request"}
+                {loading ? "Sending..." : "Send Request"}
               </button>
 
-              {status ? <p className="text-sm text-slate-600">{status}</p> : null}
+              {status ? (
+                <p className={styles.formStatus} role="status">
+                  {status}
+                </p>
+              ) : null}
             </form>
-          </div>
+          </article>
         </div>
-      </section>
 
-      <Footer />
+        <footer className={styles.footer}>
+          <p>&copy; 2026 Kordyne. All rights reserved.</p>
+          <div>
+            <Link href="/terms">Terms &amp; Conditions</Link>
+            <Link href="/privacy">Privacy Policy</Link>
+          </div>
+        </footer>
+      </section>
     </main>
   );
 }

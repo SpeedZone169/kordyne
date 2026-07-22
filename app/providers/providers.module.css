@@ -1,0 +1,960 @@
+.page {
+  --navy: #000d20;
+  --deep-teal: #003040;
+  --aqua: #00bdde;
+  --ink: #003040;
+  --body: #455256;
+  --surface: #f5f5f5;
+  min-height: 100vh;
+  overflow: hidden;
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.page *,
+.page *::before,
+.page *::after {
+  box-sizing: border-box;
+}
+
+.page h1,
+.page h2,
+.page h3,
+.page p {
+  margin: 0;
+}
+
+.hero {
+  position: relative;
+  min-height: clamp(680px, 54.7vw, 700px);
+  overflow: hidden;
+  border-radius: 0 0 32px 32px;
+  background-color: var(--navy);
+  background-image: url("/marketing/backgrounds/providers-hero.png");
+  background-position: center bottom;
+  background-repeat: no-repeat;
+  background-size: cover;
+  color: #fff;
+}
+
+.hero::after {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(0, 13, 32, 0.4) 0%,
+    rgba(0, 13, 32, 0.08) 52%,
+    rgba(0, 13, 32, 0.2) 100%
+  );
+  content: "";
+  pointer-events: none;
+}
+
+.nav {
+  position: relative;
+  z-index: 10;
+  display: grid;
+  grid-template-columns: 200px 1fr 230px;
+  align-items: center;
+  width: min(960px, calc(100% - 48px));
+  height: 58px;
+  margin: 8px auto 0;
+  padding: 0 16px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 16px;
+  background: rgba(27, 46, 69, 0.88);
+  box-shadow: 0 16px 52px rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(18px);
+}
+
+.brand {
+  display: inline-flex;
+  width: 166px;
+}
+
+.brand img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.navLinks,
+.navActions {
+  display: flex;
+  align-items: center;
+}
+
+.navLinks {
+  justify-content: center;
+  gap: 24px;
+}
+
+.navActions {
+  justify-content: flex-end;
+  gap: 16px;
+}
+
+.nav a {
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  text-decoration: none;
+}
+
+.navLinks > a {
+  position: relative;
+  padding: 20px 0 18px;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.navLinks > a::after {
+  position: absolute;
+  right: 0;
+  bottom: 10px;
+  left: 0;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--aqua);
+  content: "";
+  opacity: 0;
+  transform: scaleX(0.35);
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.navLinks > a:hover::after,
+.navLinks > .activeNavLink::after {
+  opacity: 1;
+  transform: scaleX(1);
+}
+
+.actionButton {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 0 16px;
+  border: 1px solid rgba(0, 189, 222, 0.58);
+  border-radius: 12px;
+  background: #f7feff;
+  box-shadow: 0 0 18px rgba(0, 189, 222, 0.55);
+  color: #002536 !important;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1;
+  text-decoration: none;
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.actionButton:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0 24px rgba(0, 189, 222, 0.75);
+}
+
+.actionButtonSecondary {
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(91, 119, 143, 0.42);
+  box-shadow: none;
+  color: #fff !important;
+  backdrop-filter: blur(12px);
+}
+
+.actionArrow {
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.mobileMenu {
+  display: none;
+}
+
+.heroRail {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 440px;
+  gap: 64px;
+  align-items: center;
+  width: min(1200px, calc(100% - 48px));
+  margin: clamp(82px, 7vw, 92px) auto 0;
+}
+
+.heroCopy {
+  max-width: 470px;
+}
+
+.heroEyebrow,
+.sectionEyebrow {
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.heroEyebrow {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  backdrop-filter: blur(10px);
+}
+
+.heroCopy h1 {
+  margin-top: 16px;
+  color: #fff;
+  font-size: clamp(36px, 3.1vw, 40px);
+  font-weight: 500;
+  line-height: 1.06;
+  letter-spacing: 0;
+}
+
+.heroBody {
+  max-width: 460px;
+  margin-top: 16px !important;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.heroActions,
+.ctaActions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.workspaceCard {
+  position: relative;
+  min-height: 418px;
+  padding: 32px 24px;
+  overflow: hidden;
+  border-radius: 19px;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(20px);
+}
+
+.workspaceCard::before {
+  display: none;
+}
+
+.workspaceHeader,
+.workspaceContent {
+  position: relative;
+  z-index: 1;
+}
+
+.workspaceHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.workspaceHeader p,
+.responseHeading p {
+  color: #fff;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 16px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+
+.workspaceHeader h2 {
+  max-width: 330px;
+  margin-top: 3px;
+  color: #fff;
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 21px;
+}
+
+.workspaceStatus {
+  display: inline-flex;
+  min-height: 26px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 13px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+
+.workspaceStatus::before {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--aqua);
+  box-shadow: 0 0 10px rgba(0, 189, 222, 0.85);
+  content: "";
+}
+
+.workspaceContent {
+  display: grid;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.workspaceBody {
+  display: grid;
+  grid-template-columns: 204px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.contextStack {
+  display: grid;
+  gap: 10px;
+}
+
+.contextCard {
+  display: grid;
+  min-height: 72px;
+  grid-template-columns: 40px 1fr;
+  align-items: center;
+  gap: 13px;
+  padding: 13px;
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(7.5px);
+}
+
+.contextCard img {
+  width: 40px;
+  height: 40px;
+}
+
+.contextCard span {
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 16px;
+}
+
+.contextCard p {
+  margin-top: 5px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 11px;
+  line-height: 14px;
+}
+
+.responseCard {
+  min-width: 0;
+  padding: 16px 13px;
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(7.5px);
+}
+
+.responseHeading {
+  min-height: 14px;
+}
+
+.responseMetric {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(7.5px);
+}
+
+.responseMetric + .responseMetric {
+  margin-top: 10px;
+}
+
+.responseMetric span {
+  color: #fff;
+  font-size: 9px;
+  font-weight: 500;
+  line-height: 11px;
+  text-transform: uppercase;
+}
+
+.responseMetric strong {
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 16px;
+}
+
+.responseThread {
+  margin-top: 12px;
+}
+
+.responseThread span {
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 16px;
+}
+
+.responseThread p {
+  margin-top: 6px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 11px;
+  line-height: 14px;
+}
+
+.workspaceNote {
+  display: flex;
+  min-height: 51px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 0;
+  padding: 10px 16px;
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  font-size: 12px;
+  line-height: 15px;
+  backdrop-filter: blur(7.5px);
+}
+
+.workspaceQuote {
+  flex: 0 0 auto;
+  color: #fff;
+  font-family: Georgia, serif;
+  font-size: 32px;
+  line-height: 0.5;
+}
+
+.sectionRail {
+  width: min(920px, calc(100% - 48px));
+  margin: 0 auto;
+}
+
+.benefitsSection {
+  padding: 104px 0;
+  background: #fff;
+}
+
+.benefitGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.benefitCard {
+  min-height: 310px;
+  padding: 36px;
+  border: 1px solid #e6ecee;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 14px 36px rgba(0, 48, 64, 0.06);
+}
+
+.iconDisc {
+  display: inline-flex;
+  width: 68px;
+  height: 68px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--deep-teal);
+}
+
+.iconDisc img {
+  width: 42px;
+  height: 42px;
+}
+
+.benefitCard h2 {
+  margin-top: 27px;
+  color: var(--deep-teal);
+  font-size: 25px;
+  font-weight: 550;
+  line-height: 1.1;
+}
+
+.benefitCard p {
+  margin-top: 17px;
+  color: var(--body);
+  font-size: 16px;
+  line-height: 1.55;
+}
+
+.workflowSection {
+  padding: 112px 0;
+  background: var(--surface);
+}
+
+.workflowGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+  gap: 94px;
+  align-items: center;
+}
+
+.sectionEyebrow {
+  color: var(--aqua);
+}
+
+.workflowCopy h2 {
+  max-width: 510px;
+  margin-top: 16px;
+  color: var(--deep-teal);
+  font-size: clamp(36px, 3.07vw, 53px);
+  font-weight: 500;
+  line-height: 1.07;
+}
+
+.workflowCopy > p:last-child {
+  max-width: 510px;
+  margin-top: 26px;
+  color: var(--body);
+  font-size: 17px;
+  line-height: 1.65;
+}
+
+.workflowPanel {
+  min-width: 0;
+  padding: 0;
+}
+
+.workflowPanelTitle {
+  margin-bottom: 34px !important;
+  color: var(--deep-teal);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.workflowSteps {
+  --workflow-gap: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--workflow-gap);
+  padding-left: 22px;
+}
+
+.workflowStep {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  min-height: 76px;
+  grid-template-columns: 42px minmax(0, 1fr);
+  align-items: center;
+  gap: 17px;
+  padding: 12px 96px 12px 17px;
+  overflow: visible;
+  border-radius: 16px;
+  background: #f2f3f3;
+}
+
+.workflowStep img {
+  width: 38px;
+  height: 38px;
+}
+
+.workflowStep h3 {
+  color: var(--deep-teal);
+  font-size: 20px;
+  font-weight: 550;
+  line-height: 1.2;
+}
+
+.workflowNumber {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  width: 76px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0 16px 16px 0;
+  background: rgba(0, 189, 222, 0.15);
+  color: var(--deep-teal);
+  font-size: 22px;
+  font-weight: 500;
+}
+
+.workflowNode {
+  position: absolute;
+  top: 50%;
+  left: -6.5px;
+  z-index: 5;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--aqua);
+  box-shadow: 0 0 12px rgba(0, 189, 222, 0.45);
+  transform: translateY(-50%);
+}
+
+.workflowStep:not(:last-child)::before {
+  position: absolute;
+  top: 50%;
+  right: 100%;
+  z-index: 3;
+  width: 22px;
+  height: calc(100% + var(--workflow-gap));
+  border: 2px solid var(--aqua);
+  border-right: 0;
+  border-radius: 13px 0 0 13px;
+  content: "";
+  pointer-events: none;
+}
+
+.ctaSection {
+  padding: 24px;
+  background: var(--surface);
+}
+
+.ctaCard {
+  position: relative;
+  display: flex;
+  min-height: 610px;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+  border-radius: 24px;
+  background-color: var(--navy);
+  background-image: linear-gradient(
+      180deg,
+      rgba(0, 13, 32, 0.98) 0%,
+      rgba(0, 13, 32, 0.72) 58%,
+      rgba(0, 13, 32, 0.12) 100%
+    ),
+    url("/marketing/backgrounds/providers-cta.png");
+  background-position: center, center 78%;
+  background-repeat: no-repeat;
+  background-size: cover;
+  color: #fff;
+}
+
+.ctaContent {
+  width: min(850px, calc(100% - 48px));
+  margin: 102px auto 0;
+  text-align: center;
+}
+
+.ctaContent h2 {
+  margin-top: 18px;
+  color: #fff;
+  font-size: clamp(40px, 3.36vw, 58px);
+  font-weight: 500;
+  line-height: 1.08;
+}
+
+.ctaContent > p:not(.sectionEyebrow) {
+  max-width: 720px;
+  margin: 22px auto 0;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 17px;
+  line-height: 1.55;
+}
+
+.ctaActions {
+  justify-content: center;
+}
+
+.footer {
+  display: flex;
+  width: min(1200px, calc(100% - 48px));
+  align-items: center;
+  justify-content: space-between;
+  gap: 30px;
+  margin: 0 auto 30px;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 13px;
+}
+
+.footer div {
+  display: flex;
+  gap: 34px;
+}
+
+.footer a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.footer a:hover {
+  color: #fff;
+}
+
+@media (max-width: 1180px) {
+  .nav {
+    grid-template-columns: 180px 1fr 210px;
+  }
+
+  .brand {
+    width: 150px;
+  }
+
+  .navLinks {
+    gap: 22px;
+  }
+
+  .navActions {
+    gap: 18px;
+  }
+
+  .heroRail {
+    grid-template-columns: minmax(0, 1fr) 420px;
+    gap: 36px;
+  }
+
+  .workspaceCard {
+    padding: 18px;
+  }
+
+  .workflowGrid {
+    gap: 56px;
+  }
+}
+
+@media (max-width: 960px) {
+  .hero {
+    min-height: auto;
+    padding-bottom: 80px;
+  }
+
+  .nav {
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .navLinks,
+  .navActions {
+    display: none;
+  }
+
+  .mobileMenu {
+    position: relative;
+    display: block;
+  }
+
+  .mobileMenu summary {
+    display: grid;
+    width: 42px;
+    height: 42px;
+    align-content: center;
+    gap: 5px;
+    padding: 0 10px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 10px;
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .mobileMenu summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .mobileMenu summary span {
+    display: block;
+    height: 2px;
+    border-radius: 999px;
+    background: #fff;
+  }
+
+  .mobileMenuPanel {
+    position: absolute;
+    top: 51px;
+    right: 0;
+    display: grid;
+    width: 210px;
+    gap: 4px;
+    padding: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 12px;
+    background: rgba(4, 26, 47, 0.98);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
+  }
+
+  .mobileMenuPanel a {
+    padding: 12px;
+    border-radius: 8px;
+  }
+
+  .mobileMenuPanel a:hover {
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .mobileDemoLink {
+    margin-top: 4px;
+    background: var(--aqua) !important;
+    color: #002536 !important;
+  }
+
+  .heroRail {
+    grid-template-columns: 1fr;
+    gap: 52px;
+    margin-top: 80px;
+  }
+
+  .heroCopy {
+    max-width: 680px;
+  }
+
+  .workspaceCard {
+    width: min(620px, 100%);
+  }
+
+  .benefitGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .benefitCard {
+    min-height: auto;
+  }
+
+  .workflowGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .workflowCopy h2,
+  .workflowCopy > p:last-child {
+    max-width: 680px;
+  }
+}
+
+@media (max-width: 640px) {
+  .hero {
+    border-radius: 0 0 20px 20px;
+    background-position: 56% bottom;
+  }
+
+  .nav,
+  .heroRail,
+  .sectionRail {
+    width: calc(100% - 32px);
+  }
+
+  .nav {
+    height: 62px;
+    margin-top: 12px;
+    padding: 0 15px;
+    border-radius: 18px;
+  }
+
+  .brand {
+    width: 150px;
+  }
+
+  .heroRail {
+    margin-top: 65px;
+  }
+
+  .heroCopy h1 {
+    font-size: 40px;
+  }
+
+  .heroBody {
+    font-size: 16px;
+    line-height: 25px;
+  }
+
+  .heroActions,
+  .ctaActions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .actionButton {
+    width: 100%;
+  }
+
+  .workspaceCard {
+    min-height: 0;
+    padding: 20px;
+  }
+
+  .workspaceHeader h2 {
+    font-size: 22px;
+  }
+
+  .workspaceBody {
+    grid-template-columns: 1fr;
+  }
+
+  .benefitsSection,
+  .workflowSection {
+    padding: 72px 0;
+  }
+
+  .benefitCard {
+    padding: 28px;
+  }
+
+  .workflowPanel {
+    padding: 0;
+  }
+
+  .workflowSteps {
+    padding-left: 18px;
+  }
+
+  .workflowStep {
+    min-height: 72px;
+    grid-template-columns: 38px minmax(0, 1fr);
+    gap: 13px;
+    padding-right: 62px;
+  }
+
+  .workflowStep img {
+    width: 34px;
+    height: 34px;
+  }
+
+  .workflowStep h3 {
+    font-size: 16px;
+  }
+
+  .workflowNumber {
+    width: 52px;
+    font-size: 18px;
+  }
+
+  .workflowStep:not(:last-child)::before {
+    width: 18px;
+  }
+
+  .ctaSection {
+    padding: 12px;
+  }
+
+  .ctaCard {
+    min-height: 650px;
+    border-radius: 18px;
+    background-position: center, center bottom;
+  }
+
+  .ctaContent {
+    width: calc(100% - 32px);
+    margin-top: 74px;
+  }
+
+  .ctaContent h2 {
+    font-size: 38px;
+  }
+
+  .footer {
+    width: calc(100% - 32px);
+    align-items: flex-start;
+    flex-direction: column;
+    margin-bottom: 22px;
+  }
+
+  .footer div {
+    flex-wrap: wrap;
+    gap: 20px;
+  }
+}

@@ -1,0 +1,703 @@
+.page {
+  --navy: #000d20;
+  --deep-teal: #003040;
+  --aqua: #00bdde;
+  min-height: 100vh;
+  overflow-x: hidden;
+  background: var(--navy);
+  color: #fff;
+  font-family: "Switzer", Arial, sans-serif;
+}
+
+.page *,
+.page *::before,
+.page *::after {
+  box-sizing: border-box;
+}
+
+.page h1,
+.page h2,
+.page h3,
+.page p,
+.page ol,
+.page dl,
+.page dd {
+  margin: 0;
+}
+
+.hero {
+  position: relative;
+  display: flex;
+  min-height: max(720px, 100svh);
+  flex-direction: column;
+  overflow: hidden;
+  background-color: var(--navy);
+  background-image: url("/marketing/backgrounds/providers-hero.png");
+  background-position: center bottom;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+.hero::before {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 72% 38%, rgba(0, 189, 222, 0.12), transparent 27%),
+    linear-gradient(180deg, rgba(0, 13, 32, 0.04), rgba(0, 13, 32, 0.22));
+  content: "";
+  pointer-events: none;
+}
+
+.content {
+  position: relative;
+  z-index: 2;
+  width: min(1200px, calc(100% - 48px));
+  flex: 1 1 auto;
+  margin: 0 auto;
+}
+
+.introGrid,
+.inviteGrid {
+  display: grid;
+  align-items: center;
+  gap: clamp(42px, 6vw, 90px);
+  padding: 64px 0 48px;
+}
+
+.introGrid {
+  grid-template-columns: minmax(0, 1.03fr) minmax(430px, 0.97fr);
+}
+
+.inviteGrid {
+  grid-template-columns: minmax(340px, 0.78fr) minmax(520px, 1.22fr);
+}
+
+.introCopy,
+.inviteIntro {
+  min-width: 0;
+}
+
+.eyebrow,
+.formEyebrow {
+  color: var(--aqua);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 1.2px;
+  line-height: 16px;
+  text-transform: uppercase;
+}
+
+.introCopy h1,
+.inviteIntro h1,
+.stateCard h1 {
+  margin-top: 14px;
+  color: #fff;
+  font-size: clamp(42px, 4.1vw, 62px);
+  font-weight: 500;
+  letter-spacing: -1.4px;
+  line-height: 1.04;
+}
+
+.inviteIntro h1,
+.stateCard h1 {
+  font-size: clamp(36px, 3.6vw, 52px);
+}
+
+.lede,
+.stateCard > p:not(.eyebrow) {
+  max-width: 650px;
+  margin-top: 22px !important;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 16px;
+  line-height: 1.65;
+}
+
+.lede strong {
+  color: #fff;
+  font-weight: 600;
+}
+
+.actions,
+.formActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.actions {
+  margin-top: 30px;
+}
+
+.primaryButton,
+.secondaryButton {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 0 20px;
+  border-radius: 9px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1;
+  text-decoration: none;
+  transition: border-color 160ms ease, box-shadow 160ms ease, opacity 160ms ease,
+    transform 160ms ease;
+}
+
+.primaryButton {
+  border: 1px solid rgba(0, 189, 222, 0.58);
+  background: #f7feff;
+  box-shadow: 0 0 18px rgba(0, 189, 222, 0.42);
+  color: #002536;
+}
+
+.secondaryButton {
+  border: 1px solid rgba(255, 255, 255, 0.19);
+  background: rgba(255, 255, 255, 0.11);
+  color: #fff;
+}
+
+.primaryButton:hover:not(:disabled),
+.secondaryButton:hover {
+  transform: translateY(-1px);
+}
+
+.primaryButton:hover:not(:disabled) {
+  box-shadow: 0 0 24px rgba(0, 189, 222, 0.64);
+}
+
+.secondaryButton:hover {
+  border-color: rgba(255, 255, 255, 0.32);
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.primaryButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.onboardingPanel,
+.formCard,
+.stateCard {
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 16px;
+  background: rgba(31, 58, 83, 0.82);
+  box-shadow: 0 28px 76px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(20px);
+}
+
+.onboardingPanel {
+  padding: 30px;
+}
+
+.panelHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.panelHeader p {
+  color: rgba(255, 255, 255, 0.61);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.7px;
+  line-height: 14px;
+  text-transform: uppercase;
+}
+
+.panelHeader h2 {
+  max-width: 350px;
+  margin-top: 5px;
+  color: #fff;
+  font-size: 24px;
+  font-weight: 500;
+  line-height: 1.18;
+}
+
+.invitePill {
+  display: inline-flex;
+  min-height: 28px;
+  flex: 0 0 auto;
+  align-items: center;
+  padding: 0 12px;
+  border: 1px solid rgba(0, 189, 222, 0.28);
+  border-radius: 999px;
+  background: rgba(0, 189, 222, 0.13);
+  color: #8ceeff;
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.stepList {
+  list-style: none;
+  padding: 14px 0 0;
+}
+
+.stepList li {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  padding: 18px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.stepNumber {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 1px solid rgba(0, 189, 222, 0.3);
+  border-radius: 50%;
+  background: rgba(0, 189, 222, 0.1);
+  color: #8ceeff;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.stepList h3 {
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 20px;
+}
+
+.stepList p {
+  margin-top: 3px !important;
+  color: rgba(255, 255, 255, 0.66);
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.panelFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding-top: 20px;
+}
+
+.panelFooter div {
+  display: grid;
+  gap: 3px;
+}
+
+.panelFooter strong {
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.panelFooter span {
+  color: rgba(255, 255, 255, 0.64);
+  font-size: 11px;
+  line-height: 15px;
+}
+
+.panelFooter a,
+.textLink {
+  color: #8ceeff;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.panelFooter a:hover,
+.textLink:hover {
+  color: #fff;
+}
+
+.inviteSummary {
+  display: grid;
+  gap: 0;
+  margin-top: 28px !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.inviteSummary div {
+  display: grid;
+  grid-template-columns: 118px minmax(0, 1fr);
+  gap: 16px;
+  padding: 13px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+.inviteSummary div:last-child {
+  border-bottom: 0;
+}
+
+.inviteSummary dt {
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 11px;
+  line-height: 17px;
+}
+
+.inviteSummary dd {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 550;
+  line-height: 17px;
+  text-transform: capitalize;
+}
+
+.textLink {
+  display: inline-flex;
+  margin-top: 22px;
+}
+
+.formCard {
+  width: 100%;
+  padding: 30px;
+}
+
+.formCard h2 {
+  margin-top: 6px;
+  color: #fff;
+  font-size: 28px;
+  font-weight: 500;
+  line-height: 1.18;
+}
+
+.formDescription,
+.successCard > p:not(.formEyebrow) {
+  margin-top: 8px !important;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.formDescription strong,
+.successCard strong {
+  color: #fff;
+}
+
+.form {
+  display: grid;
+  gap: 14px;
+  margin-top: 22px;
+}
+
+.formRow {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.form label {
+  display: grid;
+  min-width: 0;
+  gap: 7px;
+}
+
+.form label > span:first-child {
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 11px;
+  font-weight: 550;
+  line-height: 15px;
+}
+
+.form input[type="text"],
+.form input[type="email"],
+.form input[type="password"] {
+  width: 100%;
+  height: 44px;
+  padding: 0 13px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 9px;
+  outline: none;
+  background: rgba(255, 255, 255, 0.13);
+  color: #fff;
+  font: inherit;
+  font-size: 12px;
+  line-height: 16px;
+  transition: background 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.form input[readonly] {
+  background: rgba(0, 13, 32, 0.28);
+  color: rgba(255, 255, 255, 0.68);
+}
+
+.form input::placeholder {
+  color: rgba(255, 255, 255, 0.53);
+}
+
+.form input:focus {
+  border-color: rgba(0, 189, 222, 0.88);
+  background: rgba(255, 255, 255, 0.17);
+  box-shadow: 0 0 0 3px rgba(0, 189, 222, 0.13);
+}
+
+.termsRow {
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px !important;
+  padding: 2px 0;
+}
+
+.termsRow input {
+  width: 14px;
+  height: 14px;
+  margin: 2px 0 0;
+  accent-color: var(--aqua);
+}
+
+.termsRow > span:last-child {
+  color: rgba(255, 255, 255, 0.7) !important;
+  font-size: 11px !important;
+  font-weight: 400 !important;
+  line-height: 16px !important;
+}
+
+.termsRow a {
+  color: #8ceeff;
+}
+
+.turnstilePanel {
+  display: flex;
+  min-height: 66px;
+  align-items: center;
+  overflow: hidden;
+  padding: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 9px;
+  background: rgba(0, 13, 32, 0.24);
+}
+
+.turnstilePanel :global(iframe) {
+  max-width: 100%;
+}
+
+.warningMessage,
+.errorMessage {
+  padding: 10px 12px;
+  border-radius: 9px;
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.warningMessage {
+  border: 1px solid rgba(255, 201, 102, 0.42);
+  background: rgba(92, 58, 0, 0.38);
+  color: #ffe6b8;
+}
+
+.errorMessage {
+  border: 1px solid rgba(255, 124, 139, 0.48);
+  background: rgba(87, 12, 29, 0.52);
+  color: #ffdce2;
+}
+
+.formActions {
+  margin-top: 2px;
+}
+
+.formActions .primaryButton,
+.formActions .secondaryButton {
+  flex: 1 1 180px;
+}
+
+.successCard {
+  position: relative;
+  align-self: center;
+  padding-top: 74px;
+}
+
+.successMark {
+  position: absolute;
+  top: 26px;
+  left: 30px;
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid rgba(0, 189, 222, 0.36);
+  border-radius: 50%;
+  background: rgba(0, 189, 222, 0.13);
+  color: #8ceeff;
+  font-size: 17px;
+}
+
+.successCard .formActions {
+  margin-top: 24px;
+}
+
+.stateContent {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 70px 0 54px;
+}
+
+.stateCard {
+  width: min(620px, 100%);
+  padding: 42px;
+  text-align: center;
+}
+
+.stateCard > p:not(.eyebrow) {
+  margin-right: auto !important;
+  margin-left: auto !important;
+}
+
+.stateCard .actions,
+.stateCard > .primaryButton {
+  justify-content: center;
+}
+
+.stateCard > .primaryButton {
+  margin-top: 28px;
+}
+
+.footer {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  width: min(1200px, calc(100% - 48px));
+  min-height: 50px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 auto;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.footer div {
+  display: flex;
+  gap: 24px;
+}
+
+.footer a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.footer a:hover {
+  color: #fff;
+}
+
+@media (max-width: 980px) {
+  .introGrid,
+  .inviteGrid {
+    grid-template-columns: 1fr;
+    gap: 34px;
+    padding-top: 58px;
+  }
+
+  .introCopy,
+  .inviteIntro {
+    max-width: 720px;
+  }
+
+  .onboardingPanel,
+  .formCard {
+    width: min(720px, 100%);
+  }
+}
+
+@media (max-width: 767px) {
+  .hero {
+    min-height: 100svh;
+    background-position: 58% bottom;
+  }
+
+  .content,
+  .footer {
+    width: calc(100% - 32px);
+  }
+
+  .introGrid,
+  .inviteGrid {
+    padding: 50px 0 38px;
+  }
+
+  .introCopy h1,
+  .inviteIntro h1,
+  .stateCard h1 {
+    font-size: 38px;
+    letter-spacing: -0.8px;
+  }
+
+  .lede {
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  .onboardingPanel,
+  .formCard,
+  .stateCard {
+    padding: 24px 20px;
+    border-radius: 14px;
+  }
+
+  .panelHeader {
+    gap: 14px;
+  }
+
+  .panelHeader h2 {
+    font-size: 21px;
+  }
+
+  .panelFooter {
+    align-items: flex-start;
+  }
+
+  .formRow {
+    grid-template-columns: 1fr;
+  }
+
+  .inviteSummary div {
+    grid-template-columns: 100px minmax(0, 1fr);
+  }
+
+  .stateContent {
+    padding-top: 54px;
+  }
+
+  .footer {
+    min-height: 76px;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 8px;
+  }
+}
+
+@media (max-width: 430px) {
+  .actions,
+  .formActions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .primaryButton,
+  .secondaryButton {
+    width: 100%;
+  }
+
+  .panelHeader,
+  .panelFooter {
+    flex-direction: column;
+  }
+
+  .invitePill {
+    align-self: flex-start;
+  }
+
+  .inviteSummary div {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+}

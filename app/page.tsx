@@ -1,472 +1,703 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
-import Navbar from "../components/Navbar";
-import Footer from "../components/Footer";
-import {
-  ConnectorReleaseShowcase,
-  ControlPanelShowcase,
-  HomeWorkflowShowcase,
-} from "@/components/MarketingShowcase";
+
+import MarketingNav from "@/components/MarketingNav";
+
+import styles from "./home.module.css";
 
 export const metadata: Metadata = {
-  title: "Kordyne | Controlled CAD-to-Manufacturing Handoff",
+  title: "Kordyne | Controlled CAD to Manufacturing Handoff",
   description:
-    "Kordyne helps engineering and manufacturing teams move approved parts, revisions, files, supplier packages, and manufacturing responses through one controlled workspace.",
+    "Kordyne keeps parts, revisions, files, and supplier handoffs connected in one controlled workspace.",
 };
 
-function Eyebrow({ children }: { children: React.ReactNode }) {
+const iconRoot = "/marketing/designer-home-icons";
+
+type IconCardProps = {
+  icon: string;
+  title: string;
+  body: string;
+  number?: number;
+  dark?: boolean;
+  className?: string;
+};
+
+function ArrowLink({
+  href,
+  children,
+  secondary = false,
+}: {
+  href: string;
+  children: React.ReactNode;
+  secondary?: boolean;
+}) {
   return (
-    <p className="text-xs font-black uppercase tracking-normal text-[#00bdde]">
-      {children}
-    </p>
+    <Link
+      href={href}
+      className={`${styles.actionButton} ${secondary ? styles.actionButtonSecondary : ""}`}
+    >
+      <span>{children}</span>
+      <span className={styles.actionArrow} aria-hidden="true">
+        &rarr;
+      </span>
+    </Link>
   );
 }
 
-function SectionIntro({
+function SectionHeading({
   eyebrow,
   title,
   body,
-  align = "left",
+  centered = false,
 }: {
   eyebrow: string;
-  title: string;
-  body: string;
-  align?: "left" | "center";
+  title: React.ReactNode;
+  body?: string;
+  centered?: boolean;
 }) {
   return (
-    <div className={align === "center" ? "mx-auto max-w-3xl text-center" : "max-w-3xl"}>
-      <Eyebrow>{eyebrow}</Eyebrow>
-      <h2 className="mt-4 text-3xl font-black leading-tight text-slate-950 sm:text-4xl lg:text-5xl">
-        {title}
-      </h2>
-      <p className="mt-5 text-base leading-8 text-slate-600 sm:text-lg">
-        {body}
-      </p>
+    <div className={`${styles.sectionHeading} ${centered ? styles.centered : ""}`}>
+      <p className={styles.eyebrow}>{eyebrow}</p>
+      <h2>{title}</h2>
+      {body ? <p className={styles.sectionIntro}>{body}</p> : null}
     </div>
   );
 }
 
-function FeatureCard({
+function IconCard({
+  icon,
   title,
   body,
-}: {
-  title: string;
-  body: string;
-}) {
+  number,
+  dark = false,
+  className = "",
+}: IconCardProps) {
   return (
-    <article className="rounded-[8px] border border-slate-200 bg-white p-5 shadow-sm">
-      <h3 className="text-lg font-black text-slate-950">{title}</h3>
-      <p className="mt-3 text-sm leading-7 text-slate-600">{body}</p>
+    <article
+      className={`${styles.featureCard} ${dark ? styles.featureCardDark : ""} ${className}`}
+    >
+      {typeof number === "number" ? (
+        <span className={styles.numberTag}>{number}</span>
+      ) : null}
+      <Image src={icon} alt="" width={66} height={66} className={styles.cardIcon} />
+      <h3>{title}</h3>
+      <p>{body}</p>
     </article>
   );
 }
 
-function DarkCard({
-  title,
-  body,
-}: {
-  title: string;
-  body: string;
-}) {
+function OperatingLayer() {
+  const flow = [
+    {
+      icon: `${iconRoot}/01 Hero Section Icons/SVG Icons/CADTools.svg`,
+      title: "CAD Tools",
+      body: "Publish package",
+    },
+    {
+      icon: `${iconRoot}/01 Hero Section Icons/SVG Icons/ShieldCheck.svg`,
+      title: "Parts Vault",
+      body: "Control revisions",
+    },
+    {
+      icon: `${iconRoot}/01 Hero Section Icons/SVG Icons/UsersThree.svg`,
+      title: "Workspace",
+      body: "Share selectively",
+    },
+    {
+      icon: `${iconRoot}/01 Hero Section Icons/SVG Icons/Files.svg`,
+      title: "Handoff",
+      body: "Return evidence",
+    },
+  ];
+
+  const truths = [
+    {
+      icon: "Feature Icon Container.svg",
+      title: "Part truth",
+      body: "Files, previews, revisions, and metadata together.",
+    },
+    {
+      icon: "Feature Icon Container-1.svg",
+      title: "Access Control",
+      body: "Collaborators see only the selected context.",
+    },
+    {
+      icon: "Feature Icon Container-2.svg",
+      title: "Manufacturing memory",
+      body: "Quotes, notes, and returned files remain linked.",
+    },
+  ];
+
   return (
-    <article className="rounded-[8px] border border-white/12 bg-white/[0.06] p-5">
-      <h3 className="text-lg font-black text-white">{title}</h3>
-      <p className="mt-3 text-sm leading-7 text-white/70">{body}</p>
-    </article>
-  );
-}
+    <section className={styles.operatingLayer} aria-label="Kordyne operating layer">
+      <div className={styles.operatingHeader}>
+        <div>
+          <p>KORDYNE OPERATING LAYER</p>
+          <h2>
+            One controlled record
+            <br />
+            from release to production
+          </h2>
+        </div>
+        <span className={styles.livePill}>
+          <span /> LIVE CONTEXT
+        </span>
+      </div>
 
-const problemCards = [
-  {
-    title: "Files live in too many places",
-    body: "CAD files, drawings, STEP files, quotes, and messages are often spread across emails, drives, and local folders.",
-  },
-  {
-    title: "Revision control becomes unclear",
-    body: "Teams struggle to know which version was approved, released, quoted, or manufactured.",
-  },
-  {
-    title: "Supplier handoff is unstructured",
-    body: "External providers receive files without full context, selected exposure rules, or a clear response workflow.",
-  },
-  {
-    title: "Manufacturing decisions are hard to trace",
-    body: "Internal versus external routing, quote decisions, and production history are not always connected to the part record.",
-  },
-];
+      <div className={styles.operatingFlow}>
+        {flow.map((item, index) => (
+          <div className={styles.flowStep} key={item.title}>
+            <span className={styles.flowNumber}>{index + 1}</span>
+            <Image
+              src={item.icon}
+              alt=""
+              width={34}
+              height={34}
+            />
+            <strong>{item.title}</strong>
+            <span>{item.body}</span>
+          </div>
+        ))}
+      </div>
 
-const workflowSteps = [
-  {
-    number: "01",
-    title: "Release",
-    body: "Publish the approved part package from CAD into the vault with files, thumbnails, previews, and metadata.",
-  },
-  {
-    number: "02",
-    title: "Package",
-    body: "Select the files, drawings, preview geometry, properties, and revision context needed for manufacturing.",
-  },
-  {
-    number: "03",
-    title: "Route",
-    body: "Choose internal manufacturing, external providers, or project collaborators without exposing the full vault.",
-  },
-  {
-    number: "04",
-    title: "Respond",
-    body: "Capture quotes, questions, lead times, returned files, and production feedback in the same workspace.",
-  },
-  {
-    number: "05",
-    title: "Trace",
-    body: "Keep manufacturing decisions and evidence tied to the correct part, revision, package, and project.",
-  },
-];
-
-const workspaceTypes = [
-  {
-    title: "Parts Vault",
-    body: "The source of truth for part records, revisions, thumbnails, metadata, selected files, and manufacturing evidence.",
-  },
-  {
-    title: "Part Workspace",
-    body: "A focused space for one part or revision when it needs notes, discussion, controlled file access, or supplier response.",
-  },
-  {
-    title: "Project Workspace",
-    body: "A cross-functional space for customer programs, R&D builds, machine packages, and multi-part manufacturing work.",
-  },
-];
-
-const connectorFeatures = [
-  {
-    title: "Publish from CAD",
-    body: "Send files, previews, thumbnails, properties, and revision context from CAD into a controlled part record.",
-  },
-  {
-    title: "Pull from the vault",
-    body: "Find existing part records and bring controlled files back into the design environment when work resumes.",
-  },
-  {
-    title: "Compare revisions",
-    body: "Check whether the CAD model and vault record are aligned before downstream manufacturing work begins.",
-  },
-  {
-    title: "Keep the source linked",
-    body: "Maintain the relationship between CAD documents, part records, revisions, and manufacturing activity.",
-  },
-];
-
-const manufacturingRoutes = [
-  {
-    title: "Internal manufacturing",
-    body: "Route work to internal machines, schedules, capabilities, and factory resources while retaining source part context.",
-  },
-  {
-    title: "External providers",
-    body: "Share selected files for quotes and manufacturing review while keeping vault access, downloads, and returned files controlled.",
-  },
-  {
-    title: "Project collaboration",
-    body: "Move parts into a project workspace when R&D, customers, consultants, or internal teams need to work together.",
-  },
-];
-
-const collaborationControls = [
-  {
-    title: "Selected file access",
-    body: "Share only the files, previews, drawings, and metadata required for the task.",
-  },
-  {
-    title: "Threaded context",
-    body: "Keep notes, clarifications, quotes, returned files, and manufacturing decisions connected to the part.",
-  },
-  {
-    title: "Provider response",
-    body: "Give providers a focused workspace to review packages, ask questions, quote, and return evidence.",
-  },
-  {
-    title: "Project continuity",
-    body: "Link standalone parts to larger projects without duplicating the vault record.",
-  },
-];
-
-const networkModules = [
-  {
-    title: "Engineering release",
-    body: "Approved parts, revisions, CAD files, and manufacturing-ready packages.",
-  },
-  {
-    title: "Supplier collaboration",
-    body: "Controlled file exposure, quote responses, provider questions, and returned files.",
-  },
-  {
-    title: "Internal manufacturing",
-    body: "Routing, capability matching, resource visibility, and production handoff.",
-  },
-  {
-    title: "Project collaboration",
-    body: "Shared workspaces for R&D, prototypes, customer programs, and cross-company work.",
-  },
-];
-
-const securityControls = [
-  "Role-based access",
-  "Selected exposure",
-  "Revision-aware records",
-  "Audit-ready foundation",
-];
-
-export default function Home() {
-  return (
-    <main className="min-h-screen bg-[#f5f8fa] text-slate-900">
-      <Navbar />
-
-      <section className="relative overflow-hidden bg-[#003040] text-white">
-        <div className="absolute inset-0 kordyne-grid-bg opacity-70" />
-        <div className="absolute inset-x-0 bottom-0 h-px bg-[#00bdde]/35" />
-
-        <div className="relative mx-auto max-w-7xl px-5 py-12 sm:px-6 lg:px-8 lg:py-14">
-          <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
+      <div className={styles.operatingTruths}>
+        {truths.map((item) => (
+          <div className={styles.truthItem} key={item.title}>
+            <Image
+              src={`${iconRoot}/01 Hero Section Icons/SVG Icons/${item.icon}`}
+              alt=""
+              width={58}
+              height={58}
+            />
             <div>
-              <Eyebrow>CAD-to-manufacturing workspace</Eyebrow>
-              <h1 className="mt-5 max-w-5xl text-4xl font-black leading-tight text-white sm:text-[3rem] lg:text-[3.25rem]">
-                Controlled CAD-to-manufacturing handoff.
-              </h1>
-              <p className="mt-6 max-w-4xl text-base leading-8 text-slate-200 sm:text-lg">
-                Kordyne helps engineering and manufacturing teams move approved
-                parts, revisions, files, and supplier packages through one
-                controlled workspace, reducing file confusion, missing context,
-                and uncontrolled handovers.
-              </p>
-              <p className="mt-4 max-w-4xl text-base leading-8 text-slate-300">
-                Keep the part record clear from design release through internal
-                manufacturing, external providers, and project collaboration.
-              </p>
-
-              <div className="mt-9 flex flex-wrap gap-3">
-                <Link
-                  href="/contact"
-                  className="rounded-[8px] bg-[#00bdde] px-5 py-3 text-sm font-black text-[#003040] shadow-[0_16px_34px_rgba(0,189,222,0.22)] transition hover:bg-[#8ceeff]"
-                >
-                  Request Demo
-                </Link>
-                <Link
-                  href="/platform"
-                  className="rounded-[8px] border border-white/18 bg-white/10 px-5 py-3 text-sm font-black text-white transition hover:bg-white/15"
-                >
-                  View Platform
-                </Link>
-              </div>
+              <strong>{item.title}</strong>
+              <span>{item.body}</span>
             </div>
-
-            <HomeWorkflowShowcase />
           </div>
-        </div>
-      </section>
+        ))}
+      </div>
 
-      <section className="border-b border-slate-200 bg-white">
-        <div className="mx-auto grid max-w-7xl gap-8 px-5 py-14 sm:px-6 lg:grid-cols-[0.78fr_1.22fr] lg:px-8 lg:py-16">
-          <div>
-            <Eyebrow>Why this exists</Eyebrow>
-            <h2 className="mt-4 text-3xl font-black leading-tight text-slate-950 sm:text-4xl">
-              Hardware work breaks when part context breaks.
-            </h2>
-            <p className="mt-5 text-base leading-8 text-slate-600">
-              Engineering teams often rely on shared drives, emails,
-              spreadsheets, and informal messages to move parts into
-              manufacturing. As revisions change, teams lose clarity on which
-              files are approved, what was sent, who received it, and what
-              manufacturing route was chosen. This creates rework, quoting
-              delays, supplier confusion, and weak traceability.
-            </p>
-          </div>
+      <div className={styles.operatingQuote}>
+        <p>
+          Built to keep engineering decisions, manufacturing handoffs, and
+          external collaboration connected to the part record.
+        </p>
+        <span aria-hidden="true">&ldquo;</span>
+      </div>
+    </section>
+  );
+}
 
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {problemCards.map((item) => (
-              <FeatureCard key={item.title} title={item.title} body={item.body} />
-            ))}
-          </div>
-        </div>
-      </section>
+function Hero() {
+  return (
+    <header className={styles.hero}>
+      <MarketingNav active="home" />
+      <div className={styles.heroCopy}>
+        <p className={styles.heroEyebrow}>CAD-TO-MANUFACTURING WORKSPACE</p>
+        <h1>Controlled CAD to Manufacturing Handoff.</h1>
+        <p>
+          Kordyne keeps parts, revisions, files, and supplier handoffs connected
+          in one workspace.
+        </p>
+      </div>
+      <OperatingLayer />
+    </header>
+  );
+}
 
-      <section className="mx-auto max-w-7xl px-5 py-16 sm:px-6 lg:px-8 lg:py-24">
-        <SectionIntro
-          eyebrow="How work moves"
-          title="Release, package, route, respond, and trace."
-          body="Kordyne keeps the part record as the source of truth while each handoff creates the context needed for manufacturing, supplier review, internal production, or project collaboration."
+function ImpactSection() {
+  const impact = [
+    {
+      icon: "Network Icon Container.svg",
+      title: "Increase Operational Efficiency",
+      body: "Reduce duplicated admin, scattered files, email chasing, unclear revisions, and manual handoff steps across internal and external manufacturing workflows.",
+    },
+    {
+      icon: "ShieldCheck Icon Container.svg",
+      title: "Strengthen Traceability",
+      body: "Keep files, revisions, quotes, messages, decisions, returned evidence, and manufacturing history linked to the correct part and request.",
+    },
+    {
+      icon: "Globe Icon Container.svg",
+      title: "Create a Connected Digital Thread",
+      body: "Connect CAD data, part records, revisions, collaboration, manufacturing requests, provider responses, and returned evidence into one structured digital workflow from design release to production handoff.",
+    },
+  ];
+
+  return (
+    <section className={`${styles.section} ${styles.impactSection}`}>
+      <div className={styles.contentRail}>
+        <SectionHeading
+          eyebrow="WHY THIS EXISTS"
+          title="Real Impact. Controlled Handoffs."
+          centered
         />
-
-        <div className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-          {workflowSteps.map((step) => (
-            <article
-              key={step.number}
-              className="rounded-[8px] border border-slate-200 bg-white p-5 shadow-sm"
-            >
-              <p className="text-xs font-black text-[#00bdde]">{step.number}</p>
-              <h3 className="mt-3 text-xl font-black text-slate-950">
-                {step.title}
-              </h3>
-              <p className="mt-3 text-sm leading-7 text-slate-600">
-                {step.body}
+        <div className={styles.impactGrid}>
+          <article className={styles.impactLeadCard}>
+            <span className={styles.numberTag}>1</span>
+            <div className={styles.impactLeadCopy}>
+              <Image
+                src={`${iconRoot}/02 Real Impact Section Icons/SVG Icons/Rocket Icon Container.svg`}
+                alt=""
+                width={66}
+                height={66}
+              />
+              <h3>Reduce Time to Market</h3>
+              <p>
+                Move from CAD release to manufacturing handoff faster by keeping
+                part files, revisions, requests, suppliers, and production
+                context connected in one controlled workflow.
               </p>
-            </article>
+            </div>
+            <Image
+              src={`${iconRoot}/02 Real Impact Section Icons/SVG Icons/Icon with Factory.svg`}
+              alt="Controlled part workflow from CAD file to returned evidence"
+              width={348}
+              height={320}
+              className={styles.factoryGraphic}
+            />
+          </article>
+          <IconCard
+            icon={`${iconRoot}/02 Real Impact Section Icons/SVG Icons/Users Icon Container.svg`}
+            title="Improve Cross-Team Collaboration"
+            body="Unify engineering, manufacturing, purchasing, suppliers, and project teams around the same controlled part record, reducing misalignment and repeated clarification."
+            number={2}
+          />
+          {impact.map((item, index) => (
+            <IconCard
+              key={item.title}
+              icon={`${iconRoot}/02 Real Impact Section Icons/SVG Icons/${item.icon}`}
+              title={item.title}
+              body={item.body}
+              number={index + 3}
+            />
           ))}
         </div>
-      </section>
+      </div>
+    </section>
+  );
+}
 
-      <section className="bg-[#003040] py-16 text-white lg:py-20">
-        <div className="mx-auto max-w-7xl px-5 sm:px-6 lg:px-8">
-          <div className="grid gap-10 lg:grid-cols-[0.78fr_1.22fr] lg:items-start">
-            <div>
-              <Eyebrow>Workspace model</Eyebrow>
-              <h2 className="mt-4 text-3xl font-black leading-tight text-white sm:text-4xl lg:text-5xl">
-                Parts stay standalone until they need a workspace or project.
-              </h2>
-              <p className="mt-5 text-base leading-8 text-slate-300 sm:text-lg">
-                A part becomes a workspace only when collaboration starts, and a
-                project only when the work becomes a larger customer program,
-                R&D build, or multi-part manufacturing effort.
-              </p>
-            </div>
+function ProblemSection() {
+  const problems = [
+    {
+      icon: "Section 1 icon.svg",
+      title: "Files live in too many places",
+      body: "CAD files, drawings, STEP files, quotes, and messages are often spread across emails, drives, and local folders.",
+    },
+    {
+      icon: "Section 2 icon.svg",
+      title: "Supplier handoff is unstructured",
+      body: "External providers receive files without full context, selected exposure rules, or a clear response workflow.",
+    },
+    {
+      icon: "Section 3 icon.svg",
+      title: "Revision control becomes unclear",
+      body: "Teams struggle to know which version was approved, released, quoted, or manufactured.",
+    },
+    {
+      icon: "Section 4 icon.svg",
+      title: "Manufacturing decisions are hard to trace",
+      body: "Internal versus external routing, quote decisions, and production history are not always connected to the part record.",
+    },
+  ];
 
-            <div className="grid gap-4 md:grid-cols-3">
-              {workspaceTypes.map((item) => (
-                <DarkCard key={item.title} title={item.title} body={item.body} />
-              ))}
-            </div>
+  return (
+    <section className={`${styles.section} ${styles.problemSection}`}>
+      <div className={styles.contentRail}>
+        <div className={styles.splitHeading}>
+          <SectionHeading
+            eyebrow="WHY THIS EXISTS"
+            title={
+              <>
+                Hardware work breaks
+                <br />
+                when part context breaks.
+              </>
+            }
+          />
+          <p>
+            Engineering teams using drives, emails, and spreadsheets often lose
+            revision control, causing delays, rework, confusion, and poor
+            traceability.
+          </p>
+        </div>
+        <div className={styles.problemGrid}>
+          <div className={styles.problemColumn}>
+            {[problems[0], problems[2]].map((item) => (
+              <IconCard
+                key={item.title}
+                icon={`${iconRoot}/03 Why This Exists Section Icons/SVG Icons/${item.icon}`}
+                title={item.title}
+                body={item.body}
+              />
+            ))}
+          </div>
+          <div className={styles.problemVisual}>
+            <Image
+                src="/marketing/backgrounds/home-problem-visual-figma.png"
+                alt="Scattered engineering files and disconnected handoffs"
+                width={1448}
+                height={1086}
+                unoptimized
+                sizes="(max-width: 767px) 86vw, 760px"
+              />
+          </div>
+          <div className={styles.problemColumn}>
+            {[problems[1], problems[3]].map((item) => (
+              <IconCard
+                key={item.title}
+                icon={`${iconRoot}/03 Why This Exists Section Icons/SVG Icons/${item.icon}`}
+                title={item.title}
+                body={item.body}
+              />
+            ))}
           </div>
         </div>
-      </section>
+      </div>
+    </section>
+  );
+}
 
-      <section className="mx-auto max-w-7xl px-5 py-16 sm:px-6 lg:px-8 lg:py-24">
-        <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
-          <div>
-            <SectionIntro
-              eyebrow="CAD connectors"
-              title="Start from the tools engineers already use."
-              body="Kordyne connects CAD software to the vault so engineers can publish part data, preview files, metadata, and revisions without rebuilding context manually later."
+const ecosystemItems = [
+  {
+    key: "cad",
+    icon: "CAD Tools icon container.svg",
+    title: "CAD Tools",
+    body: "Publish packages and revisions.",
+  },
+  {
+    key: "vault",
+    icon: "Vault icon container.svg",
+    title: "Vault",
+    body: "Maintain part history.",
+  },
+  {
+    key: "requests",
+    icon: "Requests icon container.svg",
+    title: "Requests",
+    body: "Track communication and feedback.",
+  },
+  {
+    key: "quotes",
+    icon: "Quotes icon container.svg",
+    title: "Quotes",
+    body: "Keep purchasing records attached.",
+  },
+  {
+    key: "collaboration",
+    icon: "Collaboration icon container.svg",
+    title: "Collaboration",
+    body: "Share only the required context.",
+  },
+  {
+    key: "providers",
+    icon: "Providers icon container.svg",
+    title: "Providers",
+    body: "Connect external suppliers.",
+  },
+  {
+    key: "manufacturing",
+    icon: "Manufacturing icon container.svg",
+    title: "Manufacturing",
+    body: "Internal & external production.",
+  },
+  {
+    key: "traceability",
+    icon: "Traceability icon container.svg",
+    title: "Traceability",
+    body: "Maintain a complete history.",
+  },
+];
+
+function EcosystemSection() {
+  return (
+    <section className={`${styles.section} ${styles.ecosystemSection}`}>
+      <div className={styles.contentRail}>
+        <SectionHeading
+          eyebrow="CONNECTED ECOSYSTEM"
+          title={
+            <>
+              One control layer for the entire
+              <br />
+              product workflow.
+            </>
+          }
+          centered
+        />
+        <div className={styles.ecosystemMap}>
+          {ecosystemItems.map((item) => (
+            <article
+              key={item.key}
+              className={`${styles.ecosystemItem} ${styles[`ecosystem_${item.key}`]}`}
+            >
+              <Image
+                src={`${iconRoot}/04 Connected Ecosystem Section Icons/SVG Icons/${item.icon}`}
+                alt=""
+                width={58}
+                height={58}
+              />
+              <div>
+                <h3>{item.title}</h3>
+                <p>{item.body}</p>
+              </div>
+            </article>
+          ))}
+          <div className={styles.ecosystemCenter}>
+            <Image
+              src={`${iconRoot}/04 Connected Ecosystem Section Icons/SVG Icons/Central logo.svg`}
+              alt="Kordyne"
+              width={300}
+              height={300}
             />
+          </div>
+          <svg
+            className={styles.ecosystemConnectors}
+            viewBox="0 0 920 450"
+            preserveAspectRatio="none"
+            aria-hidden="true"
+          >
+            <path d="M460 88V135" />
+            <path d="M460 315V362" />
+            <path d="M370 225H210" />
+            <path d="M370 225H285Q275 225 275 215V141Q275 131 265 131H210" />
+            <path d="M370 225H285Q275 225 275 235V309Q275 319 265 319H210" />
+            <path d="M550 225H710" />
+            <path d="M550 225H635Q645 225 645 215V141Q645 131 655 131H710" />
+            <path d="M550 225H635Q645 225 645 235V309Q645 319 655 319H710" />
+            <circle cx="460" cy="88" r="5" />
+            <circle cx="460" cy="362" r="5" />
+            <circle cx="210" cy="131" r="5" />
+            <circle cx="210" cy="225" r="5" />
+            <circle cx="210" cy="319" r="5" />
+            <circle cx="710" cy="131" r="5" />
+            <circle cx="710" cy="225" r="5" />
+            <circle cx="710" cy="319" r="5" />
+          </svg>
+        </div>
+      </div>
+    </section>
+  );
+}
 
-            <div className="mt-8 grid gap-4 md:grid-cols-2">
-              {connectorFeatures.map((item) => (
-                <FeatureCard key={item.title} title={item.title} body={item.body} />
-              ))}
+function WorkSection() {
+  const release = {
+    icon: "Icon Group.svg",
+    title: "Release",
+    body: "Publish the approved part package from CAD into the vault with files, thumbnails, previews, and metadata.",
+  };
+
+  const work = [
+    {
+      icon: "Icon Group-1.svg",
+      title: "Package",
+      body: "Select the files, drawings, preview geometry, properties, and revision context needed for manufacturing.",
+    },
+    {
+      icon: "Icon Group-2.svg",
+      title: "Route",
+      body: "Choose internal manufacturing, external providers, or project collaborators without exposing the full vault.",
+    },
+    {
+      icon: "Icon Group-3.svg",
+      title: "Respond",
+      body: "Capture quotes, questions, lead times, returned files, and production feedback in the same workspace.",
+    },
+    {
+      icon: "Icon Group-4.svg",
+      title: "Trace",
+      body: "Keep manufacturing decisions and evidence tied to the correct part, revision, package, and project.",
+    },
+  ];
+
+  const releaseFlow = [
+    { icon: "Icon.svg", label: "CAD" },
+    { icon: "Icon-1.svg", label: "Review" },
+    { icon: "Icon-2.svg", label: "Vault" },
+    { icon: "Icon-3.svg", label: "Files" },
+  ];
+
+  return (
+    <section className={`${styles.section} ${styles.workSection}`}>
+      <div className={styles.contentRail}>
+        <div className={styles.splitHeading}>
+          <SectionHeading
+            eyebrow="HOW WORK MOVES"
+            title={
+              <>
+                Release, package, route,
+                <br />
+                respond, and trace.
+              </>
+            }
+          />
+          <p>
+            Kordyne keeps part records as the source of truth, while each handoff
+            adds context for manufacturing, suppliers, production & projects.
+          </p>
+        </div>
+        <div className={styles.workGrid}>
+          <article
+            className={`${styles.featureCard} ${styles.featureCardDark} ${styles.workLead}`}
+          >
+            <span className={styles.numberTag}>1</span>
+            <div className={styles.workLeadCopy}>
+              <Image
+                src={`${iconRoot}/05 How work moves Section Icons/SVG Icons/${release.icon}`}
+                alt=""
+                width={66}
+                height={66}
+                className={styles.cardIcon}
+              />
+              <h3>{release.title}</h3>
+              <p>{release.body}</p>
             </div>
-          </div>
-
-          <ConnectorReleaseShowcase />
-        </div>
-      </section>
-
-      <section className="border-y border-slate-200 bg-white py-16 lg:py-20">
-        <div className="mx-auto max-w-7xl px-5 sm:px-6 lg:px-8">
-          <SectionIntro
-            eyebrow="Manufacturing handoff"
-            title="Package the right files for the right manufacturing route."
-            body="Once part context is controlled, Kordyne helps teams move toward production without uncontrolled folders, stale revisions, or supplier conversations floating outside the record."
-            align="center"
-          />
-
-          <div className="mt-10 grid gap-4 lg:grid-cols-3">
-            {manufacturingRoutes.map((route) => (
-              <FeatureCard key={route.title} title={route.title} body={route.body} />
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="mx-auto max-w-7xl px-5 py-16 sm:px-6 lg:px-8 lg:py-24">
-        <div className="grid gap-10 lg:grid-cols-[0.82fr_1.18fr] lg:items-start">
-          <SectionIntro
-            eyebrow="Controlled collaboration"
-            title="Share the part, not the whole company vault."
-            body="External access should be explicit, limited, and connected to the exact part, request, or project being discussed. Kordyne is designed around selected files, selected collaborators, and traceable handoffs."
-          />
-
-          <div className="grid gap-4 md:grid-cols-2">
-            {collaborationControls.map((item) => (
-              <FeatureCard key={item.title} title={item.title} body={item.body} />
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="bg-[#edf8fb] py-16 lg:py-20">
-        <div className="mx-auto max-w-7xl px-5 sm:px-6 lg:px-8">
-          <SectionIntro
-            eyebrow="Manufacturing networks"
-            title="Built for modern manufacturing networks."
-            body="Kordyne is designed for companies that need to move controlled part data between engineering, internal production teams, external suppliers, and project partners."
-            align="center"
-          />
-
-          <div className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {networkModules.map((item) => (
-              <FeatureCard key={item.title} title={item.title} body={item.body} />
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="mx-auto max-w-7xl px-5 py-16 sm:px-6 lg:px-8 lg:py-24">
-        <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
-          <div>
-            <SectionIntro
-              eyebrow="Control by design"
-              title="Built for controlled engineering collaboration."
-              body="Kordyne is designed to reduce uncontrolled file sharing and keep sensitive engineering work connected to clear access, revision, and handoff records."
-            />
-
-            <div className="mt-8 grid gap-3 sm:grid-cols-2">
-              {securityControls.map((item) => (
-                <div
-                  key={item}
-                  className="rounded-[8px] border border-slate-200 bg-white p-4 text-sm font-black text-slate-950 shadow-sm"
-                >
-                  {item}
+            <div className={styles.workLeadVisual} aria-hidden="true">
+              <svg
+                className={styles.workLeadConnectors}
+                viewBox="0 0 176 138"
+                preserveAspectRatio="none"
+              >
+                <path d="M78 34H98M78 104H98M39 65V73M137 65V73" />
+                <circle cx="78" cy="34" r="2.5" />
+                <circle cx="98" cy="34" r="2.5" />
+                <circle cx="78" cy="104" r="2.5" />
+                <circle cx="98" cy="104" r="2.5" />
+                <circle cx="39" cy="65" r="2.5" />
+                <circle cx="39" cy="73" r="2.5" />
+                <circle cx="137" cy="65" r="2.5" />
+                <circle cx="137" cy="73" r="2.5" />
+              </svg>
+              {releaseFlow.map((step) => (
+                <div key={step.label} className={styles.workLeadStep}>
+                  <Image
+                    src={`${iconRoot}/05 How work moves Section Icons/SVG Icons/${step.icon}`}
+                    alt=""
+                    width={50}
+                    height={50}
+                  />
+                  <span>{step.label}</span>
                 </div>
               ))}
             </div>
-          </div>
-
-          <ControlPanelShowcase />
+          </article>
+          {work.map((item, index) => (
+            <IconCard
+              key={item.title}
+              icon={`${iconRoot}/05 How work moves Section Icons/SVG Icons/${item.icon}`}
+              title={item.title}
+              body={item.body}
+              number={index + 2}
+            />
+          ))}
         </div>
-      </section>
+      </div>
+    </section>
+  );
+}
 
-      <section className="mx-auto max-w-7xl px-5 pb-16 sm:px-6 lg:px-8 lg:pb-20">
-        <div className="rounded-[8px] bg-[#003040] p-6 text-white shadow-[0_22px_60px_rgba(0,48,64,0.18)] lg:p-10">
-          <div className="grid gap-8 lg:grid-cols-[1fr_0.46fr] lg:items-center">
-            <div>
-              <Eyebrow>Built for the workflow ahead</Eyebrow>
-              <h2 className="mt-4 text-3xl font-black leading-tight text-white sm:text-4xl">
-                Bring CAD release, part truth, collaboration, and manufacturing
-                handoff into one controlled layer.
-              </h2>
-              <p className="mt-5 max-w-3xl text-base leading-8 text-slate-300 sm:text-lg">
-                Start with the vault. Add part workspaces when collaboration
-                begins. Create projects when the work becomes a real program.
-              </p>
-            </div>
-            <div className="flex flex-col gap-3">
-              <Link
-                href="/contact"
-                className="rounded-[8px] bg-[#00bdde] px-5 py-3 text-center text-sm font-black text-[#003040] transition hover:bg-[#8ceeff]"
-              >
-                Request Demo
-              </Link>
-              <Link
-                href="/platform"
-                className="rounded-[8px] border border-white/18 bg-white/10 px-5 py-3 text-center text-sm font-black text-white transition hover:bg-white/15"
-              >
-                View Platform
-              </Link>
-            </div>
+function NetworksSection() {
+  const networks = [
+    {
+      icon: "Icon container.svg",
+      title: "Engineering release",
+      body: "Approved parts, revisions, CAD files, and manufacturing-ready packages for production use.",
+    },
+    {
+      icon: "Icon container-1.svg",
+      title: "Supplier collaboration",
+      body: "Controlled file exposure, quote responses, provider questions, and returned files.",
+    },
+    {
+      icon: "Icon container-2.svg",
+      title: "Internal manufacturing",
+      body: "Routing, capability matching, resource visibility, and production handoff.",
+    },
+    {
+      icon: "Icon container-3.svg",
+      title: "Project collaboration",
+      body: "Shared workspaces for R&D, prototypes, customer programs, and cross-company work.",
+    },
+  ];
+
+  return (
+    <section className={`${styles.section} ${styles.networksSection}`}>
+      <div className={styles.contentRail}>
+        <div className={styles.splitHeading}>
+          <SectionHeading
+            eyebrow="MANUFACTURING NETWORKS"
+            title={
+              <>
+                Built for modern
+                <br />
+                manufacturing networks.
+              </>
+            }
+          />
+          <p>
+            Kordyne is built for companies moving controlled part data across
+            engineering, production teams, suppliers, and project partners.
+          </p>
+        </div>
+        <div className={styles.networkGrid}>
+          {networks.map((item) => (
+            <IconCard
+              key={item.title}
+              icon={`${iconRoot}/06 Manufacturing Networks Section Icons/SVG Icons/${item.icon}`}
+              title={item.title}
+              body={item.body}
+            />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function FinalCta() {
+  return (
+    <section className={styles.ctaShell}>
+      <div className={styles.cta}>
+        <div className={styles.ctaCopy}>
+          <p className={styles.eyebrow}>BUILT FOR THE WORKFLOW AHEAD</p>
+          <h2>
+            Bring CAD release, part truth,
+            <br />
+            collaboration, & manufacturing handoff
+            <br />
+            into one controlled layer.
+          </h2>
+          <p>
+            Start with the vault. Add part workspaces when collaboration begins.
+            Create projects when the work becomes a real program.
+          </p>
+          <div className={styles.heroActions}>
+            <ArrowLink href="/contact">Request Demo</ArrowLink>
           </div>
         </div>
-      </section>
+        <footer className={styles.footer}>
+          <span>&copy; 2026 Kordyne. All rights reserved.</span>
+          <div>
+            <Link href="/terms">Terms &amp; Conditions</Link>
+            <Link href="/privacy">Privacy Policy</Link>
+          </div>
+        </footer>
+      </div>
+    </section>
+  );
+}
 
-      <Footer />
+export default function Home() {
+  return (
+    <main className={`marketing-site ${styles.page}`}>
+      <Hero />
+      <ImpactSection />
+      <ProblemSection />
+      <EcosystemSection />
+      <WorkSection />
+      <NetworksSection />
+      <FinalCta />
     </main>
   );
 }

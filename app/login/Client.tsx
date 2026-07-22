@@ -1,10 +1,14 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+
 import TurnstileWidget from "@/components/TurnstileWidget";
+import { createClient } from "@/lib/supabase/client";
+
+import styles from "./login.module.css";
 
 type PortalMode = "customer" | "provider" | "admin";
 
@@ -19,7 +23,7 @@ function getLoginCopy(portal: PortalMode) {
       badge: "Admin sign in",
       title: "Access the Kordyne owner console",
       description:
-        "Sign in to manage platform users, organizations, providers, requests, and internal platform oversight.",
+        "Manage users, organizations, providers, requests, and internal platform oversight.",
     };
   }
 
@@ -28,7 +32,7 @@ function getLoginCopy(portal: PortalMode) {
       badge: "Provider sign in",
       title: "Access the Kordyne provider workspace",
       description:
-        "Sign in with the invited account linked to your provider organization and continue into the provider portal.",
+        "Continue to incoming packages, RFQs, quote responses, and returned production evidence.",
     };
   }
 
@@ -46,6 +50,7 @@ export default function Client({ nextPath, portal }: Props) {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState("");
   const [turnstileKey, setTurnstileKey] = useState(0);
   const [turnstileError, setTurnstileError] = useState("");
@@ -83,7 +88,7 @@ export default function Client({ nextPath, portal }: Props) {
         return "/admin";
       }
     } catch {
-      // ignore and continue to other routing checks
+      // Continue to the organization routing checks.
     }
 
     try {
@@ -96,7 +101,9 @@ export default function Client({ nextPath, portal }: Props) {
         throw membershipsError;
       }
 
-      const membershipOrgIds = (memberships ?? []).map((row) => row.organization_id);
+      const membershipOrgIds = (memberships ?? []).map(
+        (row) => row.organization_id,
+      );
 
       if (!membershipOrgIds.length) {
         return nextPath || "/dashboard";
@@ -141,22 +148,20 @@ export default function Client({ nextPath, portal }: Props) {
         return "/provider";
       }
     } catch {
-      // ignore and fall back
+      // Preserve the safe fallback when role lookup is unavailable.
     }
 
     return nextPath || "/dashboard";
   }
 
-  async function handleLogin(event: React.FormEvent<HTMLFormElement>) {
+  async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitting(true);
     setError(null);
 
     try {
       if (!turnstileToken) {
-        throw new Error(
-          turnstileError || "Please complete the security check.",
-        );
+        throw new Error(turnstileError || "Please complete the security check.");
       }
 
       const response = await fetch("/api/auth/login", {
@@ -184,8 +189,10 @@ export default function Client({ nextPath, portal }: Props) {
 
       router.replace(destination);
       router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to sign in.");
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error ? caughtError.message : "Failed to sign in.",
+      );
       setTurnstileToken("");
       setTurnstileError("");
       setTurnstileKey((value) => value + 1);
@@ -195,101 +202,98 @@ export default function Client({ nextPath, portal }: Props) {
   }
 
   return (
-    <div className="mx-auto flex min-h-[calc(100vh-145px)] w-full max-w-2xl items-center px-4 py-16 lg:px-6">
-      <div className="w-full rounded-[8px] border border-zinc-200 bg-white p-8 shadow-sm">
-        <p className="text-sm font-medium uppercase tracking-wide text-slate-500">
-          {copy.badge}
-        </p>
+    <article className={styles.loginCard}>
+      <header className={styles.loginHeader}>
+        <p className={styles.loginBadge}>{copy.badge}</p>
+        <h1>{copy.title}</h1>
+        <p className={styles.loginDescription}>{copy.description}</p>
+      </header>
 
-        <h1 className="mt-3 text-4xl font-semibold tracking-tight text-slate-950">
-          {copy.title}
-        </h1>
+      <form onSubmit={handleLogin} className={styles.form}>
+        <label>
+          <span className={styles.srOnly}>Email address</span>
+          <input
+            id="email"
+            type="email"
+            autoComplete="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            placeholder="Email Address"
+            required
+          />
+        </label>
 
-        <p className="mt-4 text-base leading-7 text-slate-600">
-          {copy.description}
-        </p>
-
-        <form onSubmit={handleLogin} className="mt-8 space-y-5">
-          <div className="space-y-2">
-            <label htmlFor="email" className="text-sm font-medium text-slate-700">
-              Email
-            </label>
-            <input
-              id="email"
-              type="email"
-              autoComplete="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="you@company.com"
-              className="w-full rounded-[8px] border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
-              required
+        <label className={styles.passwordField}>
+          <span className={styles.srOnly}>Password</span>
+          <input
+            id="password"
+            type={showPassword ? "text" : "password"}
+            autoComplete="current-password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            placeholder="Password"
+            required
+          />
+          <button
+            type="button"
+            className={styles.passwordToggle}
+            onClick={() => setShowPassword((visible) => !visible)}
+            aria-label={showPassword ? "Hide password" : "Show password"}
+            aria-pressed={showPassword}
+          >
+            <Image
+              src="/marketing/icons/login-eye.svg"
+              alt=""
+              width={18}
+              height={15}
             />
-          </div>
+          </button>
+        </label>
 
-          <div className="space-y-2">
-            <div className="flex items-center justify-between gap-3">
-              <label htmlFor="password" className="text-sm font-medium text-slate-700">
-                Password
-              </label>
-              <Link
-                href="/forgot-password"
-                className="text-sm text-slate-500 hover:text-slate-900"
-              >
-                Forgot password?
-              </Link>
-            </div>
+        <div className={styles.formOptions}>
+          <span>Secure session</span>
+          <Link href="/forgot-password">Forgot password?</Link>
+        </div>
 
-            <input
-              id="password"
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder="Your password"
-              className="w-full rounded-[8px] border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
-              required
-            />
-          </div>
+        {error ? (
+          <p className={styles.errorMessage} role="alert">
+            {error}
+          </p>
+        ) : null}
 
-          {error ? (
-            <div className="rounded-[8px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-              {error}
-            </div>
+        <div className={styles.turnstilePanel}>
+          <TurnstileWidget
+            key={turnstileKey}
+            onVerify={(token) => {
+              setTurnstileToken(token);
+              if (token) {
+                setTurnstileError("");
+              }
+            }}
+            onError={setTurnstileError}
+          />
+        </div>
+
+        <div
+          className={`${styles.formActions} ${portal !== "customer" ? styles.singleAction : ""}`}
+        >
+          <button
+            type="submit"
+            disabled={submitting || !turnstileToken}
+            className={styles.primaryButton}
+          >
+            <span>{submitting ? "Signing in..." : "Sign In"}</span>
+            <span aria-hidden="true">&rarr;</span>
+          </button>
+
+          {portal === "customer" ? (
+            <Link href="/signup" className={styles.primaryButton}>
+              <span>Create Account</span>
+              <span aria-hidden="true">&rarr;</span>
+            </Link>
           ) : null}
-
-          <div className="rounded-[8px] border border-zinc-200 bg-[#f7f8fa] p-4">
-            <TurnstileWidget
-              key={turnstileKey}
-              onVerify={(token) => {
-                setTurnstileToken(token);
-                if (token) {
-                  setTurnstileError("");
-                }
-              }}
-              onError={setTurnstileError}
-            />
-          </div>
-
-          <div className="flex flex-wrap gap-3 pt-2">
-            <button
-              type="submit"
-              disabled={submitting || !turnstileToken}
-              className="rounded-[8px] bg-slate-950 px-5 py-3 text-sm font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {submitting ? "Signing in..." : "Sign in"}
-            </button>
-
-            {portal === "customer" ? (
-              <Link
-                href="/signup"
-                className="rounded-[8px] border border-zinc-300 bg-white px-5 py-3 text-sm font-bold text-slate-700 transition hover:bg-zinc-50"
-              >
-                Create account
-              </Link>
-            ) : null}
-          </div>
-        </form>
-      </div>
-    </div>
+        </div>
+      </form>
+    </article>
   );
 }

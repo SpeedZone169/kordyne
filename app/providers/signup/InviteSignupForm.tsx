@@ -2,7 +2,10 @@
 
 import Link from "next/link";
 import { FormEvent, useState } from "react";
+
 import TurnstileWidget from "../../../components/TurnstileWidget";
+
+import styles from "./provider-signup.module.css";
 
 type InviteSignupFormProps = {
   inviteToken: string;
@@ -96,31 +99,25 @@ export default function InviteSignupForm({
 
   if (success) {
     return (
-      <div className="rounded-[8px] border border-zinc-200 bg-white p-8 shadow-sm">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-          Account created
-        </p>
-        <h2 className="mt-3 text-2xl font-semibold tracking-tight text-slate-950">
-          Check your email to continue
-        </h2>
-        <p className="mt-4 text-sm leading-6 text-slate-600">
+      <div className={`${styles.formCard} ${styles.successCard}`}>
+        <span className={styles.successMark} aria-hidden="true">
+          &#10003;
+        </span>
+        <p className={styles.formEyebrow}>Account created</p>
+        <h2>Check your email to continue</h2>
+        <p>
           Your invited {inviteType} account has been created for{" "}
           <strong>{inviteEmail}</strong>. If email confirmation is enabled,
-          confirm your email first, then return to your invite link and accept
-          the invite.
+          confirm your email before accepting the invitation.
         </p>
 
-        <div className="mt-6 flex flex-wrap gap-3">
-          <Link
-            href={`/invite/${inviteToken}`}
-            className="rounded-[8px] bg-slate-950 px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90"
-          >
+        <div className={styles.formActions}>
+          <Link href={`/invite/${inviteToken}`} className={styles.primaryButton}>
             Back to invite
           </Link>
-
           <Link
             href={`/login?next=${encodeURIComponent(`/invite/${inviteToken}`)}`}
-            className="rounded-[8px] border border-zinc-300 bg-white px-5 py-2.5 text-sm font-bold text-slate-900 transition hover:bg-zinc-50"
+            className={styles.secondaryButton}
           >
             Go to login
           </Link>
@@ -130,144 +127,96 @@ export default function InviteSignupForm({
   }
 
   return (
-    <>
-      <div className="rounded-[8px] border border-zinc-200 bg-white p-8 shadow-sm">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-          Invited account setup
-        </p>
+    <div className={styles.formCard}>
+      <p className={styles.formEyebrow}>Invited account setup</p>
+      <h2>Create your {inviteType} account</h2>
+      <p className={styles.formDescription}>
+        Complete the secure account details below. The organization and invited
+        email are locked to this invitation.
+      </p>
 
-        <h2 className="mt-3 text-2xl font-semibold tracking-tight text-slate-950">
-          Create your {inviteType} account
-        </h2>
+      <form onSubmit={handleSubmit} className={styles.form}>
+        <div className={styles.formRow}>
+          <label>
+            <span>Organization</span>
+            <input type="text" value={organizationName} readOnly />
+          </label>
+          <label>
+            <span>Invited email</span>
+            <input type="email" value={inviteEmail} readOnly />
+          </label>
+        </div>
 
-        <p className="mt-4 text-sm leading-6 text-slate-600">
-          This account is being created for <strong>{organizationName}</strong>.
-          You must sign up using the invited email address.
-        </p>
+        <label>
+          <span>Full name</span>
+          <input
+            type="text"
+            name="fullName"
+            required
+            autoComplete="name"
+            placeholder="Your full name"
+          />
+        </label>
 
-        <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-          <div>
-            <label className="mb-2 block text-sm font-medium text-slate-700">
-              Organization
-            </label>
-            <input
-              type="text"
-              value={organizationName}
-              readOnly
-              className="w-full rounded-[8px] border border-zinc-300 bg-[#f5f7fa] px-4 py-3 text-sm text-slate-600 outline-none"
-            />
-          </div>
-
-          <div>
-            <label className="mb-2 block text-sm font-medium text-slate-700">
-              Invited email
-            </label>
-            <input
-              type="email"
-              value={inviteEmail}
-              readOnly
-              className="w-full rounded-[8px] border border-zinc-300 bg-[#f5f7fa] px-4 py-3 text-sm text-slate-600 outline-none"
-            />
-          </div>
-
-          <div>
-            <label className="mb-2 block text-sm font-medium text-slate-700">
-              Full name
-            </label>
-            <input
-              type="text"
-              name="fullName"
-              required
-              className="w-full rounded-[8px] border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
-              placeholder="Your full name"
-            />
-          </div>
-
-          <div>
-            <label className="mb-2 block text-sm font-medium text-slate-700">
-              Password
-            </label>
+        <div className={styles.formRow}>
+          <label>
+            <span>Password</span>
             <input
               type="password"
               name="password"
               required
               minLength={8}
-              className="w-full rounded-[8px] border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
+              autoComplete="new-password"
               placeholder="Create a password"
             />
-          </div>
-
-          <div>
-            <label className="mb-2 block text-sm font-medium text-slate-700">
-              Repeat password
-            </label>
+          </label>
+          <label>
+            <span>Repeat password</span>
             <input
               type="password"
               name="repeatPassword"
               required
               minLength={8}
-              className="w-full rounded-[8px] border border-zinc-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none"
+              autoComplete="new-password"
               placeholder="Repeat your password"
             />
-          </div>
-
-          <label className="flex items-start gap-3 rounded-[8px] border border-zinc-200 bg-[#f5f7fa] p-4 text-sm leading-6 text-slate-600">
-            <input
-              type="checkbox"
-              name="acceptedTerms"
-              className="mt-1"
-              required
-            />
-            <span>
-              I agree to the{" "}
-              <Link href="/terms" className="font-medium text-slate-950 underline">
-                Terms
-              </Link>{" "}
-              and{" "}
-              <Link href="/privacy" className="font-medium text-slate-950 underline">
-                Privacy Policy
-              </Link>
-              .
-            </span>
           </label>
+        </div>
 
-          {siteKey ? (
-            <div className="rounded-[8px] border border-zinc-200 bg-[#f5f7fa] p-4">
-              <TurnstileWidget
-                key={turnstileKey}
-                onVerify={setTurnstileToken}
-              />
-            </div>
-          ) : (
-            <div className="rounded-[8px] border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-              Security verification is unavailable. Please contact Kordyne to complete account setup.
-            </div>
-          )}
+        <label className={styles.termsRow}>
+          <input type="checkbox" name="acceptedTerms" required />
+          <span>
+            I agree to the <Link href="/terms">Terms</Link> and{" "}
+            <Link href="/privacy">Privacy Policy</Link>.
+          </span>
+        </label>
 
-          {error ? (
-            <div className="rounded-[8px] border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-              {error}
-            </div>
-          ) : null}
-
-          <div className="flex flex-wrap gap-3">
-            <button
-              type="submit"
-              disabled={isSubmitting || !siteKey || !turnstileToken}
-              className="rounded-[8px] bg-slate-950 px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {isSubmitting ? "Creating account..." : "Create invited account"}
-            </button>
-
-            <Link
-              href={`/invite/${inviteToken}`}
-              className="rounded-[8px] border border-zinc-300 bg-white px-5 py-2.5 text-sm font-bold text-slate-900 transition hover:bg-zinc-50"
-            >
-              Back to invite
-            </Link>
+        {siteKey ? (
+          <div className={styles.turnstilePanel}>
+            <TurnstileWidget key={turnstileKey} onVerify={setTurnstileToken} />
           </div>
-        </form>
-      </div>
-    </>
+        ) : (
+          <div className={styles.warningMessage}>
+            Security verification is unavailable. Please contact Kordyne to
+            complete account setup.
+          </div>
+        )}
+
+        {error ? <div className={styles.errorMessage}>{error}</div> : null}
+
+        <div className={styles.formActions}>
+          <button
+            type="submit"
+            disabled={isSubmitting || !siteKey || !turnstileToken}
+            className={styles.primaryButton}
+          >
+            {isSubmitting ? "Creating account..." : "Create invited account"}
+          </button>
+          <Link href={`/invite/${inviteToken}`} className={styles.secondaryButton}>
+            Back to invite
+          </Link>
+        </div>
+      </form>
+    </div>
   );
 }

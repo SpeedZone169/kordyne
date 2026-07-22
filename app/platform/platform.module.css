@@ -1,0 +1,908 @@
+.page {
+  --navy: #000d20;
+  --deep-teal: #003040;
+  --aqua: #00bdde;
+  --ink: #003040;
+  --body: #455256;
+  --surface: #f5f5f5;
+  min-height: 100vh;
+  overflow: hidden;
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.page *,
+.page *::before,
+.page *::after {
+  box-sizing: border-box;
+}
+
+.page h1,
+.page h2,
+.page h3,
+.page p {
+  margin: 0;
+}
+
+.hero {
+  position: relative;
+  min-height: clamp(740px, 51.62vw, 892px);
+  overflow: hidden;
+  border-radius: 0 0 32px 32px;
+  background-color: var(--navy);
+  background-image: url("/marketing/backgrounds/platform-hero.png");
+  background-position: center bottom;
+  background-repeat: no-repeat;
+  background-size: cover;
+  color: #fff;
+}
+
+.nav {
+  position: relative;
+  z-index: 10;
+  display: grid;
+  grid-template-columns: 260px 1fr 260px;
+  align-items: center;
+  width: min(1200px, calc(100% - 48px));
+  height: 70px;
+  margin: 19px auto 0;
+  padding: 0 22px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 24px;
+  background: rgba(27, 46, 69, 0.88);
+  box-shadow: 0 16px 52px rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(18px);
+}
+
+.brand {
+  display: inline-flex;
+  width: 184px;
+}
+
+.brand img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.navLinks,
+.navActions {
+  display: flex;
+  align-items: center;
+}
+
+.navLinks {
+  justify-content: center;
+  gap: 32px;
+}
+
+.navActions {
+  justify-content: flex-end;
+  gap: 28px;
+}
+
+.nav a {
+  color: #fff;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1;
+  text-decoration: none;
+}
+
+.navLinks > a {
+  position: relative;
+  padding: 25px 0 22px;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.navLinks > a::after {
+  position: absolute;
+  right: 0;
+  bottom: 13px;
+  left: 0;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--aqua);
+  content: "";
+  opacity: 0;
+  transform: scaleX(0.35);
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.navLinks > a:hover::after,
+.navLinks > .activeNavLink::after {
+  opacity: 1;
+  transform: scaleX(1);
+}
+
+.actionButton {
+  display: inline-flex;
+  min-height: 46px;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 0 20px;
+  border: 1px solid rgba(0, 189, 222, 0.58);
+  border-radius: 12px;
+  background: #f7feff;
+  box-shadow: 0 0 18px rgba(0, 189, 222, 0.55);
+  color: #002536 !important;
+  font-size: 16px;
+  font-weight: 650;
+  line-height: 1;
+  text-decoration: none;
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.actionButton:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0 24px rgba(0, 189, 222, 0.75);
+}
+
+.actionButtonSecondary {
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(91, 119, 143, 0.42);
+  box-shadow: none;
+  color: #fff !important;
+  backdrop-filter: blur(12px);
+}
+
+.actionArrow {
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.mobileMenu {
+  display: none;
+}
+
+.heroRail {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: 456px minmax(260px, 1fr) 369px;
+  align-items: start;
+  width: min(
+    calc(100% - 48px),
+    clamp(1200px, calc(40.28vw + 620px), 1316px)
+  );
+  margin-top: clamp(120px, 9.65vw, 167px);
+  margin-left: max(24px, calc((100% - 1200px) / 2));
+}
+
+.heroCopy {
+  align-self: center;
+}
+
+.heroEyebrow {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  padding: 0 20px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  backdrop-filter: blur(10px);
+}
+
+.heroCopy h1 {
+  margin-top: 20px;
+  color: #fff;
+  font-size: clamp(46px, 4.05vw, 70px);
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.heroBody {
+  max-width: 456px;
+  margin-top: 20px !important;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 18px;
+  line-height: 28px;
+}
+
+.heroActions,
+.ctaActions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 26px;
+}
+
+.heroFeatures {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 86px;
+}
+
+.heroFeature {
+  display: flex;
+  min-height: 88px;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.15);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(15px);
+}
+
+.heroFeature img {
+  width: 50px;
+  height: 50px;
+  flex: 0 0 50px;
+}
+
+.heroFeature h2 {
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.heroFeature p {
+  margin-top: 7px !important;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.sectionRail {
+  width: min(920px, calc(100% - 48px));
+  margin: 0 auto;
+}
+
+.threadRail {
+  width: min(1200px, calc(100% - 48px));
+}
+
+.threadSection {
+  min-height: 660px;
+  padding: 120px 0 100px;
+  background: #fff;
+}
+
+.centerTitle {
+  color: var(--deep-teal);
+  font-size: clamp(36px, 2.78vw, 48px);
+  font-weight: 500;
+  line-height: 1.12;
+  text-align: center;
+}
+
+.threadFlow {
+  --thread-gap: 20px;
+
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: var(--thread-gap);
+  margin-top: 70px;
+  padding-bottom: 24px;
+}
+
+.threadCard {
+  position: relative;
+  z-index: 2;
+  min-height: 211px;
+  padding: 20px;
+  overflow: visible;
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.threadCard img {
+  display: block;
+  width: 50px;
+  height: 50px;
+}
+
+.threadCard h3 {
+  margin-top: 14px;
+  color: var(--deep-teal);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.15;
+}
+
+.threadCard p {
+  margin-top: 12px;
+  color: var(--body);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.numberTag,
+.architectureNumber {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  width: 30px;
+  height: 33px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0 12px 0 12px;
+  background: rgba(0, 189, 222, 0.15);
+  color: var(--deep-teal);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.threadLine {
+  display: none;
+}
+
+.threadNode {
+  position: absolute;
+  bottom: -6px;
+  left: 50%;
+  z-index: 6;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--aqua);
+  box-shadow: 0 0 12px rgba(0, 189, 222, 0.45);
+  transform: translateX(-50%);
+}
+
+.threadCard:not(:last-child)::after {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  z-index: 5;
+  box-sizing: border-box;
+  width: calc(100% + var(--thread-gap));
+  height: 24px;
+  border: 2px solid var(--aqua);
+  border-top: 0;
+  border-radius: 0 0 14px 14px;
+  content: "";
+  pointer-events: none;
+}
+
+.architectureSection {
+  padding: 120px 0;
+  background: var(--surface);
+}
+
+.splitHeading {
+  display: grid;
+  grid-template-columns: 552px 407px;
+  justify-content: space-between;
+  align-items: end;
+}
+
+.eyebrow {
+  color: var(--aqua);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.splitHeading h2 {
+  margin-top: 10px;
+  color: var(--deep-teal);
+  font-size: clamp(38px, 2.78vw, 48px);
+  font-weight: 500;
+  line-height: 1.12;
+}
+
+.splitHeading > p {
+  color: var(--body);
+  font-size: 18px;
+  line-height: 28px;
+}
+
+.architectureList {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  margin-top: 70px;
+}
+
+.architectureCard {
+  position: relative;
+  display: grid;
+  grid-template-columns: 470px 1fr;
+  min-height: 108px;
+  align-items: center;
+  padding: 18px 80px 18px 30px;
+  overflow: hidden;
+  border-radius: 20px;
+  background: #fff;
+}
+
+.architectureTitle {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.architectureTitle img {
+  width: 60px;
+  height: 60px;
+  flex: 0 0 60px;
+}
+
+.architectureCard h3 {
+  color: var(--deep-teal);
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.architectureCard > p {
+  max-width: 508px;
+  color: var(--body);
+  font-size: 16px;
+  line-height: 24px;
+}
+
+.architectureNumber {
+  width: 50px;
+  height: 50px;
+  border-radius: 0 20px 0 20px;
+  font-size: 22px;
+}
+
+.capabilitiesSection {
+  padding: 120px 0;
+  background: #fff;
+}
+
+.capabilitiesHeading {
+  text-align: center;
+}
+
+.capabilitiesHeading h2 {
+  margin-top: 10px;
+  color: var(--deep-teal);
+  font-size: clamp(38px, 2.78vw, 48px);
+  font-weight: 500;
+  line-height: 1.12;
+}
+
+.capabilitiesGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  margin-top: 70px;
+}
+
+.capabilityCard {
+  position: relative;
+  min-height: 316px;
+  padding: 40px;
+  overflow: hidden;
+  border-radius: 20px;
+  background: var(--surface);
+}
+
+.capabilityCard img {
+  display: block;
+  width: 80px;
+  height: 80px;
+}
+
+.capabilityCard h3 {
+  max-width: 290px;
+  margin-top: 20px;
+  color: var(--deep-teal);
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 30px;
+}
+
+.capabilityCard p {
+  max-width: 315px;
+  margin-top: 12px;
+  color: var(--body);
+  font-size: 16px;
+  line-height: 24px;
+}
+
+.capabilityCard .numberTag {
+  width: 50px;
+  height: 50px;
+  border-radius: 0 20px 0 20px;
+  font-size: 24px;
+}
+
+.ctaWrap {
+  padding: 0 16px 16px;
+  background: #fff;
+}
+
+.cta {
+  position: relative;
+  min-height: 720px;
+  overflow: hidden;
+  border-radius: 28px;
+  background-color: var(--navy);
+  background-image: url("/marketing/backgrounds/platform-cta.png");
+  background-position: center bottom;
+  background-repeat: no-repeat;
+  background-size: cover;
+  color: #fff;
+}
+
+.ctaContent {
+  width: min(855px, calc(100% - 48px));
+  margin: 0 auto;
+  padding-top: 120px;
+  text-align: center;
+}
+
+.ctaContent h2 {
+  max-width: 707px;
+  margin-right: auto;
+  margin-left: auto;
+  margin-top: 16px;
+  color: #fff;
+  font-size: 48px;
+  font-weight: 500;
+  line-height: 54px;
+}
+
+.ctaContent > p:not(.eyebrow) {
+  max-width: 589px;
+  margin: 22px auto 0;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 18px;
+  line-height: 28px;
+}
+
+.ctaActions {
+  justify-content: center;
+}
+
+.footer {
+  position: absolute;
+  right: 44px;
+  bottom: 30px;
+  left: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 16px;
+}
+
+.footer div {
+  display: flex;
+  gap: 32px;
+}
+
+.footer a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.footer a:hover {
+  color: #fff;
+}
+
+@media (max-width: 1180px) {
+  .nav {
+    grid-template-columns: 220px 1fr 220px;
+  }
+
+  .navLinks {
+    gap: 22px;
+  }
+
+  .heroRail {
+    grid-template-columns: minmax(360px, 0.95fr) minmax(180px, 0.65fr) minmax(310px, 0.8fr);
+    margin-right: auto;
+    margin-left: auto;
+  }
+
+  .heroCopy h1 {
+    white-space: normal;
+  }
+
+  .threadFlow {
+    --thread-gap: 10px;
+  }
+
+  .threadCard {
+    padding: 16px;
+  }
+
+  .threadCard h3 {
+    font-size: 14px;
+  }
+
+  .architectureCard {
+    grid-template-columns: 42% 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .hero {
+    min-height: auto;
+    padding-bottom: 70px;
+    background-position: 58% bottom;
+  }
+
+  .nav {
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .navLinks,
+  .navActions {
+    display: none;
+  }
+
+  .mobileMenu {
+    position: relative;
+    display: block;
+  }
+
+  .mobileMenu summary {
+    display: flex;
+    width: 44px;
+    height: 44px;
+    cursor: pointer;
+    list-style: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 10px;
+  }
+
+  .mobileMenu summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .mobileMenu summary span {
+    width: 19px;
+    height: 2px;
+    border-radius: 999px;
+    background: #fff;
+  }
+
+  .mobileMenuPanel {
+    position: absolute;
+    top: 54px;
+    right: 0;
+    display: flex;
+    width: 220px;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 14px;
+    background: rgba(8, 27, 45, 0.97);
+    box-shadow: 0 22px 48px rgba(0, 0, 0, 0.35);
+  }
+
+  .mobileMenuPanel a {
+    padding: 12px;
+    border-radius: 8px;
+  }
+
+  .mobileMenuPanel a:hover {
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .mobileMenuPanel .mobileDemoLink {
+    margin-top: 5px;
+    background: var(--aqua);
+    color: var(--navy);
+  }
+
+  .heroRail {
+    grid-template-columns: 1fr;
+    gap: 360px;
+    margin-top: 72px;
+  }
+
+  .heroSpacer {
+    display: none;
+  }
+
+  .heroCopy {
+    max-width: 560px;
+  }
+
+  .heroFeatures {
+    max-width: 560px;
+    margin-top: 0;
+  }
+
+  .threadSection {
+    padding: 80px 0;
+  }
+
+  .threadFlow {
+    grid-template-columns: repeat(2, 1fr);
+    margin-top: 54px;
+  }
+
+  .threadLine,
+  .threadNode,
+  .threadCard::after {
+    display: none;
+  }
+
+  .splitHeading {
+    grid-template-columns: 1fr;
+    gap: 28px;
+  }
+
+  .architectureCard {
+    grid-template-columns: 1fr;
+    gap: 14px;
+    padding: 22px 70px 22px 22px;
+  }
+
+  .capabilitiesGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 620px) {
+  .nav,
+  .heroRail,
+  .sectionRail {
+    width: calc(100% - 28px);
+  }
+
+  .nav {
+    height: 62px;
+    margin-top: 12px;
+    padding: 0 14px;
+    border-radius: 18px;
+  }
+
+  .brand {
+    width: 146px;
+  }
+
+  .hero {
+    border-radius: 0 0 20px 20px;
+    background-position: 56% bottom;
+    background-size: auto 76%;
+  }
+
+  .heroRail {
+    gap: 290px;
+    margin-top: 54px;
+  }
+
+  .heroEyebrow {
+    min-height: 32px;
+    padding: 0 14px;
+    font-size: 11px;
+  }
+
+  .heroCopy h1 {
+    font-size: 42px;
+  }
+
+  .heroBody {
+    font-size: 14px;
+  }
+
+  .heroActions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .heroActions .actionButton {
+    width: 100%;
+  }
+
+  .centerTitle,
+  .splitHeading h2,
+  .capabilitiesHeading h2 {
+    font-size: 32px;
+  }
+
+  .centerTitle br,
+  .capabilitiesHeading h2 br {
+    display: none;
+  }
+
+  .threadFlow,
+  .capabilitiesGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .threadCard {
+    min-height: 190px;
+  }
+
+  .architectureSection,
+  .capabilitiesSection {
+    padding: 80px 0;
+  }
+
+  .architectureList,
+  .capabilitiesGrid {
+    margin-top: 48px;
+  }
+
+  .architectureTitle {
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .architectureCard h3 {
+    font-size: 20px;
+  }
+
+  .capabilityCard {
+    min-height: 250px;
+    padding: 28px;
+  }
+
+  .capabilityCard img {
+    width: 66px;
+    height: 66px;
+  }
+
+  .capabilityCard h3 {
+    font-size: 22px;
+    line-height: 26px;
+  }
+
+  .capabilityCard p {
+    font-size: 14px;
+    line-height: 21px;
+  }
+
+  .ctaWrap {
+    padding: 0 8px 8px;
+  }
+
+  .cta {
+    min-height: 650px;
+    border-radius: 20px;
+    background-position: 52% bottom;
+  }
+
+  .ctaContent {
+    width: calc(100% - 34px);
+    padding-top: 82px;
+  }
+
+  .ctaContent h2 {
+    font-size: 36px;
+    line-height: 40px;
+  }
+
+  .ctaActions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .footer {
+    right: 22px;
+    bottom: 20px;
+    left: 22px;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .footer div {
+    gap: 20px;
+  }
+}

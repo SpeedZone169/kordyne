@@ -1,9 +1,13 @@
+import type { Metadata } from "next";
 import Link from "next/link";
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
-import { createClient } from "@/lib/supabase/server";
+import type { ReactNode } from "react";
+
+import MarketingNav from "@/components/MarketingNav";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
+
 import InviteSignupForm from "./InviteSignupForm";
+import styles from "./provider-signup.module.css";
 
 type SignupPageProps = {
   searchParams: Promise<{
@@ -22,12 +26,27 @@ type InviteMetaRow = {
   organization_id: string;
 };
 
-function ProviderSignupShell({ children }: { children: React.ReactNode }) {
+export const metadata: Metadata = {
+  title: "Provider access | Kordyne",
+  description:
+    "Create an invited Kordyne provider account and access approved manufacturing work securely.",
+};
+
+function ProviderSignupShell({ children }: { children: ReactNode }) {
   return (
-    <main className="min-h-screen bg-[#f5f7fa] text-slate-950">
-      <Navbar />
-      {children}
-      <Footer />
+    <main className={`${styles.page} marketing-site`}>
+      <section className={styles.hero}>
+        <MarketingNav active="providers" />
+        {children}
+
+        <footer className={styles.footer}>
+          <p>&copy; 2026 Kordyne. All rights reserved.</p>
+          <div>
+            <Link href="/terms">Terms &amp; Conditions</Link>
+            <Link href="/privacy">Privacy Policy</Link>
+          </div>
+        </footer>
+      </section>
     </main>
   );
 }
@@ -38,97 +57,73 @@ export default async function SignupPage({ searchParams }: SignupPageProps) {
   if (!invite) {
     return (
       <ProviderSignupShell>
-        <section className="relative overflow-hidden bg-[#101823] text-white">
-          <div className="absolute inset-0 kordyne-grid-bg opacity-65" />
-          <div className="relative mx-auto max-w-6xl px-5 py-16 sm:px-6 lg:px-8 lg:py-20">
-          <div className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-start">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.28em] text-[#e08a49]">
-                Provider access
-              </p>
+        <div className={`${styles.content} ${styles.introGrid}`}>
+          <div className={styles.introCopy}>
+            <p className={styles.eyebrow}>Kordyne for providers</p>
+            <h1>Join approved manufacturing work with the right context.</h1>
+            <p className={styles.lede}>
+              Provider access is invitation-based. Customers approve the
+              organization, work package, and role before any files or project
+              context are shared.
+            </p>
 
-              <h1 className="mt-4 text-4xl font-semibold tracking-tight text-white lg:text-6xl">
-                Provider accounts are opened through customer-approved invites.
-              </h1>
-
-              <p className="mt-6 max-w-2xl text-base leading-7 text-slate-300">
-                Manufacturers, consultants, and external reviewers join Kordyne
-                through scoped invitations. The same sign-in page routes provider
-                users into the provider workspace.
-              </p>
-
-              <div className="mt-8 flex flex-wrap gap-3">
-                <Link
-                  href="/contact"
-                  className="rounded-[8px] bg-[#e08a49] px-6 py-3 text-sm font-black text-white transition hover:bg-[#c97539]"
-                >
-                  Request provider access
-                </Link>
-
-                <Link
-                  href="/login?portal=provider&next=%2Fprovider"
-                  className="rounded-[8px] border border-white/18 bg-white/10 px-6 py-3 text-sm font-black text-white transition hover:bg-white/15"
-                >
-                  Provider sign in
-                </Link>
-              </div>
-            </div>
-
-            <div className="rounded-[8px] border border-white/12 bg-white p-6 text-slate-900 shadow-[0_24px_70px_rgba(2,8,23,0.28)]">
-              <p className="text-xs font-black uppercase tracking-[0.24em] text-slate-500">
-                Provider onboarding
-              </p>
-
-              <div className="mt-6 space-y-5">
-                <div className="rounded-[8px] border border-zinc-200 bg-[#f5f7fa] p-5">
-                  <p className="text-sm font-black text-slate-950">
-                    1. Approved relationship
-                  </p>
-                  <p className="mt-2 text-sm leading-6 text-slate-600">
-                    A customer or Kordyne admin approves the provider
-                    relationship and shared work context.
-                  </p>
-                </div>
-
-                <div className="rounded-[8px] border border-zinc-200 bg-[#f5f7fa] p-5">
-                  <p className="text-sm font-black text-slate-950">
-                    2. Scoped invitation
-                  </p>
-                  <p className="mt-2 text-sm leading-6 text-slate-600">
-                    Users receive an invite tied to the provider organization,
-                    package access, and allowed role.
-                  </p>
-                </div>
-
-                <div className="rounded-[8px] border border-zinc-200 bg-[#f5f7fa] p-5">
-                  <p className="text-sm font-black text-slate-950">
-                    3. Provider workspace
-                  </p>
-                  <p className="mt-2 text-sm leading-6 text-slate-600">
-                    Signed-in providers land in the focused portal for packages,
-                    quotes, collaboration, and returned files.
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-8 rounded-[8px] border border-zinc-200 bg-white p-5">
-                <p className="text-sm font-black text-slate-950">
-                  Already invited?
-                </p>
-                <p className="mt-2 text-sm leading-6 text-slate-600">
-                  Use the invite link from your email to complete your account.
-                </p>
-                <Link
-                  href="/login?portal=provider&next=%2Fprovider"
-                  className="mt-4 inline-flex rounded-[8px] border border-zinc-300 bg-white px-5 py-2.5 text-sm font-bold text-slate-900 transition hover:bg-zinc-50"
-                >
-                  Go to provider login
-                </Link>
-              </div>
+            <div className={styles.actions}>
+              <Link href="/contact" className={styles.primaryButton}>
+                <span>Request provider access</span>
+                <span aria-hidden="true">&rarr;</span>
+              </Link>
+              <Link
+                href="/login?portal=provider&next=%2Fprovider"
+                className={styles.secondaryButton}
+              >
+                <span>Provider sign in</span>
+                <span aria-hidden="true">&rarr;</span>
+              </Link>
             </div>
           </div>
-          </div>
-        </section>
+
+          <aside className={styles.onboardingPanel} aria-label="Provider onboarding">
+            <div className={styles.panelHeader}>
+              <div>
+                <p>Provider onboarding</p>
+                <h2>Access opens in three controlled steps</h2>
+              </div>
+              <span className={styles.invitePill}>Invite only</span>
+            </div>
+
+            <ol className={styles.stepList}>
+              <li>
+                <span className={styles.stepNumber}>1</span>
+                <div>
+                  <h3>Approved relationship</h3>
+                  <p>A customer or Kordyne admin approves the provider organization.</p>
+                </div>
+              </li>
+              <li>
+                <span className={styles.stepNumber}>2</span>
+                <div>
+                  <h3>Scoped invitation</h3>
+                  <p>The invitation carries the organization, package access, and role.</p>
+                </div>
+              </li>
+              <li>
+                <span className={styles.stepNumber}>3</span>
+                <div>
+                  <h3>Provider workspace</h3>
+                  <p>Work opens in the focused portal for quotes, questions, and returns.</p>
+                </div>
+              </li>
+            </ol>
+
+            <div className={styles.panelFooter}>
+              <div>
+                <strong>Already invited?</strong>
+                <span>Use the secure link from your email to create your account.</span>
+              </div>
+              <Link href="/login?portal=provider&next=%2Fprovider">Sign in</Link>
+            </div>
+          </aside>
+        </div>
       </ProviderSignupShell>
     );
   }
@@ -150,27 +145,20 @@ export default async function SignupPage({ searchParams }: SignupPageProps) {
   if (!inviteDetails || inviteError) {
     return (
       <ProviderSignupShell>
-        <section className="mx-auto max-w-4xl px-6 py-16 lg:px-10 lg:py-24">
-          <div className="rounded-[8px] border border-zinc-200 bg-white p-8 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-              Invite signup
+        <div className={`${styles.content} ${styles.stateContent}`}>
+          <div className={styles.stateCard}>
+            <p className={styles.eyebrow}>Invite signup</p>
+            <h1>Invite not found</h1>
+            <p>
+              This invitation is invalid or no longer available. Request a new
+              secure invite from the organization that shared work with you.
             </p>
-            <h1 className="mt-4 text-4xl font-semibold tracking-tight text-slate-950">
-              Invite not found
-            </h1>
-            <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">
-              This invite is invalid or no longer available.
-            </p>
-            <div className="mt-8">
-              <Link
-                href="/contact"
-                className="rounded-[8px] bg-[#e08a49] px-6 py-3 text-sm font-black text-white transition hover:bg-[#c97539]"
-              >
-                Contact Kordyne
-              </Link>
-            </div>
+            <Link href="/contact" className={styles.primaryButton}>
+              <span>Contact Kordyne</span>
+              <span aria-hidden="true">&rarr;</span>
+            </Link>
           </div>
-        </section>
+        </div>
       </ProviderSignupShell>
     );
   }
@@ -199,87 +187,70 @@ export default async function SignupPage({ searchParams }: SignupPageProps) {
   if (inviteDetails.status !== "pending") {
     return (
       <ProviderSignupShell>
-        <section className="mx-auto max-w-4xl px-6 py-16 lg:px-10 lg:py-24">
-          <div className="rounded-[8px] border border-zinc-200 bg-white p-8 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-              Invite signup
+        <div className={`${styles.content} ${styles.stateContent}`}>
+          <div className={styles.stateCard}>
+            <p className={styles.eyebrow}>Invite signup</p>
+            <h1>Invite not available</h1>
+            <p>
+              This invitation is no longer pending. It may already have been
+              accepted or withdrawn by the organization that issued it.
             </p>
-            <h1 className="mt-4 text-4xl font-semibold tracking-tight text-slate-950">
-              Invite not available
-            </h1>
-            <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">
-              This invite is no longer pending. You may already have accepted it,
-              or it may no longer be available.
-            </p>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <Link
-                href={`/invite/${invite}`}
-                className="rounded-[8px] bg-slate-950 px-6 py-3 text-sm font-black text-white transition hover:opacity-90"
-              >
+            <div className={styles.actions}>
+              <Link href={`/invite/${invite}`} className={styles.primaryButton}>
                 Back to invite
               </Link>
-              <Link
-                href="/login"
-                className="rounded-[8px] border border-zinc-300 bg-white px-6 py-3 text-sm font-black text-slate-900 transition hover:bg-zinc-50"
-              >
+              <Link href="/login" className={styles.secondaryButton}>
                 Go to login
               </Link>
             </div>
           </div>
-        </section>
+        </div>
       </ProviderSignupShell>
     );
   }
 
   return (
     <ProviderSignupShell>
-      <section className="mx-auto max-w-6xl px-6 py-16 lg:px-10 lg:py-24">
-        <div className="grid gap-10 lg:grid-cols-[1fr_1fr] lg:items-start">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
-              Invite-based signup
-            </p>
+      <div className={`${styles.content} ${styles.inviteGrid}`}>
+        <div className={styles.inviteIntro}>
+          <p className={styles.eyebrow}>Secure invited access</p>
+          <h1>Create your {inviteType} account</h1>
+          <p className={styles.lede}>
+            Your account will be created for <strong>{inviteDetails.organization_name}</strong>.
+            Only the invited email and approved organization context can be used.
+          </p>
 
-            <h1 className="mt-4 text-4xl font-semibold tracking-tight text-slate-950 lg:text-5xl">
-              Create your invited {inviteType} account
-            </h1>
-
-            <p className="mt-6 max-w-2xl text-base leading-7 text-slate-600">
-              You are creating an account for <strong>{inviteDetails.organization_name}</strong>.
-              Public signup is closed, but invited users can create accounts here
-              before accepting their invite.
-            </p>
-
-            <div className="mt-8 rounded-[8px] border border-zinc-200 bg-white p-6 shadow-sm">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-                Invite details
-              </p>
-              <div className="mt-4 grid gap-3 text-sm text-slate-600">
-                <p>Organization: {inviteDetails.organization_name}</p>
-                <p>Email: {inviteDetails.email}</p>
-                <p>Role: {inviteDetails.role}</p>
-                <p>Invite type: {inviteType}</p>
-              </div>
-
-              <div className="mt-6">
-                <Link
-                  href={`/invite/${invite}`}
-                  className="rounded-[8px] border border-zinc-300 bg-white px-5 py-2.5 text-sm font-bold text-slate-900 transition hover:bg-zinc-50"
-                >
-                  Back to invite
-                </Link>
-              </div>
+          <dl className={styles.inviteSummary}>
+            <div>
+              <dt>Organization</dt>
+              <dd>{inviteDetails.organization_name}</dd>
             </div>
-          </div>
+            <div>
+              <dt>Invited email</dt>
+              <dd>{inviteDetails.email}</dd>
+            </div>
+            <div>
+              <dt>Approved role</dt>
+              <dd>{inviteDetails.role}</dd>
+            </div>
+            <div>
+              <dt>Workspace</dt>
+              <dd>{inviteType}</dd>
+            </div>
+          </dl>
 
-          <InviteSignupForm
-            inviteToken={invite}
-            inviteEmail={inviteDetails.email}
-            organizationName={inviteDetails.organization_name}
-            inviteType={inviteType}
-          />
+          <Link href={`/invite/${invite}`} className={styles.textLink}>
+            &larr; Back to invite
+          </Link>
         </div>
-      </section>
+
+        <InviteSignupForm
+          inviteToken={invite}
+          inviteEmail={inviteDetails.email}
+          organizationName={inviteDetails.organization_name}
+          inviteType={inviteType}
+        />
+      </div>
     </ProviderSignupShell>
   );
 }
