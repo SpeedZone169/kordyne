@@ -1707,25 +1707,62 @@
     padding: 18px;
   }
 
+  .problemVisual img {
+    width: 138%;
+    max-width: none;
+  }
+
   .ecosystemSection {
     padding-top: 64px;
     padding-bottom: 64px;
   }
 
   .ecosystemMap {
+    position: relative;
     gap: 10px;
     margin-top: 34px;
   }
 
+  .ecosystemMap::before {
+    position: absolute;
+    top: 196px;
+    bottom: 41px;
+    left: 50%;
+    z-index: 0;
+    width: 2px;
+    background: var(--aqua);
+    content: "";
+    transform: translateX(-50%);
+  }
+
   .ecosystemItem {
+    z-index: 2;
     min-height: 82px;
     padding: 13px 15px;
+  }
+
+  .ecosystemItem::before {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    z-index: 3;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--aqua);
+    content: "";
+    transform: translate(-50%, -50%);
   }
 
   .ecosystemCenter {
     width: 176px;
     height: 176px;
     margin: 20px 0;
+    order: -2;
+  }
+
+  .ecosystem_cad {
+    order: -1;
   }
 
   .workGrid .workLead {
@@ -1735,10 +1772,15 @@
   }
 
   .workLeadVisual {
-    width: min(222px, 100%);
+    width: 220px;
     height: 172px;
-    grid-template-rows: repeat(2, 80px);
-    gap: 10px 18px;
+    grid-template-columns: repeat(2, 98px);
+    grid-template-rows: repeat(2, 81px);
+    gap: 10px 24px;
+  }
+
+  .workLeadConnectors {
+    display: block;
   }
 
   .ctaShell {
