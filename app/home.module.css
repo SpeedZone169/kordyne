@@ -1527,3 +1527,246 @@
     gap: 22px;
   }
 }
+
+/* Phone composition follows the dedicated Figma frames without affecting desktop. */
+@media (max-width: 767px) {
+  .hero {
+    min-height: auto;
+    padding-bottom: 34px;
+    border-radius: 0 0 18px 18px;
+    background-position: center bottom;
+    background-size: auto 720px;
+  }
+
+  .heroCopy {
+    width: calc(100% - 34px);
+    margin-top: 52px;
+  }
+
+  .heroEyebrow {
+    min-height: 27px;
+    padding: 0 12px;
+    font-size: 9px;
+  }
+
+  .heroCopy h1 {
+    max-width: 350px;
+    margin: 20px auto 0;
+    font-size: 34px;
+    line-height: 1.08;
+  }
+
+  .heroCopy > p:not(.heroEyebrow) {
+    max-width: 330px;
+    margin: 16px auto 0;
+    font-size: 14px;
+    line-height: 1.55;
+  }
+
+  .operatingLayer {
+    width: calc(100% - 34px);
+    min-height: 0;
+    margin-top: 38px;
+    padding: 20px 16px 17px;
+    border-radius: 15px;
+  }
+
+  .operatingHeader {
+    gap: 10px;
+    padding-right: 88px;
+  }
+
+  .operatingHeader h2 {
+    font-size: 22px;
+    line-height: 1.08;
+  }
+
+  .livePill {
+    top: 18px;
+    right: 14px;
+    min-height: 23px;
+    font-size: 8px;
+  }
+
+  .operatingFlow {
+    gap: 8px;
+    margin-top: 20px;
+  }
+
+  .flowStep {
+    min-height: 112px;
+    padding: 15px 12px;
+  }
+
+  .flowStep strong {
+    font-size: 14px;
+  }
+
+  .flowStep small {
+    font-size: 11px;
+  }
+
+  .operatingTruths {
+    gap: 8px;
+    margin-top: 10px;
+  }
+
+  .truthItem {
+    min-height: 76px;
+    padding: 12px;
+  }
+
+  .truthItem strong {
+    font-size: 13px;
+  }
+
+  .truthItem small {
+    font-size: 10px;
+  }
+
+  .operatingQuote {
+    min-height: 76px;
+    margin-top: 10px;
+    padding: 14px;
+  }
+
+  .operatingQuote p {
+    font-size: 11px;
+    line-height: 1.45;
+  }
+
+  .section {
+    padding: 62px 0;
+  }
+
+  .contentRail,
+  .workSection .contentRail {
+    width: calc(100% - 34px);
+  }
+
+  .sectionHeading h2 {
+    max-width: 350px;
+    margin-top: 8px;
+    font-size: 29px;
+    line-height: 1.1;
+  }
+
+  .splitHeading {
+    gap: 15px;
+  }
+
+  .splitHeading > p {
+    max-width: 340px;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+
+  .impactGrid,
+  .workGrid,
+  .networkGrid {
+    gap: 11px;
+    margin-top: 32px;
+  }
+
+  .impactLeadCard {
+    min-height: 0;
+    padding: 24px 20px 20px;
+  }
+
+  .factoryGraphic {
+    width: min(290px, 100%);
+    margin: 20px auto 0;
+  }
+
+  .featureCard,
+  .workGrid .featureCard,
+  .networkGrid .featureCard {
+    min-height: 205px;
+    padding: 24px 21px;
+  }
+
+  .impactLeadCopy h3,
+  .featureCard h3 {
+    font-size: 19px;
+    line-height: 1.15;
+  }
+
+  .featureCard p,
+  .impactLeadCopy p {
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  .problemGrid {
+    gap: 11px;
+    margin-top: 32px;
+  }
+
+  .problemVisual {
+    min-height: 360px;
+    padding: 18px;
+  }
+
+  .ecosystemSection {
+    padding-top: 64px;
+    padding-bottom: 64px;
+  }
+
+  .ecosystemMap {
+    gap: 10px;
+    margin-top: 34px;
+  }
+
+  .ecosystemItem {
+    min-height: 82px;
+    padding: 13px 15px;
+  }
+
+  .ecosystemCenter {
+    width: 176px;
+    height: 176px;
+    margin: 20px 0;
+  }
+
+  .workGrid .workLead {
+    min-height: 0;
+    gap: 20px;
+    padding: 24px 21px;
+  }
+
+  .workLeadVisual {
+    width: min(222px, 100%);
+    height: 172px;
+    grid-template-rows: repeat(2, 80px);
+    gap: 10px 18px;
+  }
+
+  .ctaShell {
+    padding: 0 8px 8px;
+  }
+
+  .cta {
+    border-radius: 15px;
+  }
+
+  .ctaCopy {
+    width: calc(100% - 32px);
+    padding: 43px 0 28px;
+  }
+
+  .ctaCopy h2 {
+    font-size: 28px;
+    line-height: 1.12;
+  }
+
+  .ctaCopy p {
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .footer {
+    margin: 0 16px;
+    padding-bottom: 20px;
+    font-size: 11px;
+  }
+}

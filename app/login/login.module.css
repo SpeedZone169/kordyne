@@ -535,3 +535,84 @@
     gap: 16px;
   }
 }
+
+/* Dedicated phone layout from the invite-only login Figma frame. */
+@media (max-width: 760px) {
+  .hero {
+    min-height: 100svh;
+    padding-bottom: 18px;
+    border-radius: 0 0 18px 18px;
+    background-position: center bottom;
+  }
+
+  .loginRail {
+    width: calc(100% - 34px);
+    padding: 50px 0 30px;
+  }
+
+  .loginCard {
+    width: 100%;
+    min-height: 0;
+    padding: 27px 16px 19px;
+    border-radius: 15px;
+  }
+
+  .loginHeader {
+    max-width: 320px;
+  }
+
+  .loginBadge {
+    font-size: 9px;
+  }
+
+  .loginHeader h1 {
+    margin-top: 6px;
+    font-size: 29px;
+    line-height: 1.1;
+  }
+
+  .loginDescription {
+    margin-top: 8px !important;
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  .form {
+    gap: 10px;
+    margin-top: 21px;
+  }
+
+  .form input {
+    height: 48px;
+    font-size: 13px;
+  }
+
+  .formOptions {
+    gap: 10px;
+    font-size: 11px;
+  }
+
+  .turnstilePanel {
+    min-height: 65px;
+    overflow: hidden;
+  }
+
+  .primaryButton {
+    min-height: 47px;
+    font-size: 14px;
+  }
+
+  .footer {
+    width: calc(100% - 34px);
+    min-height: 88px;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 0;
+    font-size: 11px;
+    text-align: center;
+  }
+
+  .footer div {
+    justify-content: center;
+  }
+}

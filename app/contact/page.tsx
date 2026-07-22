@@ -10,8 +10,7 @@ import TurnstileWidget from "../../components/TurnstileWidget";
 import styles from "./contact.module.css";
 
 type ContactForm = {
-  firstName: string;
-  lastName: string;
+  fullName: string;
   email: string;
   company: string;
   teamSize: string;
@@ -20,8 +19,7 @@ type ContactForm = {
 };
 
 const emptyForm: ContactForm = {
-  firstName: "",
-  lastName: "",
+  fullName: "",
   email: "",
   company: "",
   teamSize: "",
@@ -63,7 +61,7 @@ export default function ContactPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          name: `${form.firstName} ${form.lastName}`.trim(),
+          name: form.fullName.trim(),
           email: form.email,
           company: form.company,
           teamSize: form.teamSize,
@@ -142,32 +140,17 @@ export default function ContactPage() {
             <form onSubmit={handleSubmit} className={styles.form}>
               <div className={styles.twoColumns}>
                 <label>
-                  <span className={styles.srOnly}>First name</span>
+                  <span className={styles.srOnly}>Full name</span>
                   <input
                     type="text"
-                    name="firstName"
+                    name="fullName"
                     required
-                    autoComplete="given-name"
-                    value={form.firstName}
+                    autoComplete="name"
+                    value={form.fullName}
                     onChange={handleChange}
-                    placeholder="First Name"
+                    placeholder="Full Name"
                   />
                 </label>
-                <label>
-                  <span className={styles.srOnly}>Last name</span>
-                  <input
-                    type="text"
-                    name="lastName"
-                    required
-                    autoComplete="family-name"
-                    value={form.lastName}
-                    onChange={handleChange}
-                    placeholder="Last Name"
-                  />
-                </label>
-              </div>
-
-              <div className={styles.twoColumns}>
                 <label>
                   <span className={styles.srOnly}>Work email</span>
                   <input
@@ -180,6 +163,9 @@ export default function ContactPage() {
                     placeholder="Work Email"
                   />
                 </label>
+              </div>
+
+              <div className={styles.twoColumns}>
                 <label>
                   <span className={styles.srOnly}>Company</span>
                   <input
@@ -191,23 +177,22 @@ export default function ContactPage() {
                     placeholder="Company"
                   />
                 </label>
+                <label>
+                  <span className={styles.srOnly}>Team size</span>
+                  <select
+                    name="teamSize"
+                    value={form.teamSize}
+                    onChange={handleChange}
+                    aria-label="Team size"
+                  >
+                    <option value="">Team Size</option>
+                    <option value="1-10">1-10</option>
+                    <option value="11-50">11-50</option>
+                    <option value="51-200">51-200</option>
+                    <option value="200+">200+</option>
+                  </select>
+                </label>
               </div>
-
-              <label>
-                <span className={styles.srOnly}>Team size</span>
-                <select
-                  name="teamSize"
-                  value={form.teamSize}
-                  onChange={handleChange}
-                  aria-label="Team size"
-                >
-                  <option value="">Team Size</option>
-                  <option value="1-10">1-10</option>
-                  <option value="11-50">11-50</option>
-                  <option value="51-200">51-200</option>
-                  <option value="200+">200+</option>
-                </select>
-              </label>
 
               <label>
                 <span className={styles.srOnly}>Primary manufacturing interest</span>

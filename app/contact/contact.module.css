@@ -590,3 +590,121 @@
     gap: 16px;
   }
 }
+
+/* Dedicated phone layout from the contact mobile Figma frame. */
+@media (max-width: 760px) {
+  .hero {
+    min-height: auto;
+    padding-bottom: 20px;
+    border-radius: 0 0 18px 18px;
+    background-position: center bottom;
+  }
+
+  .contactRail {
+    width: calc(100% - 34px);
+    gap: 34px;
+    padding: 50px 0 32px;
+  }
+
+  .contactCopy {
+    text-align: center;
+  }
+
+  .eyebrow {
+    min-height: 27px;
+    padding: 0 12px;
+    font-size: 9px;
+  }
+
+  .contactCopy h1 {
+    max-width: 350px;
+    margin: 18px auto 0;
+    font-size: 32px;
+    line-height: 1.08;
+  }
+
+  .intro {
+    max-width: 340px;
+    margin: 16px auto 0 !important;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+
+  .usefulFor {
+    width: min(330px, 100%);
+    margin: 26px auto 0;
+    text-align: left;
+  }
+
+  .usefulFor ul {
+    gap: 10px;
+    margin-top: 13px;
+  }
+
+  .usefulFor li {
+    gap: 10px;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+
+  .formCard {
+    width: 100%;
+    min-height: 0;
+    padding: 24px 15px 18px;
+    border-radius: 15px;
+  }
+
+  .formHeader h2 {
+    font-size: 20px;
+  }
+
+  .formHeader p {
+    font-size: 12px;
+  }
+
+  .form {
+    gap: 10px;
+    margin-top: 19px;
+  }
+
+  .twoColumns {
+    grid-template-columns: 1fr;
+  }
+
+  .form input,
+  .form select {
+    height: 46px;
+    padding: 0 13px;
+    font-size: 13px;
+  }
+
+  .form textarea {
+    height: 104px;
+    min-height: 104px;
+    padding: 12px 13px;
+    font-size: 13px;
+  }
+
+  .turnstilePanel {
+    min-height: 65px;
+    overflow: hidden;
+  }
+
+  .submitButton {
+    min-height: 46px;
+  }
+
+  .footer {
+    width: calc(100% - 34px);
+    min-height: 88px;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 0;
+    font-size: 11px;
+    text-align: center;
+  }
+
+  .footer div {
+    justify-content: center;
+  }
+}

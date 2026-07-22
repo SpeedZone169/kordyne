@@ -954,3 +954,252 @@
     gap: 20px;
   }
 }
+
+/* Dedicated phone layout from the provider mobile Figma frame. */
+@media (max-width: 640px) {
+  .hero {
+    min-height: auto;
+    padding-bottom: 48px;
+    border-radius: 0 0 18px 18px;
+    background-position: center bottom;
+  }
+
+  .heroRail,
+  .sectionRail {
+    width: calc(100% - 34px);
+  }
+
+  .heroRail {
+    gap: 34px;
+    margin-top: 50px;
+  }
+
+  .heroCopy {
+    max-width: none;
+    text-align: center;
+  }
+
+  .heroEyebrow {
+    min-height: 27px;
+    padding: 0 12px;
+    font-size: 9px;
+  }
+
+  .heroCopy h1 {
+    max-width: 350px;
+    margin: 18px auto 0;
+    font-size: 32px;
+    line-height: 1.08;
+  }
+
+  .heroBody {
+    max-width: 340px;
+    margin: 16px auto 0 !important;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+
+  .heroActions {
+    width: min(300px, 100%);
+    gap: 10px;
+    margin: 22px auto 0;
+  }
+
+  .actionButton {
+    min-height: 46px;
+  }
+
+  .workspaceCard {
+    width: 100%;
+    min-height: 0;
+    padding: 19px 15px 15px;
+    border-radius: 15px;
+  }
+
+  .workspaceHeader {
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .workspaceHeader p,
+  .responseHeading p {
+    font-size: 9px;
+  }
+
+  .workspaceHeader h2 {
+    max-width: 220px;
+    font-size: 18px;
+    line-height: 1.12;
+  }
+
+  .workspaceStatus {
+    min-height: 24px;
+    padding: 0 10px;
+    font-size: 9px;
+  }
+
+  .workspaceContent {
+    gap: 9px;
+    margin-top: 18px;
+  }
+
+  .workspaceBody,
+  .contextStack {
+    gap: 9px;
+  }
+
+  .contextCard {
+    min-height: 68px;
+    grid-template-columns: 38px 1fr;
+    gap: 11px;
+    padding: 11px;
+  }
+
+  .contextCard img {
+    width: 38px;
+    height: 38px;
+  }
+
+  .responseCard {
+    padding: 13px 11px;
+  }
+
+  .responseMetric + .responseMetric {
+    margin-top: 8px;
+  }
+
+  .workspaceNote {
+    min-height: 58px;
+    padding: 11px 13px;
+    font-size: 11px;
+  }
+
+  .benefitsSection,
+  .workflowSection {
+    padding: 62px 0;
+  }
+
+  .benefitGrid {
+    gap: 11px;
+  }
+
+  .benefitCard {
+    min-height: 205px;
+    padding: 24px 21px;
+  }
+
+  .iconDisc {
+    width: 54px;
+    height: 54px;
+  }
+
+  .iconDisc img {
+    width: 34px;
+    height: 34px;
+  }
+
+  .benefitCard h2 {
+    margin-top: 18px;
+    font-size: 20px;
+  }
+
+  .benefitCard p {
+    margin-top: 11px;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .workflowGrid {
+    gap: 36px;
+  }
+
+  .workflowCopy {
+    text-align: center;
+  }
+
+  .workflowCopy h2 {
+    max-width: 350px;
+    margin: 10px auto 0;
+    font-size: 29px;
+    line-height: 1.1;
+  }
+
+  .workflowCopy > p:last-child {
+    max-width: 340px;
+    margin: 15px auto 0;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+
+  .workflowPanelTitle {
+    margin-bottom: 24px !important;
+    font-size: 18px;
+  }
+
+  .workflowSteps {
+    --workflow-gap: 12px;
+    padding-left: 14px;
+  }
+
+  .workflowStep {
+    min-height: 68px;
+    grid-template-columns: 35px minmax(0, 1fr);
+    gap: 11px;
+    padding: 10px 54px 10px 13px;
+    border-radius: 13px;
+  }
+
+  .workflowStep img {
+    width: 32px;
+    height: 32px;
+  }
+
+  .workflowStep h3 {
+    font-size: 15px;
+  }
+
+  .workflowNumber {
+    width: 45px;
+    border-radius: 0 13px 13px 0;
+    font-size: 17px;
+  }
+
+  .workflowStep:not(:last-child)::before {
+    width: 14px;
+  }
+
+  .ctaSection {
+    padding: 8px;
+  }
+
+  .ctaCard {
+    border-radius: 15px;
+  }
+
+  .ctaContent {
+    width: calc(100% - 32px);
+    padding: 42px 0 27px;
+  }
+
+  .ctaContent h2 {
+    font-size: 28px;
+    line-height: 1.12;
+  }
+
+  .ctaContent > p:not(.sectionEyebrow) {
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .footer {
+    width: calc(100% - 32px);
+    align-items: center;
+    margin-bottom: 20px;
+    font-size: 11px;
+    text-align: center;
+  }
+
+  .footer div {
+    justify-content: center;
+  }
+}

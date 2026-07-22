@@ -129,15 +129,18 @@
 @media (max-width: 767px) {
   .nav {
     grid-template-columns: 1fr auto;
-    width: calc(100% - 48px);
+    width: calc(100% - 34px);
     height: 60px;
     margin-top: 20px;
     padding: 0 16px;
-    border-radius: 17px;
+    border-radius: 16px;
   }
 
   .brand {
-    width: 148px;
+    position: relative;
+    z-index: 102;
+    width: 150px;
+    transition: opacity 150ms ease;
   }
 
   .navLinks,
@@ -150,58 +153,116 @@
     display: block;
   }
 
-  .mobileMenu summary {
+  .mobileMenuToggle {
+    position: relative;
+    z-index: 102;
     display: flex;
-    width: 36px;
-    height: 36px;
+    width: 40px;
+    height: 40px;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 5px;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 8px;
+    gap: 6px;
+    padding: 0;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
     cursor: pointer;
-    list-style: none;
+    appearance: none;
   }
 
-  .mobileMenu summary::-webkit-details-marker {
-    display: none;
-  }
-
-  .mobileMenu summary span {
-    width: 16px;
-    height: 1px;
+  .mobileMenuToggle span {
+    display: block;
+    width: 21px;
+    height: 2px;
+    border-radius: 999px;
     background: #fff;
+    transform-origin: center;
+    transition: opacity 160ms ease, transform 160ms ease;
+  }
+
+  .mobileMenuToggle:focus-visible {
+    outline: 2px solid #00bdde;
+    outline-offset: 3px;
   }
 
   .mobileMenuPanel {
-    position: absolute;
-    top: 44px;
-    right: 0;
-    display: grid;
-    width: 210px;
-    gap: 4px;
-    padding: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    background: #102337;
-    box-shadow: 0 20px 45px rgba(0, 0, 0, 0.35);
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    min-height: 100dvh;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 23px;
+    padding: 96px 28px 48px;
+    background: #1b3942;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-8px);
+    transition: opacity 180ms ease, transform 180ms ease;
   }
 
   .mobileMenuPanel a {
-    padding: 11px 12px;
-    border-radius: 7px;
+    min-width: 180px;
+    padding: 5px 12px;
+    color: rgba(255, 255, 255, 0.86);
+    font-size: 21px;
+    font-weight: 500;
+    line-height: 1.2;
+    text-align: center;
+    transition: color 150ms ease;
   }
 
   .mobileMenuPanel a:hover,
   .mobileActiveLink {
-    background: rgba(255, 255, 255, 0.08);
+    color: #fff !important;
   }
 
   .mobileDemoLink {
-    margin-top: 4px;
-    background: #fff;
+    display: inline-flex;
+    min-height: 52px;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 13px;
+    border: 1px solid rgba(0, 189, 222, 0.7);
+    border-radius: 9px;
+    background: #f7feff;
+    box-shadow: 0 0 22px rgba(0, 189, 222, 0.5);
     color: #003040 !important;
-    text-align: center;
+    font-size: 16px !important;
+    font-weight: 650 !important;
+  }
+
+  .mobileMenuPanelOpen {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+  }
+
+  .menuOpen {
+    border-color: transparent;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+
+  .menuOpen .brand {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .menuOpen .mobileMenuToggle span:nth-child(1) {
+    transform: translateY(8px) rotate(45deg);
+  }
+
+  .menuOpen .mobileMenuToggle span:nth-child(2) {
+    opacity: 0;
+  }
+
+  .menuOpen .mobileMenuToggle span:nth-child(3) {
+    transform: translateY(-8px) rotate(-45deg);
   }
 }

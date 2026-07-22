@@ -275,9 +275,7 @@ export default function Client({ nextPath, portal }: Props) {
           />
         </div>
 
-        <div
-          className={`${styles.formActions} ${portal !== "customer" ? styles.singleAction : ""}`}
-        >
+        <div className={`${styles.formActions} ${styles.singleAction}`}>
           <button
             type="submit"
             disabled={submitting || !turnstileToken}
@@ -286,13 +284,6 @@ export default function Client({ nextPath, portal }: Props) {
             <span>{submitting ? "Signing in..." : "Sign In"}</span>
             <span aria-hidden="true">&rarr;</span>
           </button>
-
-          {portal === "customer" ? (
-            <Link href="/signup" className={styles.primaryButton}>
-              <span>Create Account</span>
-              <span aria-hidden="true">&rarr;</span>
-            </Link>
-          ) : null}
         </div>
       </form>
     </article>
