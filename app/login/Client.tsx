@@ -264,6 +264,7 @@ export default function Client({ nextPath, portal }: Props) {
         <div className={styles.turnstilePanel}>
           <TurnstileWidget
             key={turnstileKey}
+            action="login"
             onVerify={(token) => {
               setTurnstileToken(token);
               if (token) {

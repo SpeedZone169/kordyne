@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import styles from "./TurnstileWidget.module.css";
+
 declare global {
   interface Window {
     turnstile?: {
@@ -10,8 +12,13 @@ declare global {
         options: {
           sitekey: string;
           callback: (token: string) => void;
+          action?: string;
+          appearance?: "always" | "execute" | "interaction-only";
+          language?: string;
+          size?: "normal" | "compact" | "flexible";
+          theme?: "light" | "dark" | "auto";
           "expired-callback"?: () => void;
-          "error-callback"?: () => void;
+          "error-callback"?: (errorCode?: string) => boolean | void;
         }
       ) => string;
       remove?: (widgetId: string) => void;
@@ -22,21 +29,49 @@ declare global {
 type TurnstileWidgetProps = {
   onVerify: (token: string) => void;
   onError?: (message: string) => void;
+  action?: string;
 };
 
+const turnstileDevelopmentSiteKey = "1x00000000000000000000AA";
 const turnstileUnavailableMessage =
   "Security check could not load. Refresh the page or contact Kordyne support if it continues.";
-const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
-const turnstileMissingMessage = turnstileSiteKey
-  ? ""
-  : "Security check is not configured for this environment.";
+const turnstileMissingMessage =
+  "Security check is not configured for this environment.";
 
-export default function TurnstileWidget({ onVerify, onError }: TurnstileWidgetProps) {
+function isLocalHostname(hostname: string) {
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
+}
+
+function getTurnstileSiteKey() {
+  if (typeof window !== "undefined" && isLocalHostname(window.location.hostname)) {
+    return turnstileDevelopmentSiteKey;
+  }
+
+  return process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "";
+}
+
+function getTurnstileErrorMessage(errorCode?: string) {
+  if (errorCode === "110200") {
+    return "Security check is not authorized for this address. Refresh the page or contact Kordyne support.";
+  }
+
+  if (errorCode === "200500") {
+    return "Security check was blocked from loading. Check your connection or browser privacy settings and try again.";
+  }
+
+  return turnstileUnavailableMessage;
+}
+
+export default function TurnstileWidget({
+  onVerify,
+  onError,
+  action,
+}: TurnstileWidgetProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const onErrorRef = useRef(onError);
   const onVerifyRef = useRef(onVerify);
   const widgetIdRef = useRef<string | null>(null);
-  const [message, setMessage] = useState(turnstileMissingMessage);
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
     onVerifyRef.current = onVerify;
@@ -49,7 +84,7 @@ export default function TurnstileWidget({ onVerify, onError }: TurnstileWidgetPr
     const container = containerRef.current;
     if (!container) return;
     const widgetContainer = container;
-    const siteKey = turnstileSiteKey ?? "";
+    const siteKey = getTurnstileSiteKey();
 
     if (!siteKey) {
       onErrorRef.current?.(turnstileMissingMessage);
@@ -70,6 +105,11 @@ export default function TurnstileWidget({ onVerify, onError }: TurnstileWidgetPr
 
       widgetIdRef.current = window.turnstile.render(widgetContainer, {
         sitekey: siteKey,
+        action,
+        appearance: "always",
+        language: "en",
+        size: "flexible",
+        theme: "dark",
         callback: (token: string) => {
           setMessage("");
           onVerifyRef.current(token);
@@ -77,10 +117,17 @@ export default function TurnstileWidget({ onVerify, onError }: TurnstileWidgetPr
         "expired-callback": () => {
           onVerifyRef.current("");
         },
-        "error-callback": () => {
-          setMessage(turnstileUnavailableMessage);
+        "error-callback": (errorCode?: string) => {
+          const errorMessage = getTurnstileErrorMessage(errorCode);
+
+          if (errorCode) {
+            console.warn(`Cloudflare Turnstile error: ${errorCode}`);
+          }
+
+          setMessage(errorMessage);
           onVerifyRef.current("");
-          onErrorRef.current?.(turnstileUnavailableMessage);
+          onErrorRef.current?.(errorMessage);
+          return true;
         },
       });
 
@@ -124,14 +171,16 @@ export default function TurnstileWidget({ onVerify, onError }: TurnstileWidgetPr
         }
       }
     };
-  }, []);
+  }, [action]);
 
   return (
-    <>
-      <div ref={containerRef} />
+    <div className={styles.root}>
+      <div ref={containerRef} className={styles.widget} />
       {message ? (
-        <p className="mt-2 text-xs leading-5 text-rose-600">{message}</p>
+        <p className={styles.message} role="alert">
+          {message}
+        </p>
       ) : null}
-    </>
+    </div>
   );
 }

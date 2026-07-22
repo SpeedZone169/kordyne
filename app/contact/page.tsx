@@ -242,6 +242,7 @@ export default function ContactPage() {
               <div className={styles.turnstilePanel}>
                 <TurnstileWidget
                   key={turnstileKey}
+                  action="contact"
                   onVerify={(token) => {
                     setTurnstileToken(token);
                     if (token) {

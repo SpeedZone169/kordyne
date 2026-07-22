@@ -1,5 +1,6 @@
 ﻿import { NextResponse } from "next/server";
 import { Resend } from "resend";
+import { verifyTurnstile } from "@/lib/turnstile";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -174,39 +175,6 @@ function isRateLimited(ip: string) {
   return false;
 }
 
-async function verifyTurnstileToken(token: string, ip: string) {
-  const secretKey = process.env.TURNSTILE_SECRET_KEY;
-
-  if (!secretKey) {
-    console.error("TURNSTILE_SECRET_KEY is not configured");
-    return false;
-  }
-
-  const formData = new FormData();
-  formData.append("secret", secretKey);
-  formData.append("response", token);
-
-  if (ip !== "unknown") {
-    formData.append("remoteip", ip);
-  }
-
-  const result = await fetch(
-    "https://challenges.cloudflare.com/turnstile/v0/siteverify",
-    {
-      method: "POST",
-      body: formData,
-    }
-  );
-
-  if (!result.ok) {
-    return false;
-  }
-
-  const data = (await result.json()) as { success?: boolean };
-
-  return data.success === true;
-}
-
 export async function POST(req: Request) {
   try {
     const ip = getClientIp(req);
@@ -256,9 +224,13 @@ export async function POST(req: Request) {
       );
     }
 
-    const turnstileOk = await verifyTurnstileToken(turnstileToken, ip);
+    const turnstileResult = await verifyTurnstile({
+      request: req,
+      token: turnstileToken,
+      expectedAction: "contact",
+    });
 
-    if (!turnstileOk) {
+    if (!turnstileResult.success) {
       return NextResponse.json(
         { success: false, error: "Verification failed. Please try again." },
         { status: 400 }

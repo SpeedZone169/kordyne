@@ -1,36 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "../../../../lib/supabase/server";
-
-type TurnstileVerifyResponse = {
-  success: boolean;
-  "error-codes"?: string[];
-};
-
-async function verifyTurnstile(turnstileToken: string, ip?: string) {
-  const secret = process.env.TURNSTILE_SECRET_KEY;
-
-  if (!secret) {
-    throw new Error("Missing TURNSTILE_SECRET_KEY");
-  }
-
-  const formData = new FormData();
-  formData.append("secret", secret);
-  formData.append("response", turnstileToken);
-
-  if (ip) {
-    formData.append("remoteip", ip);
-  }
-
-  const response = await fetch(
-    "https://challenges.cloudflare.com/turnstile/v0/siteverify",
-    {
-      method: "POST",
-      body: formData,
-    }
-  );
-
-  return (await response.json()) as TurnstileVerifyResponse;
-}
+import { verifyTurnstile } from "../../../../lib/turnstile";
 
 function getResetPasswordRedirectUrl() {
   const siteUrl =
@@ -54,10 +24,11 @@ export async function POST(req: Request) {
       );
     }
 
-    const forwardedFor = req.headers.get("x-forwarded-for");
-    const ip = forwardedFor?.split(",")[0]?.trim();
-
-    const turnstileResult = await verifyTurnstile(turnstileToken, ip);
+    const turnstileResult = await verifyTurnstile({
+      request: req,
+      token: turnstileToken,
+      expectedAction: "forgot_password",
+    });
 
     if (!turnstileResult.success) {
       return NextResponse.json(

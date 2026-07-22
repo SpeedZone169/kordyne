@@ -1,11 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-
-type TurnstileVerifyResponse = {
-  success: boolean;
-  "error-codes"?: string[];
-};
+import { verifyTurnstile } from "@/lib/turnstile";
 
 type InviteRow = {
   organization_id: string;
@@ -13,32 +9,6 @@ type InviteRow = {
   role: string;
   status: string;
 };
-
-async function verifyTurnstile(turnstileToken: string, ip?: string) {
-  const secret = process.env.TURNSTILE_SECRET_KEY;
-
-  if (!secret) {
-    throw new Error("Missing TURNSTILE_SECRET_KEY");
-  }
-
-  const formData = new FormData();
-  formData.append("secret", secret);
-  formData.append("response", turnstileToken);
-
-  if (ip) {
-    formData.append("remoteip", ip);
-  }
-
-  const response = await fetch(
-    "https://challenges.cloudflare.com/turnstile/v0/siteverify",
-    {
-      method: "POST",
-      body: formData,
-    }
-  );
-
-  return (await response.json()) as TurnstileVerifyResponse;
-}
 
 const TERMS_VERSION = "2026-03-16";
 
@@ -84,10 +54,11 @@ export async function POST(req: Request) {
 
     const normalizedEmail = String(email).trim().toLowerCase();
 
-    const forwardedFor = req.headers.get("x-forwarded-for");
-    const ip = forwardedFor?.split(",")[0]?.trim();
-
-    const turnstileResult = await verifyTurnstile(turnstileToken, ip);
+    const turnstileResult = await verifyTurnstile({
+      request: req,
+      token: turnstileToken,
+      expectedAction: "signup",
+    });
 
     if (!turnstileResult.success) {
       return NextResponse.json(

@@ -78,7 +78,11 @@ export default function ForgotPasswordPage() {
             required
           />
 
-          <TurnstileWidget key={turnstileKey} onVerify={setTurnstileToken} />
+          <TurnstileWidget
+            key={turnstileKey}
+            action="forgot_password"
+            onVerify={setTurnstileToken}
+          />
 
           <button
             type="submit"

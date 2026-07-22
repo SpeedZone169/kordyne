@@ -193,7 +193,11 @@ export default function InviteSignupForm({
 
         {siteKey ? (
           <div className={styles.turnstilePanel}>
-            <TurnstileWidget key={turnstileKey} onVerify={setTurnstileToken} />
+            <TurnstileWidget
+              key={turnstileKey}
+              action="signup"
+              onVerify={setTurnstileToken}
+            />
           </div>
         ) : (
           <div className={styles.warningMessage}>

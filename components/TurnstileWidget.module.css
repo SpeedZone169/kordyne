@@ -1,0 +1,26 @@
+.root {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  gap: 8px;
+}
+
+.widget {
+  width: 100%;
+  min-width: 0;
+  min-height: 65px;
+}
+
+.widget > div,
+.widget iframe {
+  display: block;
+  width: 100% !important;
+  max-width: 100%;
+}
+
+.message {
+  margin: 0;
+  color: #ffdce2;
+  font-size: 12px;
+  line-height: 1.45;
+}
