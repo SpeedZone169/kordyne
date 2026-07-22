@@ -235,7 +235,9 @@
   padding: 32px 24px;
   overflow: hidden;
   border-radius: 19px;
-  background: rgba(255, 255, 255, 0.1);
+  background:
+    radial-gradient(circle at 70% 18%, rgba(0, 189, 222, 0.18), transparent 42%),
+    linear-gradient(145deg, rgba(35, 65, 91, 0.84), rgba(24, 46, 69, 0.89));
   backdrop-filter: blur(20px);
 }
 
@@ -282,7 +284,7 @@
   gap: 6px;
   padding: 0 13px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(110, 139, 160, 0.28);
   color: #fff;
   font-size: 11px;
   font-weight: 500;
@@ -325,7 +327,7 @@
   gap: 13px;
   padding: 13px;
   border-radius: 13px;
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(105, 139, 163, 0.43);
   backdrop-filter: blur(7.5px);
 }
 
@@ -352,7 +354,7 @@
   min-width: 0;
   padding: 16px 13px;
   border-radius: 13px;
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(105, 139, 163, 0.43);
   backdrop-filter: blur(7.5px);
 }
 
@@ -366,7 +368,7 @@
   margin: 0;
   padding: 10px;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(116, 145, 168, 0.4);
   backdrop-filter: blur(7.5px);
 }
 
@@ -416,7 +418,7 @@
   margin: 0;
   padding: 10px 16px;
   border-radius: 13px;
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(116, 145, 168, 0.4);
   color: #fff;
   font-size: 12px;
   line-height: 15px;
