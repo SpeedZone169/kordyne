@@ -1,0 +1,207 @@
+.nav {
+  position: relative;
+  z-index: 10;
+  display: grid;
+  grid-template-columns: 260px 1fr 260px;
+  align-items: center;
+  width: min(1200px, calc(100% - 48px));
+  height: 70px;
+  flex: 0 0 auto;
+  margin: 19px auto 0;
+  padding: 0 22px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 24px;
+  background: rgba(27, 46, 69, 0.88);
+  box-shadow: 0 16px 52px rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(18px);
+}
+
+.brand {
+  display: inline-flex;
+  width: 184px;
+}
+
+.brand img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.navLinks,
+.navActions {
+  display: flex;
+  align-items: center;
+}
+
+.navLinks {
+  justify-content: center;
+  gap: 40px;
+}
+
+.navActions {
+  justify-content: flex-end;
+  gap: 28px;
+}
+
+.nav a {
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1;
+  text-decoration: none;
+}
+
+.navLinks > a,
+.navActions > a:not(.actionButton) {
+  position: relative;
+  padding: 25px 0 22px;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.navLinks > a::after,
+.navActions > a:not(.actionButton)::after {
+  position: absolute;
+  right: 0;
+  bottom: 13px;
+  left: 0;
+  height: 2px;
+  border-radius: 999px;
+  background: #00bdde;
+  content: "";
+  opacity: 0;
+  transform: scaleX(0.35);
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.navLinks > a:hover::after,
+.navActions > a:not(.actionButton):hover::after,
+.nav .activeNavLink::after {
+  opacity: 1;
+  transform: scaleX(1);
+}
+
+.actionButton {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 0 20px;
+  border: 1px solid rgba(0, 189, 222, 0.58);
+  border-radius: 9px;
+  background: #f7feff;
+  box-shadow: 0 0 18px rgba(0, 189, 222, 0.55);
+  color: #002536 !important;
+  font-size: 13px !important;
+  font-weight: 650 !important;
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.actionButton:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0 24px rgba(0, 189, 222, 0.75);
+}
+
+.actionArrow {
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.mobileMenu {
+  display: none;
+}
+
+@media (max-width: 1024px) {
+  .nav {
+    grid-template-columns: 210px 1fr 220px;
+  }
+
+  .navLinks {
+    gap: 24px;
+  }
+
+  .navActions {
+    gap: 20px;
+  }
+}
+
+@media (max-width: 767px) {
+  .nav {
+    grid-template-columns: 1fr auto;
+    width: calc(100% - 48px);
+    height: 60px;
+    margin-top: 20px;
+    padding: 0 16px;
+    border-radius: 17px;
+  }
+
+  .brand {
+    width: 148px;
+  }
+
+  .navLinks,
+  .navActions {
+    display: none;
+  }
+
+  .mobileMenu {
+    position: relative;
+    display: block;
+  }
+
+  .mobileMenu summary {
+    display: flex;
+    width: 36px;
+    height: 36px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .mobileMenu summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .mobileMenu summary span {
+    width: 16px;
+    height: 1px;
+    background: #fff;
+  }
+
+  .mobileMenuPanel {
+    position: absolute;
+    top: 44px;
+    right: 0;
+    display: grid;
+    width: 210px;
+    gap: 4px;
+    padding: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    background: #102337;
+    box-shadow: 0 20px 45px rgba(0, 0, 0, 0.35);
+  }
+
+  .mobileMenuPanel a {
+    padding: 11px 12px;
+    border-radius: 7px;
+  }
+
+  .mobileMenuPanel a:hover,
+  .mobileActiveLink {
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .mobileDemoLink {
+    margin-top: 4px;
+    background: #fff;
+    color: #003040 !important;
+    text-align: center;
+  }
+}
