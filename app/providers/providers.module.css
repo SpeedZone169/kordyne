@@ -619,49 +619,42 @@
 .ctaCard {
   position: relative;
   display: flex;
-  min-height: 610px;
+  min-height: 380px;
   flex-direction: column;
   justify-content: space-between;
   overflow: hidden;
   border-radius: 24px;
-  background-color: var(--navy);
-  background-image: linear-gradient(
-      180deg,
-      rgba(0, 13, 32, 0.98) 0%,
-      rgba(0, 13, 32, 0.72) 58%,
-      rgba(0, 13, 32, 0.12) 100%
-    ),
-    url("/marketing/backgrounds/providers-cta.png");
-  background-position: center, center 78%;
-  background-repeat: no-repeat;
-  background-size: cover;
+  background: #001126;
   color: #fff;
 }
 
 .ctaContent {
-  width: min(850px, calc(100% - 48px));
-  margin: 102px auto 0;
+  width: min(960px, calc(100% - 48px));
+  margin: 0 auto;
+  padding-top: 42px;
   text-align: center;
 }
 
 .ctaContent h2 {
-  margin-top: 18px;
+  max-width: 900px;
+  margin: 10px auto 0;
   color: #fff;
-  font-size: clamp(40px, 3.36vw, 58px);
+  font-size: 36px;
   font-weight: 500;
-  line-height: 1.08;
+  line-height: 42px;
 }
 
 .ctaContent > p:not(.sectionEyebrow) {
-  max-width: 720px;
-  margin: 22px auto 0;
-  color: rgba(255, 255, 255, 0.82);
-  font-size: 17px;
-  line-height: 1.55;
+  max-width: 700px;
+  margin: 12px auto 0;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 16px;
+  line-height: 24px;
 }
 
 .ctaActions {
   justify-content: center;
+  margin-top: 16px;
 }
 
 .footer {
@@ -670,9 +663,9 @@
   align-items: center;
   justify-content: space-between;
   gap: 30px;
-  margin: 0 auto 30px;
-  color: rgba(255, 255, 255, 0.78);
-  font-size: 13px;
+  margin: 0 auto 18px;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 16px;
 }
 
 .footer div {
@@ -932,18 +925,19 @@
   }
 
   .ctaCard {
-    min-height: 650px;
+    min-height: 0;
     border-radius: 18px;
-    background-position: center, center bottom;
   }
 
   .ctaContent {
     width: calc(100% - 32px);
-    margin-top: 74px;
+    margin-top: 0;
+    padding: 48px 0 34px;
   }
 
   .ctaContent h2 {
-    font-size: 38px;
+    font-size: 32px;
+    line-height: 36px;
   }
 
   .footer {

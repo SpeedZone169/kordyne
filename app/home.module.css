@@ -1049,52 +1049,50 @@
 
 .cta {
   position: relative;
-  min-height: 676px;
+  min-height: 380px;
   overflow: hidden;
   border-radius: 24px;
-  background-color: var(--navy);
-  background-image:
-    linear-gradient(180deg, rgba(0, 11, 29, 0.08), rgba(0, 11, 29, 0.02)),
-    url("/marketing/backgrounds/home-cta.png");
-  background-position: center calc(100% + 110px);
-  background-repeat: no-repeat;
-  background-size: cover;
+  background: #001126;
   color: #ffffff;
 }
 
 .ctaCopy {
-  width: min(900px, calc(100% - 48px));
+  width: min(960px, calc(100% - 48px));
   margin: 0 auto;
-  padding-top: 115px;
+  padding-top: 42px;
   text-align: center;
 }
 
 .ctaCopy h2 {
-  margin-top: 20px;
+  margin-top: 10px;
   color: #ffffff;
-  font-size: 44px;
+  font-size: 36px;
   font-weight: 500;
-  line-height: 1.06;
+  line-height: 42px;
 }
 
 .ctaCopy > p:not(.eyebrow) {
-  max-width: 720px;
-  margin: 24px auto 0;
-  color: rgba(255, 255, 255, 0.72);
-  font-size: 15px;
-  line-height: 1.52;
+  max-width: 700px;
+  margin: 12px auto 0;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 16px;
+  line-height: 24px;
+}
+
+.ctaCopy .heroActions {
+  margin-top: 16px;
 }
 
 .footer {
   position: absolute;
-  right: 34px;
-  bottom: 30px;
-  left: 34px;
+  right: 44px;
+  bottom: 18px;
+  left: 44px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 12px;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 16px;
 }
 
 .footer div {
@@ -1494,18 +1492,18 @@
   }
 
   .cta {
-    min-height: 652px;
+    min-height: 0;
     border-radius: 18px;
-    background-position: 58% bottom;
   }
 
   .ctaCopy {
     width: calc(100% - 40px);
-    padding-top: 78px;
+    padding: 48px 0 34px;
   }
 
   .ctaCopy h2 {
-    font-size: 31px;
+    font-size: 32px;
+    line-height: 36px;
   }
 
   .ctaCopy br {
@@ -1513,11 +1511,14 @@
   }
 
   .footer {
-    right: 22px;
-    bottom: 22px;
-    left: 22px;
+    position: relative;
+    right: auto;
+    bottom: auto;
+    left: auto;
     display: grid;
     gap: 13px;
+    margin: 0 22px;
+    padding-bottom: 22px;
     text-align: center;
   }
 
