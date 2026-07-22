@@ -1708,7 +1708,7 @@
   }
 
   .problemVisual img {
-    width: 138%;
+    width: 152%;
     max-width: none;
   }
 
@@ -1725,40 +1725,79 @@
 
   .ecosystemMap::before {
     position: absolute;
-    top: 196px;
+    top: 108px;
     bottom: 41px;
-    left: 50%;
+    left: 16px;
     z-index: 0;
     width: 2px;
     background: var(--aqua);
     content: "";
-    transform: translateX(-50%);
+  }
+
+  .ecosystemMap::after {
+    position: absolute;
+    top: 107px;
+    left: 16px;
+    z-index: 0;
+    width: calc(50% - 104px);
+    height: 2px;
+    background: var(--aqua);
+    content: "";
   }
 
   .ecosystemItem {
     z-index: 2;
+    width: calc(100% - 42px);
     min-height: 82px;
+    align-self: flex-end;
     padding: 13px 15px;
   }
 
   .ecosystemItem::before {
     position: absolute;
-    top: 0;
-    left: 50%;
+    top: 50%;
+    left: -26px;
+    z-index: 1;
+    width: 26px;
+    height: 2px;
+    background: var(--aqua);
+    content: "";
+    transform: translateY(-50%);
+  }
+
+  .ecosystemItem::after {
+    position: absolute;
+    top: 50%;
+    left: -31px;
     z-index: 3;
     width: 10px;
     height: 10px;
     border-radius: 50%;
     background: var(--aqua);
     content: "";
-    transform: translate(-50%, -50%);
+    transform: translateY(-50%);
   }
 
   .ecosystemCenter {
     width: 176px;
     height: 176px;
+    align-self: center;
     margin: 20px 0;
     order: -2;
+    overflow: visible;
+  }
+
+  .ecosystemCenter::before {
+    position: absolute;
+    top: 50%;
+    left: -5px;
+    z-index: 4;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--aqua);
+    content: "";
+    transform: translateY(-50%);
   }
 
   .ecosystem_cad {
