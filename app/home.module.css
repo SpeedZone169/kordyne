@@ -1827,27 +1827,56 @@
   }
 
   .cta {
+    display: flex;
+    min-height: 510px;
+    flex-direction: column;
+    justify-content: space-between;
     border-radius: 15px;
   }
 
   .ctaCopy {
     width: calc(100% - 32px);
-    padding: 43px 0 28px;
+    padding: 48px 0 34px;
   }
 
   .ctaCopy h2 {
-    font-size: 28px;
+    max-width: 310px;
+    margin-right: auto;
+    margin-left: auto;
+    font-size: 27px;
     line-height: 1.12;
   }
 
-  .ctaCopy p {
+  .ctaCopy br {
+    display: block;
+  }
+
+  .ctaCopy > p:not(.eyebrow) {
+    max-width: 300px;
+    margin-top: 14px;
     font-size: 13px;
     line-height: 1.5;
   }
 
+  .ctaCopy .heroActions {
+    margin-top: 20px;
+  }
+
   .footer {
-    margin: 0 16px;
-    padding-bottom: 20px;
-    font-size: 11px;
+    grid-template-columns: 1fr;
+    justify-items: center;
+    gap: 14px;
+    margin: auto 18px 0;
+    padding-bottom: 24px;
+    font-size: 10.5px;
+    line-height: 1.4;
+    text-align: center;
+  }
+
+  .footer div {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 24px;
   }
 }
