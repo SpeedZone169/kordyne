@@ -226,7 +226,7 @@ export default function PlatformPage() {
           <h2 className={styles.centerTitle}>
             A Connected Digital Thread from CAD
             <br />
-            Release to Manufacturing Evidence
+            {" "}Release to Manufacturing Evidence
           </h2>
           <div className={styles.threadFlow}>
             <div className={styles.threadLine} aria-hidden="true" />
@@ -278,7 +278,7 @@ export default function PlatformPage() {
             <h2>
               Everything you need to run controlled
               <br />
-              manufacturing workflows
+              {" "}manufacturing workflows
             </h2>
           </div>
 
@@ -309,9 +309,6 @@ export default function PlatformPage() {
             </p>
             <div className={styles.ctaActions}>
               <ArrowLink href="/contact">Request Demo</ArrowLink>
-              <ArrowLink href="/contact" secondary>
-                Contact Now
-              </ArrowLink>
             </div>
           </div>
 
