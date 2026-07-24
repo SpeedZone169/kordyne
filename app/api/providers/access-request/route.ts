@@ -32,6 +32,7 @@ type ProviderAccessBody = {
   website?: unknown;
   country?: unknown;
   capabilities?: unknown;
+  certifications?: unknown;
   message?: unknown;
   turnstileToken?: unknown;
 };
@@ -103,6 +104,7 @@ function buildProviderAccessEmail({
   website,
   country,
   capabilities,
+  certifications,
   message,
 }: {
   fullName: string;
@@ -111,6 +113,7 @@ function buildProviderAccessEmail({
   website: string;
   country: string;
   capabilities: string;
+  certifications: string;
   message: string;
 }) {
   const rows = [
@@ -120,6 +123,7 @@ function buildProviderAccessEmail({
     ["Website", website || "Not provided"],
     ["Country / region", country],
     ["Capabilities", capabilities],
+    ["Certifications", certifications || "Not provided"],
   ]
     .map(
       ([label, value]) => `
@@ -216,6 +220,7 @@ export async function POST(request: Request) {
     const website = readString(body.website, 240);
     const country = readString(body.country, 120);
     const capabilities = readString(body.capabilities, 500);
+    const certifications = readString(body.certifications, 500);
     const message = readString(body.message, 3000);
     const turnstileToken = readString(body.turnstileToken, 2048);
 
@@ -293,6 +298,7 @@ export async function POST(request: Request) {
         website,
         country,
         capabilities,
+        certifications,
         message,
       }),
       text: [
@@ -306,6 +312,7 @@ export async function POST(request: Request) {
         `Website: ${website || "Not provided"}`,
         `Country / region: ${country}`,
         `Capabilities: ${capabilities}`,
+        `Certifications: ${certifications || "Not provided"}`,
         "",
         "What work they want to receive:",
         message,

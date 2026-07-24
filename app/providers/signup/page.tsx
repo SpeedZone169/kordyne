@@ -67,19 +67,6 @@ export default async function SignupPage({ searchParams }: SignupPageProps) {
               receive. Kordyne reviews each request before issuing a secure
               provider invitation.
             </p>
-
-            <div className={styles.reviewNotice}>
-              <p>Controlled onboarding</p>
-              <h2>Application first. Access only after approval.</h2>
-              <ol>
-                <li>We review your company and manufacturing capabilities.</li>
-                <li>Approved providers receive a secure email invitation.</li>
-                <li>
-                  Customer files appear only when a scoped work package is
-                  shared.
-                </li>
-              </ol>
-            </div>
           </div>
 
           <ProviderAccessRequestForm />

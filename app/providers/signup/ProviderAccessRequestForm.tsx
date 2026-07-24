@@ -13,6 +13,7 @@ type ProviderAccessForm = {
   website: string;
   country: string;
   capabilities: string;
+  certifications: string;
   message: string;
 };
 
@@ -23,6 +24,7 @@ const emptyForm: ProviderAccessForm = {
   website: "",
   country: "",
   capabilities: "",
+  certifications: "",
   message: "",
 };
 
@@ -205,13 +207,24 @@ export default function ProviderAccessRequestForm() {
         </label>
 
         <label>
+          <span>Certifications</span>
+          <input
+            type="text"
+            name="certifications"
+            value={form.certifications}
+            onChange={handleChange}
+            placeholder="ISO 9001, AS9100, ISO 13485... (optional)"
+          />
+        </label>
+
+        <label>
           <span>What work would you like to receive through Kordyne?</span>
           <textarea
             name="message"
             required
             value={form.message}
             onChange={handleChange}
-            placeholder="Tell us about your equipment, certifications, typical work, and capacity."
+            placeholder="Tell us about your typical work, industries, batch sizes, and available capacity."
           />
         </label>
 
