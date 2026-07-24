@@ -50,9 +50,31 @@ const appBaseUrl = (
   ""
 ).replace(/\/+$/, "");
 
-const logoUrl =
-  process.env.KORDYNE_EMAIL_LOGO_URL ??
+const DEFAULT_EMAIL_LOGO_URL =
   "https://www.kordyne.com/kordyne-email-logo.jpg";
+
+export function getEmailLogoUrl() {
+  const configuredUrl = process.env.KORDYNE_EMAIL_LOGO_URL?.trim();
+
+  if (!configuredUrl) {
+    return DEFAULT_EMAIL_LOGO_URL;
+  }
+
+  try {
+    const pathname = new URL(configuredUrl).pathname.toLowerCase();
+    const isEmailSafeRaster =
+      pathname.endsWith(".jpg") ||
+      pathname.endsWith(".jpeg") ||
+      pathname.endsWith(".png") ||
+      pathname.endsWith(".gif");
+
+    return isEmailSafeRaster ? configuredUrl : DEFAULT_EMAIL_LOGO_URL;
+  } catch {
+    return DEFAULT_EMAIL_LOGO_URL;
+  }
+}
+
+const logoUrl = getEmailLogoUrl();
 
 function escapeHtml(value: string) {
   return value

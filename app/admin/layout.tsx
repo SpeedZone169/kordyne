@@ -10,6 +10,7 @@ const navItems = [
   { href: "/admin/users", label: "Users" },
   { href: "/admin/organizations", label: "Organizations" },
   { href: "/admin/providers", label: "Providers" },
+  { href: "/admin/provider-access-requests", label: "Provider requests" },
   { href: "/admin/requests", label: "Requests" },
   { href: "/admin/stats", label: "Statistics" },
 ];

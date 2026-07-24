@@ -61,7 +61,7 @@ export default function Client({ nextPath, portal }: Props) {
 
   async function resolvePostLoginDestination(): Promise<string> {
     if (portal === "admin") {
-      return "/admin";
+      return nextPath || "/admin";
     }
 
     if (portal === "provider") {

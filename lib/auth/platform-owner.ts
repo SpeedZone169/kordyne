@@ -54,18 +54,20 @@ export async function getCurrentPlatformProfile(): Promise<{
   };
 }
 
-export async function requirePlatformOwner() {
+export async function requirePlatformOwner(nextPath = "/admin") {
   const { userId, profile } = await getCurrentPlatformProfile();
 
   if (!userId) {
-    redirect("/login");
+    redirect(
+      `/login?portal=admin&next=${encodeURIComponent(nextPath)}`,
+    );
   }
 
   if (!profile || profile.platform_role !== "platform_owner") {
     redirect("/dashboard");
   }
 
-  await enforceMfaOrRedirect("/admin");
+  await enforceMfaOrRedirect(nextPath);
 
   return {
     userId,

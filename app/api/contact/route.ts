@@ -1,5 +1,6 @@
 ﻿import { NextResponse } from "next/server";
 import { Resend } from "resend";
+import { getEmailLogoUrl } from "@/lib/email";
 import { verifyTurnstile } from "@/lib/turnstile";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -13,9 +14,7 @@ const CONTACT_FROM_EMAIL =
   process.env.RESEND_FROM_EMAIL ||
   "Kordyne <noreply@kordyne.com>";
 
-const CONTACT_EMAIL_LOGO_URL =
-  process.env.KORDYNE_EMAIL_LOGO_URL ||
-  "https://www.kordyne.com/kordyne-email-logo.jpg";
+const CONTACT_EMAIL_LOGO_URL = getEmailLogoUrl();
 
 const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
 const RATE_LIMIT_MAX_REQUESTS = 5;

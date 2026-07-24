@@ -1,9 +1,16 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 
+import { getEmailLogoUrl } from "@/lib/email";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyTurnstile } from "@/lib/turnstile";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resendApiKey =
+  process.env.RESEND_NOTIFICATIONS_API_KEY ||
+  process.env.RESEND_API_KEY ||
+  "";
+
+const resend = resendApiKey ? new Resend(resendApiKey) : null;
 
 const PROVIDER_ACCESS_TO_EMAIL =
   process.env.PROVIDER_ACCESS_TO_EMAIL ||
@@ -14,9 +21,7 @@ const PROVIDER_ACCESS_FROM_EMAIL =
   process.env.RESEND_FROM_EMAIL ||
   "Kordyne <noreply@kordyne.com>";
 
-const EMAIL_LOGO_URL =
-  process.env.KORDYNE_EMAIL_LOGO_URL ||
-  "https://www.kordyne.com/kordyne-email-logo.jpg";
+const EMAIL_LOGO_URL = getEmailLogoUrl();
 
 const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
 const RATE_LIMIT_MAX_REQUESTS = 4;
@@ -87,6 +92,14 @@ function getClientIp(request: Request) {
   return cloudflareIp || forwardedFor || "unknown";
 }
 
+function getSiteUrl(request: Request) {
+  return (
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    new URL(request.url).origin
+  ).replace(/\/+$/, "");
+}
+
 function isRateLimited(ip: string) {
   const now = Date.now();
   const current = rateLimit.get(ip);
@@ -117,6 +130,7 @@ function buildProviderAccessEmail({
   capabilities,
   certifications,
   message,
+  reviewUrl,
 }: {
   fullName: string;
   email: string;
@@ -126,6 +140,7 @@ function buildProviderAccessEmail({
   capabilities: string;
   certifications: string;
   message: string;
+  reviewUrl: string;
 }) {
   const rows = [
     ["Contact", fullName],
@@ -191,8 +206,24 @@ function buildProviderAccessEmail({
                         ${escapeHtml(message).replaceAll("\n", "<br />")}
                       </div>
                     </div>
+                    <table role="presentation" cellpadding="0" cellspacing="0" style="margin-top: 26px;">
+                      <tr>
+                        <td style="border-radius: 10px; background: #00bdde;">
+                          <a
+                            href="${escapeHtml(reviewUrl)}"
+                            style="display: inline-block; padding: 13px 18px; color: #003040; font-size: 14px; font-weight: 800; text-decoration: none;"
+                          >
+                            Review &amp; invite provider
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+                    <div style="margin-top: 14px; color: #5f7485; font-size: 11px; line-height: 1.6; overflow-wrap: anywhere;">
+                      If the button does not open, use this secure review link:<br />
+                      <a href="${escapeHtml(reviewUrl)}" style="color: #0086a0;">${escapeHtml(reviewUrl)}</a>
+                    </div>
                     <div style="margin-top: 28px; color: #5f7485; font-size: 12px; line-height: 1.7;">
-                      Reply directly to this email to contact ${escapeHtml(fullName)}.
+                      Opening the review page does not grant access. A provider invitation is sent only after an authenticated Kordyne owner approves this request.
                     </div>
                   </td>
                 </tr>
@@ -290,12 +321,48 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!process.env.RESEND_API_KEY) {
-      console.error("RESEND_API_KEY is not configured");
+    const admin = createAdminClient();
+    const { data: accessRequest, error: requestInsertError } = await admin
+      .from("provider_access_requests")
+      .insert({
+        full_name: fullName,
+        email,
+        company,
+        website: website || null,
+        country,
+        capabilities,
+        certifications: certifications || null,
+        message,
+        status: "pending",
+      })
+      .select("id")
+      .single();
+
+    if (requestInsertError || !accessRequest) {
+      console.error("Provider access request storage failed", requestInsertError);
       return NextResponse.json(
-        { success: false, error: "Provider requests are not configured." },
+        { success: false, error: "Unable to securely store your request." },
         { status: 500 },
       );
+    }
+
+    const reviewPath = `/review/provider-access/${accessRequest.id}`;
+    const reviewUrl = `${getSiteUrl(request)}/login?portal=admin&next=${encodeURIComponent(reviewPath)}`;
+
+    if (!resend) {
+      console.error("Provider access email delivery is not configured");
+      await admin
+        .from("provider_access_requests")
+        .update({
+          notification_error: "Email delivery is not configured.",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", accessRequest.id);
+
+      return NextResponse.json({
+        success: true,
+        notificationSent: false,
+      });
     }
 
     const result = await resend.emails.send({
@@ -312,6 +379,7 @@ export async function POST(request: Request) {
         capabilities,
         certifications,
         message,
+        reviewUrl,
       }),
       text: [
         "New Kordyne provider access request",
@@ -328,18 +396,39 @@ export async function POST(request: Request) {
         "",
         "What work they want to receive:",
         message,
+        "",
+        `Review and invite provider: ${reviewUrl}`,
+        "",
+        "Opening the review page does not grant access. A provider invitation is sent only after an authenticated Kordyne owner approves this request.",
       ].join("\n"),
     });
 
     if (result.error) {
       console.error("Provider access email failed", result.error);
-      return NextResponse.json(
-        { success: false, error: "Unable to send your request." },
-        { status: 502 },
-      );
+      await admin
+        .from("provider_access_requests")
+        .update({
+          notification_error: result.error.message,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", accessRequest.id);
+
+      return NextResponse.json({
+        success: true,
+        notificationSent: false,
+      });
     }
 
-    return NextResponse.json({ success: true });
+    await admin
+      .from("provider_access_requests")
+      .update({
+        notification_sent_at: new Date().toISOString(),
+        notification_error: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", accessRequest.id);
+
+    return NextResponse.json({ success: true, notificationSent: true });
   } catch (error) {
     console.error("Provider access request failed", error);
     return NextResponse.json(
