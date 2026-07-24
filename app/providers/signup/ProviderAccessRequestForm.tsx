@@ -97,23 +97,29 @@ export default function ProviderAccessRequestForm() {
   if (submitted) {
     return (
       <article className={`${styles.formCard} ${styles.successCard}`}>
-        <span className={styles.successMark} aria-hidden="true">
-          &#10003;
-        </span>
-        <p className={styles.formEyebrow}>Request received</p>
-        <h2>Thank you for introducing your company</h2>
+        <div className={styles.successHeader}>
+          <span className={styles.successMark} aria-hidden="true">
+            &#10003;
+          </span>
+          <div>
+            <p className={styles.formEyebrow}>Request received</p>
+            <h2>Thank you for introducing your company</h2>
+          </div>
+        </div>
         <p>
           Kordyne will review your manufacturing capabilities and contact you
           before any provider invitation is issued. This request does not create
           an account or grant access to customer work.
         </p>
-        <button
-          type="button"
-          className={styles.secondaryButton}
-          onClick={() => setSubmitted(false)}
-        >
-          Submit another request
-        </button>
+        <div className={styles.formActions}>
+          <button
+            type="button"
+            className={styles.secondaryButton}
+            onClick={() => setSubmitted(false)}
+          >
+            Submit another request
+          </button>
+        </div>
       </article>
     );
   }

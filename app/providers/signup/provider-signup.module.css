@@ -529,28 +529,40 @@
 }
 
 .successCard {
-  position: relative;
   align-self: center;
-  padding-top: 74px;
+}
+
+.successHeader {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  align-items: start;
+  gap: 14px;
+}
+
+.successHeader h2 {
+  margin-top: 4px;
 }
 
 .successMark {
-  position: absolute;
-  top: 26px;
-  left: 30px;
   display: grid;
-  width: 34px;
-  height: 34px;
+  width: 42px;
+  height: 42px;
   place-items: center;
   border: 1px solid rgba(0, 189, 222, 0.36);
   border-radius: 50%;
   background: rgba(0, 189, 222, 0.13);
   color: #8ceeff;
-  font-size: 17px;
+  font-size: 19px;
+  font-weight: 700;
 }
 
 .successCard .formActions {
-  margin-top: 24px;
+  justify-content: flex-start;
+  margin-top: 28px;
+}
+
+.successCard .formActions .secondaryButton {
+  flex: 0 0 auto;
 }
 
 .stateContent {
