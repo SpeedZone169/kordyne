@@ -171,12 +171,13 @@ export default function ProviderAccessRequestForm() {
           <label>
             <span>Website</span>
             <input
-              type="url"
+              type="text"
+              inputMode="url"
               name="website"
               autoComplete="url"
               value={form.website}
               onChange={handleChange}
-              placeholder="https://company.com"
+              placeholder="company.com"
             />
           </label>
         </div>

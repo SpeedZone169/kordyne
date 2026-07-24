@@ -55,14 +55,27 @@ function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
-function isValidWebsite(value: string) {
-  if (!value) return true;
+function normalizeWebsite(value: string) {
+  if (!value) return "";
 
   try {
-    const url = new URL(value);
-    return url.protocol === "https:" || url.protocol === "http:";
+    const candidate = /^[a-z][a-z\d+.-]*:\/\//i.test(value)
+      ? value
+      : `https://${value}`;
+    const url = new URL(candidate);
+
+    if (
+      (url.protocol !== "https:" && url.protocol !== "http:") ||
+      !url.hostname ||
+      url.username ||
+      url.password
+    ) {
+      return null;
+    }
+
+    return url.toString();
   } catch {
-    return false;
+    return null;
   }
 }
 
@@ -217,7 +230,8 @@ export async function POST(request: Request) {
     const fullName = readString(body.fullName, 120);
     const email = readString(body.email, 180).toLowerCase();
     const company = readString(body.company, 160);
-    const website = readString(body.website, 240);
+    const websiteInput = readString(body.website, 240);
+    const website = normalizeWebsite(websiteInput);
     const country = readString(body.country, 120);
     const capabilities = readString(body.capabilities, 500);
     const certifications = readString(body.certifications, 500);
@@ -245,11 +259,11 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!isValidWebsite(website)) {
+    if (website === null) {
       return NextResponse.json(
         {
           success: false,
-          error: "Enter a complete website address beginning with http or https.",
+          error: "Enter a valid company website, such as company.com.",
         },
         { status: 400 },
       );
