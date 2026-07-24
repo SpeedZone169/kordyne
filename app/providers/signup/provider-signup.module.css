@@ -117,6 +117,43 @@
   font-weight: 600;
 }
 
+.reviewNotice {
+  max-width: 560px;
+  margin-top: 32px;
+  padding: 22px 24px;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 14px;
+  background: rgba(31, 58, 83, 0.62);
+  backdrop-filter: blur(18px);
+}
+
+.reviewNotice > p {
+  color: var(--aqua);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.9px;
+  line-height: 14px;
+  text-transform: uppercase;
+}
+
+.reviewNotice h2 {
+  margin-top: 6px !important;
+  color: #fff;
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 1.25;
+}
+
+.reviewNotice ol {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px !important;
+  padding-left: 20px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 12px;
+  line-height: 18px;
+}
+
 .actions,
 .formActions {
   display: flex;
@@ -407,10 +444,10 @@
 
 .form input[type="text"],
 .form input[type="email"],
-.form input[type="password"] {
+.form input[type="password"],
+.form input[type="url"],
+.form textarea {
   width: 100%;
-  height: 44px;
-  padding: 0 13px;
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 9px;
   outline: none;
@@ -422,19 +459,39 @@
   transition: background 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
 }
 
+.form input[type="text"],
+.form input[type="email"],
+.form input[type="password"],
+.form input[type="url"] {
+  height: 44px;
+  padding: 0 13px;
+}
+
+.form textarea {
+  min-height: 92px;
+  resize: vertical;
+  padding: 12px 13px;
+}
+
 .form input[readonly] {
   background: rgba(0, 13, 32, 0.28);
   color: rgba(255, 255, 255, 0.68);
 }
 
-.form input::placeholder {
+.form input::placeholder,
+.form textarea::placeholder {
   color: rgba(255, 255, 255, 0.53);
 }
 
-.form input:focus {
+.form input:focus,
+.form textarea:focus {
   border-color: rgba(0, 189, 222, 0.88);
   background: rgba(255, 255, 255, 0.17);
   box-shadow: 0 0 0 3px rgba(0, 189, 222, 0.13);
+}
+
+.form > .primaryButton {
+  width: 100%;
 }
 
 .termsRow {
@@ -642,6 +699,10 @@
   .stateCard {
     padding: 24px 20px;
     border-radius: 14px;
+  }
+
+  .reviewNotice {
+    padding: 20px;
   }
 
   .panelHeader {

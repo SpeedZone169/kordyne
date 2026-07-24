@@ -7,6 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 import InviteSignupForm from "./InviteSignupForm";
+import ProviderAccessRequestForm from "./ProviderAccessRequestForm";
 import styles from "./provider-signup.module.css";
 
 type SignupPageProps = {
@@ -29,7 +30,7 @@ type InviteMetaRow = {
 export const metadata: Metadata = {
   title: "Provider access | Kordyne",
   description:
-    "Create an invited Kordyne provider account and access approved manufacturing work securely.",
+    "Request reviewed provider access or create an invited Kordyne provider account securely.",
 };
 
 function ProviderSignupShell({ children }: { children: ReactNode }) {
@@ -60,69 +61,28 @@ export default async function SignupPage({ searchParams }: SignupPageProps) {
         <div className={`${styles.content} ${styles.introGrid}`}>
           <div className={styles.introCopy}>
             <p className={styles.eyebrow}>Kordyne for providers</p>
-            <h1>Join approved manufacturing work with the right context.</h1>
+            <h1>Apply to join the Kordyne provider network.</h1>
             <p className={styles.lede}>
-              Provider access is invitation-based. Customers approve the
-              organization, work package, and role before any files or project
-              context are shared.
+              Tell us about your company, capabilities, and the work you want to
+              receive. Kordyne reviews each request before issuing a secure
+              provider invitation.
             </p>
 
-            <div className={styles.actions}>
-              <Link href="/contact" className={styles.primaryButton}>
-                <span>Request provider access</span>
-                <span aria-hidden="true">&rarr;</span>
-              </Link>
-              <Link
-                href="/login?portal=provider&next=%2Fprovider"
-                className={styles.secondaryButton}
-              >
-                <span>Provider sign in</span>
-                <span aria-hidden="true">&rarr;</span>
-              </Link>
+            <div className={styles.reviewNotice}>
+              <p>Controlled onboarding</p>
+              <h2>Application first. Access only after approval.</h2>
+              <ol>
+                <li>We review your company and manufacturing capabilities.</li>
+                <li>Approved providers receive a secure email invitation.</li>
+                <li>
+                  Customer files appear only when a scoped work package is
+                  shared.
+                </li>
+              </ol>
             </div>
           </div>
 
-          <aside className={styles.onboardingPanel} aria-label="Provider onboarding">
-            <div className={styles.panelHeader}>
-              <div>
-                <p>Provider onboarding</p>
-                <h2>Access opens in three controlled steps</h2>
-              </div>
-              <span className={styles.invitePill}>Invite only</span>
-            </div>
-
-            <ol className={styles.stepList}>
-              <li>
-                <span className={styles.stepNumber}>1</span>
-                <div>
-                  <h3>Approved relationship</h3>
-                  <p>A customer or Kordyne admin approves the provider organization.</p>
-                </div>
-              </li>
-              <li>
-                <span className={styles.stepNumber}>2</span>
-                <div>
-                  <h3>Scoped invitation</h3>
-                  <p>The invitation carries the organization, package access, and role.</p>
-                </div>
-              </li>
-              <li>
-                <span className={styles.stepNumber}>3</span>
-                <div>
-                  <h3>Provider workspace</h3>
-                  <p>Work opens in the focused portal for quotes, questions, and returns.</p>
-                </div>
-              </li>
-            </ol>
-
-            <div className={styles.panelFooter}>
-              <div>
-                <strong>Already invited?</strong>
-                <span>Use the secure link from your email to create your account.</span>
-              </div>
-              <Link href="/login?portal=provider&next=%2Fprovider">Sign in</Link>
-            </div>
-          </aside>
+          <ProviderAccessRequestForm />
         </div>
       </ProviderSignupShell>
     );

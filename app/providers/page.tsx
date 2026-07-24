@@ -2,10 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 
-import {
-  buildProviderLoginHref,
-  buildProviderSignupHref,
-} from "@/lib/auth/provider-access";
+import { buildProviderSignupHref } from "@/lib/auth/provider-access";
 import MarketingNav from "@/components/MarketingNav";
 
 import styles from "./providers.module.css";
@@ -60,17 +57,12 @@ const providerWorkflow = [
 function ArrowLink({
   href,
   children,
-  secondary = false,
 }: {
   href: string;
   children: React.ReactNode;
-  secondary?: boolean;
 }) {
   return (
-    <Link
-      href={href}
-      className={`${styles.actionButton} ${secondary ? styles.actionButtonSecondary : ""}`}
-    >
+    <Link href={href} className={styles.actionButton}>
       <span>{children}</span>
       <span className={styles.actionArrow} aria-hidden="true">
         &rarr;
@@ -158,8 +150,7 @@ function ProviderWorkspace() {
 }
 
 export default function ProvidersLandingPage() {
-  const providerSignupHref = buildProviderSignupHref("/provider");
-  const providerLoginHref = buildProviderLoginHref("/provider");
+  const providerSignupHref = buildProviderSignupHref();
 
   return (
     <main className={`marketing-site ${styles.page}`}>
@@ -180,9 +171,6 @@ export default function ProvidersLandingPage() {
             <div className={styles.heroActions}>
               <ArrowLink href={providerSignupHref}>
                 Request Provider Access
-              </ArrowLink>
-              <ArrowLink href={providerLoginHref} secondary>
-                Provider Sign In
               </ArrowLink>
             </div>
           </div>
@@ -254,9 +242,6 @@ export default function ProvidersLandingPage() {
             <div className={styles.ctaActions}>
               <ArrowLink href={providerSignupHref}>
                 Request Provider Access
-              </ArrowLink>
-              <ArrowLink href={providerLoginHref} secondary>
-                Provider Sign In
               </ArrowLink>
             </div>
           </div>

@@ -12,8 +12,8 @@ export function buildProviderLoginHref(next = "/provider") {
   return `/login?portal=provider&next=${encodeURIComponent(next)}`;
 }
 
-export function buildProviderSignupHref(next = "/provider") {
-  return `/providers/signup?next=${encodeURIComponent(next)}`;
+export function buildProviderSignupHref() {
+  return "/providers/signup";
 }
 
 export function isProviderOnlyUser(context: ProviderContext) {
