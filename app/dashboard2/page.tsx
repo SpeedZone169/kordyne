@@ -125,6 +125,22 @@ type Dashboard2ProjectSearchRow = {
   created_at: string;
 };
 
+type Dashboard2ProjectPartLinkRow = {
+  project_id: string;
+  part_id: string;
+  is_primary_part: boolean;
+};
+
+type Dashboard2PartFileRow = {
+  id: string;
+  part_id: string;
+  file_name: string;
+  file_type: string | null;
+  storage_path: string;
+  asset_category: string | null;
+  created_at: string;
+};
+
 type Dashboard2RequestSearchRow = {
   id: string;
   title: string | null;
@@ -136,6 +152,41 @@ type Dashboard2RequestSearchRow = {
   updated_at: string | null;
   created_at: string;
 };
+
+function isDashboard2ImageFile(file: Dashboard2PartFileRow) {
+  const fileName = file.file_name.toLowerCase();
+  const fileType = (file.file_type || "").toLowerCase();
+
+  return (
+    file.asset_category?.toLowerCase() === "image" ||
+    fileType.startsWith("image/") ||
+    [".png", ".jpg", ".jpeg", ".webp"].some((extension) =>
+      fileName.endsWith(extension),
+    )
+  );
+}
+
+function dashboard2ThumbnailPreference(file: Dashboard2PartFileRow) {
+  const assetCategory = (file.asset_category || "").toLowerCase();
+  const fileType = (file.file_type || "").toLowerCase();
+  const fileName = file.file_name.toLowerCase();
+  let score = 0;
+
+  if (assetCategory === "image") score += 20;
+  if (fileName.includes("preview")) score += 20;
+  if (fileName.includes("thumbnail")) score += 18;
+  if (fileName.endsWith(".png") || fileType.includes("png")) score += 16;
+  if (
+    fileName.endsWith(".jpg") ||
+    fileName.endsWith(".jpeg") ||
+    fileType.includes("jpeg")
+  ) {
+    score += 14;
+  }
+  if (fileName.endsWith(".webp") || fileType.includes("webp")) score += 4;
+
+  return score;
+}
 
 type Dashboard2InternalJobRow = {
   id: string;
@@ -1319,6 +1370,85 @@ export default async function Dashboard2Page() {
         .limit(25)
     : { data: [] as Dashboard2RequestSearchRow[] };
 
+  const searchParts =
+    (searchPartsRaw as Dashboard2PartSearchRow[] | null) ?? [];
+  const searchProjects =
+    (searchProjectsRaw as Dashboard2ProjectSearchRow[] | null) ?? [];
+  const searchProjectIds = searchProjects.map((project) => project.id);
+
+  const { data: searchProjectLinksRaw } =
+    searchProjectIds.length > 0
+      ? await supabase
+          .from("project_part_links")
+          .select("project_id, part_id, is_primary_part")
+          .in("project_id", searchProjectIds)
+      : { data: [] as Dashboard2ProjectPartLinkRow[] };
+
+  const searchProjectLinks =
+    (searchProjectLinksRaw as Dashboard2ProjectPartLinkRow[] | null) ?? [];
+  const projectThumbnailPartId = new Map<string, string>();
+
+  for (const link of searchProjectLinks) {
+    if (
+      link.is_primary_part ||
+      !projectThumbnailPartId.has(link.project_id)
+    ) {
+      projectThumbnailPartId.set(link.project_id, link.part_id);
+    }
+  }
+
+  const searchThumbnailPartIds = Array.from(
+    new Set([
+      ...searchParts.map((part) => part.id),
+      ...projectThumbnailPartId.values(),
+    ]),
+  );
+
+  const { data: searchPartFilesRaw } =
+    searchThumbnailPartIds.length > 0
+      ? await supabase
+          .from("part_files")
+          .select(
+            "id, part_id, file_name, file_type, storage_path, asset_category, created_at",
+          )
+          .in("part_id", searchThumbnailPartIds)
+          .order("created_at", { ascending: false })
+      : { data: [] as Dashboard2PartFileRow[] };
+
+  const searchPartFiles = (
+    (searchPartFilesRaw as Dashboard2PartFileRow[] | null) ?? []
+  )
+    .filter(isDashboard2ImageFile)
+    .sort((left, right) => {
+      const scoreDifference =
+        dashboard2ThumbnailPreference(right) -
+        dashboard2ThumbnailPreference(left);
+
+      if (scoreDifference !== 0) return scoreDifference;
+      return right.created_at.localeCompare(left.created_at);
+    });
+  const thumbnailFileByPartId = new Map<string, Dashboard2PartFileRow>();
+
+  for (const file of searchPartFiles) {
+    if (!thumbnailFileByPartId.has(file.part_id)) {
+      thumbnailFileByPartId.set(file.part_id, file);
+    }
+  }
+
+  const thumbnailUrlByPartId = new Map<string, string>();
+
+  await Promise.all(
+    Array.from(thumbnailFileByPartId.entries()).map(async ([partId, file]) => {
+      const { data } = await supabase.storage
+        .from("part-files")
+        .createSignedUrl(file.storage_path, 10 * 60);
+
+      if (data?.signedUrl) {
+        thumbnailUrlByPartId.set(partId, data.signedUrl);
+      }
+    }),
+  );
+
   const { data: internalJobsRaw } = organizationId
     ? await supabase
         .from("internal_jobs")
@@ -1389,7 +1519,7 @@ export default async function Dashboard2Page() {
   }
 
   const searchSuggestions: Dashboard2SearchSuggestion[] = [
-    ...(((searchPartsRaw ?? []) as Dashboard2PartSearchRow[]).map((part) => ({
+    ...(searchParts.map((part) => ({
       id: part.id,
       type: "part" as const,
       label: part.part_number ? `${part.name} (${part.part_number})` : part.name,
@@ -1404,8 +1534,9 @@ export default async function Dashboard2Page() {
           .join(" - ") || "Part Vault",
       href: `/dashboard/parts/${part.id}`,
       updatedAt: part.updated_at || part.created_at,
+      thumbnailUrl: thumbnailUrlByPartId.get(part.id) ?? null,
     }))),
-    ...(((searchProjectsRaw ?? []) as Dashboard2ProjectSearchRow[]).map((project) => ({
+    ...(searchProjects.map((project) => ({
       id: project.id,
       type: "project" as const,
       label: project.name,
@@ -1420,6 +1551,10 @@ export default async function Dashboard2Page() {
           .join(" - ") || "Project workspace",
       href: `/dashboard/projects/${project.id}`,
       updatedAt: project.updated_at || project.created_at,
+      thumbnailUrl:
+        thumbnailUrlByPartId.get(
+          projectThumbnailPartId.get(project.id) || "",
+        ) ?? null,
     }))),
     ...(((searchRequestsRaw ?? []) as Dashboard2RequestSearchRow[]).map((request) => {
       const label =

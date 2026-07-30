@@ -11,6 +11,7 @@ export type Dashboard2SearchSuggestion = {
   subtitle: string;
   href: string;
   updatedAt: string;
+  thumbnailUrl?: string | null;
 };
 
 function SearchIcon({ className = "h-4 w-4" }: { className?: string }) {
@@ -33,13 +34,32 @@ function SearchIcon({ className = "h-4 w-4" }: { className?: string }) {
 
 function SuggestionIcon({
   type,
+  thumbnailUrl,
 }: {
   type: Dashboard2SearchSuggestion["type"];
+  thumbnailUrl?: string | null;
 }) {
+  const [imageFailed, setImageFailed] = useState(false);
   const label = type === "part" ? "P" : type === "project" ? "PR" : "R";
 
+  if (thumbnailUrl && !imageFailed && type !== "request") {
+    return (
+      <span className="h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-white/14 bg-white">
+        {/* eslint-disable-next-line @next/next/no-img-element -- Vault preview URLs are short-lived signed URLs. */}
+        <img
+          src={thumbnailUrl}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          className="h-full w-full object-cover"
+          onError={() => setImageFailed(true)}
+        />
+      </span>
+    );
+  }
+
   return (
-    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#00bdde]/30 bg-[#00bdde]/12 text-[10px] font-black tracking-[0.08em] text-[#8ff2ff]">
+    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#00bdde]/30 bg-[#00bdde]/12 text-[10px] font-black tracking-[0.08em] text-[#8ff2ff]">
       {label}
     </span>
   );
@@ -120,7 +140,10 @@ export default function Dashboard2SearchBox({
                   className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-white transition hover:bg-white/[0.10]"
                   onClick={() => setIsFocused(false)}
                 >
-                  <SuggestionIcon type={item.type} />
+                  <SuggestionIcon
+                    type={item.type}
+                    thumbnailUrl={item.thumbnailUrl}
+                  />
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-2">
                       <span className="truncate text-[12.5px] font-semibold">
