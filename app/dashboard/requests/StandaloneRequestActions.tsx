@@ -472,7 +472,9 @@ export default function StandaloneRequestActions({
                     >
                       {SERVICE_REQUEST_PRIORITIES.map((priority) => (
                         <option key={priority} value={priority}>
-                          {prettyLabel(priority)}
+                          {priority === "normal"
+                            ? "Medium"
+                            : prettyLabel(priority)}
                         </option>
                       ))}
                     </select>

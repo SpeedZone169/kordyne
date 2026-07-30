@@ -123,7 +123,7 @@ export function getPriorityLabel(priority: ServiceRequestPriority) {
     case "low":
       return "Low";
     case "normal":
-      return "Normal";
+      return "Medium";
     case "high":
       return "High";
     case "urgent":
