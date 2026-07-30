@@ -1436,18 +1436,24 @@ export default async function Dashboard2Page() {
   }
 
   const thumbnailUrlByPartId = new Map<string, string>();
+  const thumbnailEntries = Array.from(thumbnailFileByPartId.entries());
 
-  await Promise.all(
-    Array.from(thumbnailFileByPartId.entries()).map(async ([partId, file]) => {
-      const { data } = await supabase.storage
-        .from("part-files")
-        .createSignedUrl(file.storage_path, 10 * 60);
+  if (thumbnailEntries.length > 0) {
+    const { data: signedThumbnailUrls } = await supabase.storage
+      .from("part-files")
+      .createSignedUrls(
+        thumbnailEntries.map(([, file]) => file.storage_path),
+        10 * 60,
+      );
 
-      if (data?.signedUrl) {
-        thumbnailUrlByPartId.set(partId, data.signedUrl);
+    signedThumbnailUrls?.forEach((signedThumbnail, index) => {
+      const thumbnailEntry = thumbnailEntries[index];
+
+      if (thumbnailEntry && signedThumbnail.signedUrl) {
+        thumbnailUrlByPartId.set(thumbnailEntry[0], signedThumbnail.signedUrl);
       }
-    }),
-  );
+    });
+  }
 
   const { data: internalJobsRaw } = organizationId
     ? await supabase
