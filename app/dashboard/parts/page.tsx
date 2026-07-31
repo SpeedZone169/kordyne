@@ -2,6 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "../../../lib/supabase/server";
 import { getPartCategoryLabel, getProcessTypeLabel } from "@/lib/parts";
+import ShellIcon from "@/components/ShellIcon";
+import LogoutButton from "../LogoutButton";
 
 type PartsPageProps = {
   searchParams?: Promise<{
@@ -120,19 +122,6 @@ function getStatusBadgeClass(status: string | null) {
     case "draft":
       return "bg-amber-100 text-amber-800";
     case "archived":
-      return "bg-slate-100 text-slate-700";
-    default:
-      return "bg-slate-100 text-slate-700";
-  }
-}
-
-function getRoleBadgeClass(role: string | null) {
-  switch (role) {
-    case "admin":
-      return "bg-slate-950 text-white";
-    case "engineer":
-      return "bg-sky-100 text-sky-800";
-    case "viewer":
       return "bg-slate-100 text-slate-700";
     default:
       return "bg-slate-100 text-slate-700";
@@ -522,40 +511,71 @@ export default async function PartsPage({ searchParams }: PartsPageProps) {
 
   return (
     <section className="mx-auto max-w-[1540px] pb-8">
-      <header className="border-b border-slate-200 pb-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.16em] text-cyan-700">
-              Controlled library
-            </p>
-            <h1 className="mt-2 text-3xl font-black text-slate-950">
-              Parts Vault
-            </h1>
-            <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
-              Every part family, revision, file, preview, and release source in one controlled record.
-            </p>
+      <header className="relative overflow-hidden rounded-3xl bg-[#001827] px-5 py-5 text-white shadow-[0_28px_80px_-44px_rgba(0,48,64,0.72)] sm:px-7 lg:px-9">
+        <div
+          className="absolute inset-0 opacity-70"
+          style={{
+            backgroundImage:
+              "linear-gradient(90deg, rgba(0,18,32,0.97) 0%, rgba(0,24,39,0.82) 52%, rgba(0,24,39,0.38) 100%), url('/dashboard2-command-bg.png')",
+            backgroundPosition: "35% bottom",
+            backgroundSize: "cover",
+          }}
+        />
+        <div className="absolute inset-x-0 bottom-0 h-px bg-[#00bdde]/70" />
+
+        <div className="relative flex flex-col gap-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+            <div className="flex flex-wrap items-center gap-2">
+              <Link
+                href="/dashboard/account"
+                prefetch={false}
+                className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/15 bg-white/[0.08] px-3 text-xs font-semibold text-white transition hover:border-[#00bdde]/50 hover:bg-[#00bdde]/15"
+              >
+                <ShellIcon name="account" className="h-4 w-4" />
+                <span>Profile</span>
+              </Link>
+              <Link
+                href="/dashboard/organization"
+                prefetch={false}
+                className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/15 bg-white/[0.08] px-3 text-xs font-semibold text-white transition hover:border-[#00bdde]/50 hover:bg-[#00bdde]/15"
+              >
+                <ShellIcon name="settings" className="h-4 w-4" />
+                <span>Settings</span>
+              </Link>
+              <LogoutButton variant="utility" />
+            </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <span
-              className={`rounded-full px-3 py-1.5 text-xs font-semibold ${getRoleBadgeClass(
-                orgRole,
-              )}`}
-            >
-              {orgRole || "unknown"}
-            </span>
-            {canCreatePart ? (
-              <Link
-                href="/dashboard/parts/new"
-                className="rounded-[6px] bg-[#003040] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#00485c]"
-              >
-                Import release
-              </Link>
-            ) : null}
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#00bdde]">
+                Controlled library
+              </p>
+              <h1 className="mt-2 text-3xl font-black tracking-tight text-white">
+                Parts Vault
+              </h1>
+              <p className="mt-1 max-w-2xl text-sm leading-6 text-white/65">
+                Every part family, revision, file, preview, and release source in one controlled record.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full border border-white/15 bg-white/[0.08] px-3 py-1.5 text-xs font-semibold text-white/80">
+                {orgRole || "unknown"}
+              </span>
+              {canCreatePart ? (
+                <Link
+                  href="/dashboard/parts/new"
+                  className="rounded-[6px] bg-[#00bdde] px-4 py-2.5 text-sm font-bold text-[#001827] transition hover:bg-[#6ee7f7]"
+                >
+                  Import release
+                </Link>
+              ) : null}
+            </div>
           </div>
         </div>
 
-        <div className="mt-5 grid grid-cols-2 border-y border-slate-200 sm:grid-cols-4">
+        <div className="relative mt-5 grid grid-cols-2 border-y border-white/10 sm:grid-cols-4">
           {[
             [familyViews.length, "Part families"],
             [totalRevisionCount, "Revisions"],
@@ -564,10 +584,10 @@ export default async function PartsPage({ searchParams }: PartsPageProps) {
           ].map(([value, label], index) => (
             <div
               key={label}
-              className={`px-4 py-3 ${index > 0 ? "border-l border-slate-200" : ""}`}
+              className={`px-4 py-3 ${index > 0 ? "border-l border-white/10" : ""}`}
             >
-              <div className="text-xl font-black text-slate-950">{value}</div>
-              <div className="text-xs font-semibold text-slate-500">{label}</div>
+              <div className="text-xl font-black text-white">{value}</div>
+              <div className="text-xs font-semibold text-white/55">{label}</div>
             </div>
           ))}
         </div>

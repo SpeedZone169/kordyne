@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import BrandLogo from "@/components/BrandLogo";
@@ -22,13 +23,12 @@ const railNavItems = [
   { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
   { href: "/dashboard/parts", label: "Part Vault", icon: "vault" },
   { href: "/dashboard/projects", label: "Projects", icon: "projects" },
-  { href: "/dashboard/requests", label: "Requests", icon: "requests" },
+  { href: "/dashboard/requests", label: "Service Requests", icon: "requests" },
   { href: "/dashboard/collaboration", label: "Collaboration", icon: "network" },
+  { href: "/dashboard/internal-manufacturing/schedule", label: "Schedule", icon: "calendar" },
   { href: "/dashboard/insights", label: "Insights", icon: "insights" },
-  { href: "/dashboard/internal-manufacturing", label: "Internal manufacturing", icon: "manufacturing" },
-  { href: "/dashboard/internal-manufacturing/connectors", label: "Machine connectors", icon: "machine" },
-  { href: "/dashboard/internal-manufacturing/schedule", label: "Internal scheduling", icon: "calendar" },
-  { href: "/dashboard/design-connectors", label: "CAD connectors", icon: "plug" },
+  { href: "/dashboard/design-connectors", label: "Design Connectors", icon: "plug" },
+  { href: "/dashboard/organization", label: "Organisation", icon: "manufacturing" },
 ] as const;
 
 export default function DashboardShell({ children }: { children: ReactNode }) {
@@ -36,6 +36,83 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
 
   if (pathname === "/dashboard") {
     return <>{children}</>;
+  }
+
+  if (pathname === "/dashboard/parts") {
+    return (
+      <div className="flex min-h-screen w-full bg-white text-[#003040]">
+        <aside className="group/sidebar fixed left-0 top-0 z-[100] flex h-full w-20 flex-col overflow-hidden border-r border-white/10 bg-[#001220] shadow-[8px_0_30px_rgba(0,18,32,0.28)] transition-all duration-300 ease-in-out hover:w-56 hover:shadow-[12px_0_42px_rgba(0,18,32,0.36)]">
+          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(0,18,32,0.99),rgba(0,24,39,0.97)_42%,rgba(0,18,32,0.99))]" />
+
+          <Link
+            href="/dashboard"
+            prefetch={false}
+            className="relative mx-4 mt-5 flex h-14 items-center overflow-hidden rounded-xl text-white transition-all duration-300 group-hover/sidebar:mx-5"
+            aria-label="Kordyne dashboard"
+          >
+            <span className="block h-12 w-[39px] shrink-0 overflow-hidden transition-all duration-300 group-hover/sidebar:w-0 group-hover/sidebar:opacity-0">
+              <Image
+                src="/kordyne-logo-white.svg"
+                alt=""
+                width={188}
+                height={48}
+                className="h-12 w-[188px] max-w-none object-left"
+                priority
+              />
+            </span>
+            <span className="absolute left-0 flex h-12 w-[188px] items-center opacity-0 transition-all duration-300 group-hover/sidebar:opacity-100">
+              <Image
+                src="/kordyne-logo-white.svg"
+                alt="Kordyne"
+                width={188}
+                height={48}
+                className="h-10 w-auto"
+                priority
+              />
+            </span>
+          </Link>
+
+          <nav className="relative flex flex-1 flex-col gap-1 overflow-hidden px-2.5 py-5">
+            {railNavItems.map((item) => {
+              const isActive =
+                pathname === item.href ||
+                (item.href !== "/dashboard" && pathname.startsWith(`${item.href}/`));
+
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  prefetch={false}
+                  className={`group flex h-14 w-full items-center justify-center gap-0 rounded-xl px-0 transition-all duration-150 group-hover/sidebar:justify-start group-hover/sidebar:gap-3 group-hover/sidebar:px-3 ${
+                    isActive
+                      ? "bg-[#00bdde]/16 text-white"
+                      : "text-white/70 hover:bg-[#00bdde]/10 hover:text-[#00bdde]"
+                  }`}
+                  aria-current={isActive ? "page" : undefined}
+                >
+                  <span
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-all duration-150 ${
+                      isActive
+                        ? "bg-[#00bdde] text-[#001827]"
+                        : "bg-white/[0.06] text-white ring-1 ring-white/10 group-hover:bg-[#00bdde] group-hover:text-[#001827] group-hover:ring-[#00bdde]"
+                    }`}
+                  >
+                    <ShellIcon name={item.icon} className="h-[18px] w-[18px]" />
+                  </span>
+                  <span className="w-0 overflow-hidden whitespace-nowrap text-[13px] opacity-0 transition-all duration-300 group-hover/sidebar:w-36 group-hover/sidebar:opacity-100">
+                    {item.label}
+                  </span>
+                </Link>
+              );
+            })}
+          </nav>
+        </aside>
+
+        <main className="ml-20 min-w-0 flex-1 bg-white px-4 pb-8 pt-4 sm:px-6 lg:px-8">
+          {children}
+        </main>
+      </div>
+    );
   }
 
   return (
