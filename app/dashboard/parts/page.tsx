@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "../../../lib/supabase/server";
+import { getPartCategoryLabel, getProcessTypeLabel } from "@/lib/parts";
 
 type PartsPageProps = {
   searchParams?: Promise<{
@@ -14,10 +15,12 @@ type PartsPageProps = {
 type PartRow = {
   id: string;
   part_family_id: string;
+  user_id: string | null;
   name: string;
   part_number: string | null;
   process_type: string | null;
   material: string | null;
+  category: string | null;
   revision: string | null;
   revision_index: number | null;
   revision_note: string | null;
@@ -36,6 +39,31 @@ type PartFileRow = {
   created_at: string;
 };
 
+type PartSourceLinkRow = {
+  part_family_id: string | null;
+  part_id: string | null;
+  provider_key: string;
+  updated_at: string;
+};
+
+type ProfileRow = {
+  user_id: string;
+  full_name: string | null;
+  email: string | null;
+};
+
+type ThumbnailKind = "image" | "cad" | "pdf" | "doc" | "empty";
+
+type RevisionView = PartRow & {
+  fileCount: number;
+  thumbnailUrl: string | null;
+  thumbnailKind: ThumbnailKind;
+  thumbnailLabel: string;
+  sourceKey: string | null;
+  sourceLabel: string;
+  publisherName: string;
+};
+
 type PartFamilyGroup = {
   partFamilyId: string;
   familyName: string;
@@ -46,11 +74,14 @@ type PartFamilyGroup = {
   latestUpdatedAt: string;
 };
 
-type PartFamilyView = PartFamilyGroup & {
+type PartFamilyView = Omit<PartFamilyGroup, "latestRevision" | "revisions"> & {
+  latestRevision: RevisionView;
+  revisions: RevisionView[];
   fileCount: number;
   thumbnailUrl: string | null;
-  thumbnailKind: "image" | "cad" | "pdf" | "doc" | "empty";
+  thumbnailKind: ThumbnailKind;
   thumbnailLabel: string;
+  latestSourceLabel: string;
 };
 
 function formatDateTime(dateString: string | null) {
@@ -167,7 +198,7 @@ function isImageFile(file: PartFileRow) {
   );
 }
 
-function getThumbnailKind(file: PartFileRow | null): PartFamilyView["thumbnailKind"] {
+function getThumbnailKind(file: PartFileRow | null): ThumbnailKind {
   if (!file) return "empty";
   if (isImageFile(file)) return "image";
 
@@ -183,30 +214,61 @@ function getThumbnailLabel(file: PartFileRow | null) {
   return extension ? extension.toUpperCase() : "FILE";
 }
 
-function chooseThumbnailFile(group: PartFamilyGroup, files: PartFileRow[]) {
-  const latestFiles = files.filter(
-    (file) => file.part_id === group.latestRevision.id,
-  );
-
+function chooseRevisionThumbnailFile(partId: string, files: PartFileRow[]) {
+  const revisionFiles = files.filter((file) => file.part_id === partId);
   return (
-    latestFiles.find(isImageFile) ||
-    files.find(isImageFile) ||
-    latestFiles.find((file) =>
+    revisionFiles.find(isImageFile) ||
+    revisionFiles.find((file) =>
       ["stl", "step", "stp", "pdf"].includes(getFileExtension(file.file_name)),
     ) ||
-    files[0] ||
+    revisionFiles[0] ||
     null
   );
 }
 
-function PartThumbnail({ family }: { family: PartFamilyView }) {
-  if (family.thumbnailUrl) {
+function getSourceLabel(providerKey: string | null) {
+  switch ((providerKey || "").toLowerCase()) {
+    case "solidworks":
+      return "SOLIDWORKS";
+    case "inventor":
+    case "autodesk_inventor":
+      return "Autodesk Inventor";
+    case "onshape":
+      return "Onshape";
+    case "fusion":
+    case "fusion360":
+    case "autodesk_fusion":
+      return "Autodesk Fusion";
+    default:
+      return "Manual upload";
+  }
+}
+
+function getDisplayName(profile: ProfileRow | null | undefined) {
+  return profile?.full_name || profile?.email || "Unknown user";
+}
+
+function PartThumbnail({
+  thumbnailUrl,
+  thumbnailKind,
+  thumbnailLabel,
+  compact = false,
+}: {
+  thumbnailUrl: string | null;
+  thumbnailKind: ThumbnailKind;
+  thumbnailLabel: string;
+  compact?: boolean;
+}) {
+  const dimensions = compact ? "h-14 w-20" : "h-16 w-24";
+
+  if (thumbnailUrl) {
     return (
-      <div className="h-16 w-24 overflow-hidden rounded-[8px] border border-slate-200 bg-slate-100">
+      <div className={`${dimensions} shrink-0 overflow-hidden rounded-[6px] border border-slate-200 bg-slate-100`}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={family.thumbnailUrl}
+          src={thumbnailUrl}
           alt=""
+          loading="lazy"
           className="h-full w-full object-cover"
         />
       </div>
@@ -214,21 +276,21 @@ function PartThumbnail({ family }: { family: PartFamilyView }) {
   }
 
   return (
-    <div className="relative flex h-16 w-24 items-center justify-center overflow-hidden rounded-[8px] border border-slate-200 bg-[linear-gradient(135deg,#eef2f6,#ffffff)]">
+    <div className={`relative flex ${dimensions} shrink-0 items-center justify-center overflow-hidden rounded-[6px] border border-slate-200 bg-[linear-gradient(135deg,#eef2f6,#ffffff)]`}>
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(14,116,144,0.16),transparent_35%)]" />
       <div
-        className={`relative flex h-10 w-14 rotate-[-12deg] items-center justify-center rounded-[8px] shadow-[0_12px_20px_rgba(15,23,42,0.18)] ${
-          family.thumbnailKind === "cad"
+        className={`relative flex h-9 w-12 rotate-[-12deg] items-center justify-center rounded-[6px] shadow-[0_10px_18px_rgba(15,23,42,0.16)] ${
+          thumbnailKind === "cad"
             ? "bg-slate-700 text-white"
-            : family.thumbnailKind === "pdf"
+            : thumbnailKind === "pdf"
               ? "bg-[#d98042] text-white"
-              : family.thumbnailKind === "doc"
+              : thumbnailKind === "doc"
                 ? "bg-sky-700 text-white"
                 : "bg-slate-300 text-slate-700"
         }`}
       >
         <span className="rotate-[12deg] text-[10px] font-black tracking-[0.12em]">
-          {family.thumbnailLabel}
+          {thumbnailLabel}
         </span>
       </div>
     </div>
@@ -258,7 +320,7 @@ export default async function PartsPage({ searchParams }: PartsPageProps) {
   let filteredFamilySeedQuery = supabase
     .from("parts")
     .select(
-      "id, part_family_id, name, part_number, process_type, material, revision, revision_index, revision_note, status, updated_at, created_at",
+      "id, part_family_id, user_id, name, part_number, process_type, material, category, revision, revision_index, revision_note, status, updated_at, created_at",
     )
     .order("updated_at", { ascending: false })
     .order("created_at", { ascending: false });
@@ -330,7 +392,7 @@ export default async function PartsPage({ searchParams }: PartsPageProps) {
       ? await supabase
           .from("parts")
           .select(
-            "id, part_family_id, name, part_number, process_type, material, revision, revision_index, revision_note, status, updated_at, created_at",
+            "id, part_family_id, user_id, name, part_number, process_type, material, category, revision, revision_index, revision_note, status, updated_at, created_at",
           )
           .in("part_family_id", matchingFamilyIds)
       : { data: [] as PartRow[] };
@@ -352,351 +414,433 @@ export default async function PartsPage({ searchParams }: PartsPageProps) {
       : { data: [] as PartFileRow[] };
 
   const familyFiles = (familyFilesRaw as PartFileRow[] | null) ?? [];
-  const filesByFamilyId = new Map<string, PartFileRow[]>();
-  const familyIdByPartId = new Map<string, string>();
+  const filesByPartId = new Map<string, PartFileRow[]>();
 
-  for (const family of familyGroups) {
-    for (const revision of family.revisions) {
-      familyIdByPartId.set(revision.id, family.partFamilyId);
+  for (const file of familyFiles) {
+    const existing = filesByPartId.get(file.part_id) ?? [];
+    existing.push(file);
+    filesByPartId.set(file.part_id, existing);
+  }
+
+  const publisherIds = Array.from(
+    new Set(
+      familyGroups
+        .flatMap((family) => family.revisions.map((revision) => revision.user_id))
+        .filter((value): value is string => Boolean(value)),
+    ),
+  );
+
+  const [{ data: sourceLinksRaw }, { data: publisherProfilesRaw }] =
+    await Promise.all([
+      matchingFamilyIds.length > 0
+        ? supabase
+            .from("part_source_links")
+            .select("part_family_id, part_id, provider_key, updated_at")
+            .in("part_family_id", matchingFamilyIds)
+            .order("updated_at", { ascending: false })
+        : Promise.resolve({ data: [] as PartSourceLinkRow[] }),
+      publisherIds.length > 0
+        ? supabase
+            .from("profiles")
+            .select("user_id, full_name, email")
+            .in("user_id", publisherIds)
+        : Promise.resolve({ data: [] as ProfileRow[] }),
+    ]);
+
+  const sourceLinks =
+    (sourceLinksRaw as PartSourceLinkRow[] | null) ?? [];
+  const sourceLinkByPartId = new Map<string, PartSourceLinkRow>();
+
+  for (const sourceLink of sourceLinks) {
+    if (sourceLink.part_id && !sourceLinkByPartId.has(sourceLink.part_id)) {
+      sourceLinkByPartId.set(sourceLink.part_id, sourceLink);
     }
   }
 
-  for (const file of familyFiles) {
-    const familyId = familyIdByPartId.get(file.part_id);
-    if (!familyId) continue;
-    const existing = filesByFamilyId.get(familyId) ?? [];
-    existing.push(file);
-    filesByFamilyId.set(familyId, existing);
-  }
-
-  const selectedThumbnailFiles = familyGroups
-    .map((family) => chooseThumbnailFile(family, filesByFamilyId.get(family.partFamilyId) ?? []))
-    .filter((file): file is PartFileRow => Boolean(file) && isImageFile(file));
-
-  const signedImageUrls = new Map<string, string>();
-
-  await Promise.all(
-    selectedThumbnailFiles.map(async (file) => {
-      const { data } = await supabase.storage
-        .from("part-files")
-        .createSignedUrl(file.storage_path, 60 * 10);
-
-      if (data?.signedUrl) {
-        signedImageUrls.set(file.id, data.signedUrl);
-      }
-    }),
+  const publisherProfileById = new Map(
+    ((publisherProfilesRaw as ProfileRow[] | null) ?? []).map((profile) => [
+      profile.user_id,
+      profile,
+    ]),
   );
 
-  const familyViews: PartFamilyView[] = familyGroups.map((family) => {
-    const familyFileRows = filesByFamilyId.get(family.partFamilyId) ?? [];
-    const thumbnailFile = chooseThumbnailFile(family, familyFileRows);
+  function buildRevisionView(revision: PartRow): RevisionView {
+    const revisionFiles = filesByPartId.get(revision.id) ?? [];
+    const thumbnailFile = chooseRevisionThumbnailFile(
+      revision.id,
+      revisionFiles,
+    );
     const thumbnailKind = getThumbnailKind(thumbnailFile);
+    const sourceLink = sourceLinkByPartId.get(revision.id);
 
     return {
-      ...family,
-      fileCount: familyFileRows.length,
+      ...revision,
+      fileCount: revisionFiles.length,
       thumbnailUrl:
         thumbnailFile && thumbnailKind === "image"
-          ? signedImageUrls.get(thumbnailFile.id) ?? null
+          ? `/api/part-files/${thumbnailFile.id}/content?mode=inline`
           : null,
       thumbnailKind,
       thumbnailLabel: getThumbnailLabel(thumbnailFile),
+      sourceKey: sourceLink?.provider_key ?? null,
+      sourceLabel: getSourceLabel(sourceLink?.provider_key ?? null),
+      publisherName: revision.user_id
+        ? getDisplayName(publisherProfileById.get(revision.user_id))
+        : "Unknown user",
+    };
+  }
+
+  const familyViews: PartFamilyView[] = familyGroups.map((family) => {
+    const revisionViews = family.revisions.map(buildRevisionView);
+    const latestRevision = revisionViews[0];
+
+    return {
+      ...family,
+      latestRevision,
+      revisions: revisionViews,
+      fileCount: revisionViews.reduce(
+        (total, revision) => total + revision.fileCount,
+        0,
+      ),
+      thumbnailUrl: latestRevision.thumbnailUrl,
+      thumbnailKind: latestRevision.thumbnailKind,
+      thumbnailLabel: latestRevision.thumbnailLabel,
+      latestSourceLabel: latestRevision.sourceLabel,
     };
   });
 
-  const activeCount = familyViews.filter(
-    (family) => family.latestRevision.status === "active",
-  ).length;
   const previewReadyCount = familyViews.filter(
     (family) => family.thumbnailKind !== "empty",
   ).length;
+  const totalRevisionCount = familyViews.reduce(
+    (total, family) => total + family.revisionCount,
+    0,
+  );
+  const assemblyCount = familyViews.filter(
+    (family) => family.latestRevision.category === "assembly",
+  ).length;
 
   return (
-    <section className="mx-auto max-w-[1540px]">
-      <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <h1 className="text-3xl font-black uppercase tracking-[-0.01em] text-slate-950">
-            Part Vault
-          </h1>
-          <p className="mt-1 text-sm text-slate-600">
-            Revision-controlled part families with previews, request context, and collaboration signals.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <span
-            className={`rounded-full px-3 py-1.5 text-xs font-semibold ${getRoleBadgeClass(
-              orgRole,
-            )}`}
-          >
-            {orgRole || "unknown"}
-          </span>
-
-          {canCreatePart ? (
-            <Link
-              href="/dashboard/parts/new"
-              className="rounded-[10px] bg-[#1f6fb2] px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#185d98]"
-            >
-              Import release
-            </Link>
-          ) : null}
-        </div>
-      </div>
-
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="min-w-0 rounded-[12px] border border-slate-200 bg-white shadow-sm">
-          <form className="grid gap-3 border-b border-slate-200 p-4 lg:grid-cols-[minmax(260px,1fr)_150px_170px_170px_auto]">
-            <input
-              type="text"
-              name="q"
-              defaultValue={queryText}
-              placeholder="Search"
-              className="min-h-10 rounded-[8px] border border-slate-200 bg-slate-50 px-3 text-sm outline-none focus:border-slate-400"
-            />
-
-            <select
-              name="status"
-              defaultValue={statusFilter}
-              className="min-h-10 rounded-[8px] border border-slate-200 bg-white px-3 text-sm outline-none focus:border-slate-400"
-            >
-              <option value="">All status</option>
-              {statusOptions.map((status) => (
-                <option key={status} value={status}>
-                  {status}
-                </option>
-              ))}
-            </select>
-
-            <select
-              name="process"
-              defaultValue={processFilter}
-              className="min-h-10 rounded-[8px] border border-slate-200 bg-white px-3 text-sm outline-none focus:border-slate-400"
-            >
-              <option value="">All process</option>
-              {processOptions.map((process) => (
-                <option key={process} value={process}>
-                  {process}
-                </option>
-              ))}
-            </select>
-
-            <select
-              name="material"
-              defaultValue={materialFilter}
-              className="min-h-10 rounded-[8px] border border-slate-200 bg-white px-3 text-sm outline-none focus:border-slate-400"
-            >
-              <option value="">All materials</option>
-              {materialOptions.map((material) => (
-                <option key={material} value={material}>
-                  {material}
-                </option>
-              ))}
-            </select>
-
-            <div className="flex gap-2">
-              <button
-                type="submit"
-                className="min-h-10 rounded-[8px] bg-slate-950 px-4 text-sm font-bold text-white"
-              >
-                Apply
-              </button>
-              <Link
-                href="/dashboard/parts"
-                className="inline-flex min-h-10 items-center rounded-[8px] border border-slate-200 px-3 text-sm font-semibold text-slate-700"
-              >
-                Clear
-              </Link>
-            </div>
-          </form>
-
-          <div className="grid grid-cols-[112px_minmax(250px,1fr)_120px_130px_190px] border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-black uppercase tracking-[0.12em] text-slate-500 max-lg:hidden">
-            <div>Preview</div>
-            <div>Name</div>
-            <div>Status</div>
-            <div>Revision</div>
-            <div>Last modified</div>
+    <section className="mx-auto max-w-[1540px] pb-8">
+      <header className="border-b border-slate-200 pb-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-cyan-700">
+              Controlled library
+            </p>
+            <h1 className="mt-2 text-3xl font-black text-slate-950">
+              Parts Vault
+            </h1>
+            <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
+              Every part family, revision, file, preview, and release source in one controlled record.
+            </p>
           </div>
 
-          {familyViews.length > 0 ? (
-            <div className="divide-y divide-slate-200">
-              {familyViews.map((family) => (
-                <details key={family.partFamilyId} className="group">
-                  <summary className="list-none cursor-pointer px-4 py-3 transition hover:bg-slate-50">
-                    <div className="grid gap-4 lg:grid-cols-[112px_minmax(250px,1fr)_120px_130px_190px] lg:items-center">
-                      <PartThumbnail family={family} />
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className={`rounded-full px-3 py-1.5 text-xs font-semibold ${getRoleBadgeClass(
+                orgRole,
+              )}`}
+            >
+              {orgRole || "unknown"}
+            </span>
+            {canCreatePart ? (
+              <Link
+                href="/dashboard/parts/new"
+                className="rounded-[6px] bg-[#003040] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#00485c]"
+              >
+                Import release
+              </Link>
+            ) : null}
+          </div>
+        </div>
 
-                      <div className="min-w-0">
+        <div className="mt-5 grid grid-cols-2 border-y border-slate-200 sm:grid-cols-4">
+          {[
+            [familyViews.length, "Part families"],
+            [totalRevisionCount, "Revisions"],
+            [previewReadyCount, "With previews"],
+            [assemblyCount, "Assemblies"],
+          ].map(([value, label], index) => (
+            <div
+              key={label}
+              className={`px-4 py-3 ${index > 0 ? "border-l border-slate-200" : ""}`}
+            >
+              <div className="text-xl font-black text-slate-950">{value}</div>
+              <div className="text-xs font-semibold text-slate-500">{label}</div>
+            </div>
+          ))}
+        </div>
+      </header>
+
+      <form className="mt-5 grid gap-3 rounded-[8px] border border-slate-200 bg-white p-3 lg:grid-cols-[minmax(260px,1fr)_150px_180px_180px_auto]">
+        <label className="sr-only" htmlFor="parts-search">
+          Search parts
+        </label>
+        <input
+          id="parts-search"
+          type="text"
+          name="q"
+          defaultValue={queryText}
+          placeholder="Search part name, number, or material"
+          className="min-h-10 rounded-[6px] border border-slate-200 bg-slate-50 px-3 text-sm outline-none focus:border-cyan-600"
+        />
+
+        <select
+          name="status"
+          defaultValue={statusFilter}
+          aria-label="Filter by status"
+          className="min-h-10 rounded-[6px] border border-slate-200 bg-white px-3 text-sm outline-none focus:border-cyan-600"
+        >
+          <option value="">All statuses</option>
+          {statusOptions.map((status) => (
+            <option key={status} value={status}>
+              {status}
+            </option>
+          ))}
+        </select>
+
+        <select
+          name="process"
+          defaultValue={processFilter}
+          aria-label="Filter by process"
+          className="min-h-10 rounded-[6px] border border-slate-200 bg-white px-3 text-sm outline-none focus:border-cyan-600"
+        >
+          <option value="">All processes</option>
+          {processOptions.map((process) => (
+            <option key={process} value={process}>
+              {getProcessTypeLabel(process)}
+            </option>
+          ))}
+        </select>
+
+        <select
+          name="material"
+          defaultValue={materialFilter}
+          aria-label="Filter by material"
+          className="min-h-10 rounded-[6px] border border-slate-200 bg-white px-3 text-sm outline-none focus:border-cyan-600"
+        >
+          <option value="">All materials</option>
+          {materialOptions.map((material) => (
+            <option key={material} value={material}>
+              {material}
+            </option>
+          ))}
+        </select>
+
+        <div className="flex gap-2">
+          <button
+            type="submit"
+            className="min-h-10 rounded-[6px] bg-[#003040] px-4 text-sm font-bold text-white"
+          >
+            Apply
+          </button>
+          <Link
+            href="/dashboard/parts"
+            className="inline-flex min-h-10 items-center rounded-[6px] border border-slate-200 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            Clear
+          </Link>
+        </div>
+      </form>
+
+      <div className="mt-4 min-w-0 overflow-hidden rounded-[8px] border border-slate-200 bg-white">
+        <div className="hidden grid-cols-[96px_minmax(260px,1fr)_110px_155px_125px_180px_44px] items-center border-b border-slate-200 bg-slate-50 px-4 py-3 text-[11px] font-black uppercase tracking-[0.12em] text-slate-500 lg:grid">
+          <div>Preview</div>
+          <div>Part family</div>
+          <div>Status</div>
+          <div>Source</div>
+          <div>Revisions</div>
+          <div>Last modified</div>
+          <div aria-hidden="true" />
+        </div>
+
+        {familyViews.length > 0 ? (
+          <div className="divide-y divide-slate-200">
+            {familyViews.map((family) => (
+              <details key={family.partFamilyId} className="group">
+                <summary className="list-none cursor-pointer px-4 py-3 transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
+                  <div className="grid gap-4 lg:grid-cols-[96px_minmax(260px,1fr)_110px_155px_125px_180px_44px] lg:items-center">
+                    <PartThumbnail
+                      thumbnailUrl={family.thumbnailUrl}
+                      thumbnailKind={family.thumbnailKind}
+                      thumbnailLabel={family.thumbnailLabel}
+                    />
+
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
                         <Link
                           href={`/dashboard/parts/${family.latestRevision.id}`}
-                          className="text-base font-black text-slate-950 hover:text-[#1f6fb2]"
+                          className="truncate text-base font-black text-slate-950 hover:text-cyan-700"
                         >
                           {family.familyName}
                         </Link>
-                        <div className="mt-1 flex flex-wrap gap-2 text-xs text-slate-500">
-                          <span>{family.familyPartNumber || "No part number"}</span>
-                          <span>{family.latestRevision.process_type || "No process"}</span>
-                          <span>{family.latestRevision.material || "No material"}</span>
-                          <span>{family.fileCount} files</span>
-                        </div>
-                      </div>
-
-                      <div>
-                        <span
-                          className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${getStatusBadgeClass(
-                            family.latestRevision.status,
-                          )}`}
-                        >
-                          {family.latestRevision.status || "-"}
+                        <span className="rounded-full border border-slate-200 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-500">
+                          {getPartCategoryLabel(family.latestRevision.category)}
                         </span>
                       </div>
-
-                      <div className="text-sm">
-                        <div className="font-bold text-slate-900">
-                          Revision {family.latestRevision.revision || "-"}
-                        </div>
-                        <div className="text-xs text-slate-500">
-                          {family.revisionCount} total
-                        </div>
+                      <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
+                        <span>{family.familyPartNumber || "No part number"}</span>
+                        <span>{getProcessTypeLabel(family.latestRevision.process_type)}</span>
+                        <span>{family.latestRevision.material || "No material"}</span>
+                        <span>{family.fileCount} files</span>
                       </div>
-
-                      <div className="text-sm text-slate-600">
-                        <div className="font-semibold text-slate-900">
-                          {formatRelative(family.latestUpdatedAt)}
-                        </div>
-                        <div className="text-xs text-slate-500">
-                          {formatDateTime(family.latestUpdatedAt)}
-                        </div>
+                      <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500 lg:hidden">
+                        <span>{family.latestSourceLabel}</span>
+                        <span>{family.revisionCount} revisions</span>
+                        <span>{formatRelative(family.latestUpdatedAt)}</span>
                       </div>
                     </div>
-                  </summary>
 
-                  <div className="border-t border-slate-200 bg-slate-50 px-4 py-4">
-                    <div className="grid gap-3">
-                      {family.revisions.map((revision) => (
-                        <Link
-                          key={revision.id}
-                          href={`/dashboard/parts/${revision.id}`}
-                          className="grid gap-3 rounded-[10px] border border-slate-200 bg-white p-3 transition hover:border-[#d98042] md:grid-cols-[1fr_120px_160px_auto] md:items-center"
-                        >
-                          <div>
-                            <div className="font-bold text-slate-900">
-                              {revision.name}
-                            </div>
-                            <div className="mt-1 text-xs text-slate-500">
-                              {revision.revision_note || "No revision note"}
-                            </div>
-                          </div>
-                          <div className="text-sm font-semibold text-slate-700">
-                            Rev {revision.revision || "-"}
-                          </div>
-                          <div className="text-xs text-slate-500">
-                            {formatDateTime(revision.updated_at || revision.created_at)}
-                          </div>
-                          <span className="text-xs font-bold text-[#1f6fb2]">
-                            Open
-                          </span>
-                        </Link>
-                      ))}
+                    <div className="hidden lg:block">
+                      <span
+                        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold capitalize ${getStatusBadgeClass(
+                          family.latestRevision.status,
+                        )}`}
+                      >
+                        {family.latestRevision.status || "-"}
+                      </span>
                     </div>
+
+                    <div className="hidden text-sm font-semibold text-slate-700 lg:block">
+                      {family.latestSourceLabel}
+                    </div>
+
+                    <div className="hidden lg:block">
+                      <div className="text-sm font-bold text-slate-900">
+                        {family.revisionCount}
+                      </div>
+                      <div className="text-xs text-slate-500">
+                        Latest Rev {family.latestRevision.revision || "-"}
+                      </div>
+                    </div>
+
+                    <div className="hidden lg:block">
+                      <div className="text-sm font-semibold text-slate-900">
+                        {formatRelative(family.latestUpdatedAt)}
+                      </div>
+                      <div className="mt-0.5 text-xs text-slate-500">
+                        {formatDateTime(family.latestUpdatedAt)}
+                      </div>
+                    </div>
+
+                    <span
+                      className="grid h-9 w-9 place-items-center justify-self-end rounded-[6px] border border-slate-300 bg-white text-lg font-medium text-slate-700 transition group-open:border-cyan-600 group-open:text-cyan-700"
+                      title="Expand revision history"
+                      aria-hidden="true"
+                    >
+                      <span className="group-open:hidden">+</span>
+                      <span className="hidden group-open:inline">-</span>
+                    </span>
                   </div>
-                </details>
-              ))}
-            </div>
-          ) : (
-            <div className="p-10 text-center text-sm text-slate-500">
-              No parts found for the current filters.
-            </div>
-          )}
+                </summary>
 
-          {error ? (
-            <p className="border-t border-slate-200 p-4 text-sm text-red-600">
-              Failed to load parts.
-            </p>
-          ) : null}
-        </div>
+                <div className="border-t border-slate-200 bg-slate-50 px-4 pb-4 pt-3">
+                  <div className="mb-3 flex items-center justify-between gap-4">
+                    <div>
+                      <h2 className="text-sm font-black text-slate-950">
+                        Revision history
+                      </h2>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        Created, sourced, and modified records. Newest revision first.
+                      </p>
+                    </div>
+                    <span className="text-xs font-semibold text-slate-500">
+                      {family.revisionCount} total
+                    </span>
+                  </div>
 
-        <aside className="space-y-5">
-          <section className="rounded-[12px] border border-slate-200 bg-white shadow-sm">
-            <div className="border-b border-slate-200 px-4 py-3">
-              <h2 className="text-sm font-black uppercase tracking-[0.12em] text-slate-800">
-                Status
-              </h2>
-            </div>
+                  <div className="hidden grid-cols-[80px_minmax(220px,1fr)_105px_180px_175px_175px_86px] items-center border-y border-slate-200 px-3 py-2 text-[10px] font-black uppercase tracking-[0.1em] text-slate-500 lg:grid">
+                    <div>Preview</div>
+                    <div>Revision</div>
+                    <div>Status</div>
+                    <div>Source / publisher</div>
+                    <div>Created</div>
+                    <div>Last modified</div>
+                    <div>Files</div>
+                  </div>
 
-            <div className="grid grid-cols-2 gap-4 p-4">
-              <div>
-                <div className="text-4xl font-black text-slate-950">
-                  {familyViews.length}
-                </div>
-                <div className="mt-1 text-xs font-semibold text-slate-500">
-                  Part families
-                </div>
-              </div>
-              <div>
-                <div className="text-4xl font-black text-slate-950">
-                  {activeCount}
-                </div>
-                <div className="mt-1 text-xs font-semibold text-slate-500">
-                  Active
-                </div>
-              </div>
-              <div>
-                <div className="text-4xl font-black text-slate-950">
-                  {previewReadyCount}
-                </div>
-                <div className="mt-1 text-xs font-semibold text-slate-500">
-                  With previews
-                </div>
-              </div>
-              <div>
-                <div className="text-4xl font-black text-slate-950">
-                  {familyViews.reduce((sum, family) => sum + family.revisionCount, 0)}
-                </div>
-                <div className="mt-1 text-xs font-semibold text-slate-500">
-                  Revisions
-                </div>
-              </div>
-            </div>
-          </section>
+                  <div className="divide-y divide-slate-200 border-b border-slate-200">
+                    {family.revisions.map((revision) => (
+                      <Link
+                        key={revision.id}
+                        href={`/dashboard/parts/${revision.id}`}
+                        className="grid gap-3 bg-white px-3 py-3 transition hover:bg-cyan-50/50 lg:grid-cols-[80px_minmax(220px,1fr)_105px_180px_175px_175px_86px] lg:items-center"
+                      >
+                        <PartThumbnail
+                          thumbnailUrl={revision.thumbnailUrl}
+                          thumbnailKind={revision.thumbnailKind}
+                          thumbnailLabel={revision.thumbnailLabel}
+                          compact
+                        />
 
-          <section className="rounded-[12px] border border-slate-200 bg-white shadow-sm">
-            <div className="border-b border-slate-200 px-4 py-3">
-              <h2 className="text-sm font-black uppercase tracking-[0.12em] text-slate-800">
-                Workspaces
-              </h2>
-            </div>
+                        <div className="min-w-0">
+                          <div className="font-black text-slate-950">
+                            Rev {revision.revision || "-"}
+                            <span className="ml-2 font-semibold text-slate-600">
+                              {revision.name}
+                            </span>
+                          </div>
+                          <div className="mt-1 line-clamp-2 text-xs text-slate-500">
+                            {revision.revision_note || "No revision note"}
+                          </div>
+                        </div>
 
-            <div className="grid gap-3 p-4">
-              <Link
-                href="/dashboard/projects"
-                className="rounded-[10px] border border-slate-200 bg-slate-50 p-3 text-sm font-bold text-slate-900 transition hover:border-[#d98042] hover:bg-white"
-              >
-                Project library
-                <span className="mt-1 block text-xs font-medium text-slate-500">
-                  Group parts into customer programs and larger assemblies.
-                </span>
-              </Link>
-              <Link
-                href="/dashboard/requests"
-                className="rounded-[10px] border border-slate-200 bg-slate-50 p-3 text-sm font-bold text-slate-900 transition hover:border-[#d98042] hover:bg-white"
-              >
-                Manufacturing requests
-                <span className="mt-1 block text-xs font-medium text-slate-500">
-                  Route selected revisions to internal or external providers.
-                </span>
-              </Link>
-              <Link
-                href="/dashboard/internal-manufacturing/connectors"
-                className="rounded-[10px] border border-slate-200 bg-slate-50 p-3 text-sm font-bold text-slate-900 transition hover:border-[#d98042] hover:bg-white"
-              >
-                Machine connectors
-                <span className="mt-1 block text-xs font-medium text-slate-500">
-                  Connect printers, CNC cells, and internal machine data.
-                </span>
-              </Link>
-            </div>
-          </section>
-        </aside>
+                        <div>
+                          <span
+                            className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold capitalize ${getStatusBadgeClass(
+                              revision.status,
+                            )}`}
+                          >
+                            {revision.status || "-"}
+                          </span>
+                        </div>
+
+                        <div className="text-xs">
+                          <div className="font-bold text-slate-800">
+                            {revision.sourceLabel}
+                          </div>
+                          <div className="mt-1 truncate text-slate-500">
+                            Published by {revision.publisherName}
+                          </div>
+                        </div>
+
+                        <div className="text-xs text-slate-600">
+                          <span className="mr-1 font-semibold text-slate-800 lg:hidden">
+                            Created:
+                          </span>
+                          {formatDateTime(revision.created_at)}
+                        </div>
+
+                        <div className="text-xs text-slate-600">
+                          <span className="mr-1 font-semibold text-slate-800 lg:hidden">
+                            Modified:
+                          </span>
+                          {formatDateTime(revision.updated_at || revision.created_at)}
+                        </div>
+
+                        <div className="flex items-center justify-between gap-2 text-xs font-semibold text-slate-600 lg:block">
+                          <span>{revision.fileCount}</span>
+                          <span className="text-cyan-700 lg:mt-1 lg:block">Open</span>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              </details>
+            ))}
+          </div>
+        ) : (
+          <div className="p-10 text-center text-sm text-slate-500">
+            No parts found for the current filters.
+          </div>
+        )}
+
+        {error ? (
+          <p className="border-t border-slate-200 p-4 text-sm text-red-600">
+            Failed to load parts.
+          </p>
+        ) : null}
       </div>
     </section>
   );
