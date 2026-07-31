@@ -560,15 +560,12 @@ export default async function PartsPage({ searchParams }: PartsPageProps) {
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full border border-white/15 bg-white/[0.08] px-3 py-1.5 text-xs font-semibold text-white/80">
-                {orgRole || "unknown"}
-              </span>
               {canCreatePart ? (
                 <Link
                   href="/dashboard/parts/new"
                   className="rounded-[6px] bg-[#00bdde] px-4 py-2.5 text-sm font-bold text-[#001827] transition hover:bg-[#6ee7f7]"
                 >
-                  Import release
+                  Import part / assembly
                 </Link>
               ) : null}
             </div>
