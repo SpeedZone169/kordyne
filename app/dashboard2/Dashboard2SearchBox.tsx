@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export type Dashboard2SearchSuggestion = {
   id: string;
@@ -71,35 +71,73 @@ function typeLabel(type: Dashboard2SearchSuggestion["type"]) {
   return "Request";
 }
 
-export default function Dashboard2SearchBox({
-  suggestions,
-}: {
-  suggestions: Dashboard2SearchSuggestion[];
-}) {
+export default function Dashboard2SearchBox() {
   const [query, setQuery] = useState("");
   const [isFocused, setIsFocused] = useState(false);
+  const [suggestions, setSuggestions] = useState<Dashboard2SearchSuggestion[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [searchFailed, setSearchFailed] = useState(false);
+  const cacheRef = useRef(new Map<string, Dashboard2SearchSuggestion[]>());
 
-  const matches = useMemo(() => {
-    const normalisedQuery = query.trim().toLowerCase();
-    if (!normalisedQuery) return [];
+  useEffect(() => {
+    const normalizedQuery = query.trim().toLowerCase();
 
-    return suggestions
-      .filter((item) =>
-        `${item.label} ${item.subtitle} ${typeLabel(item.type)}`
-          .toLowerCase()
-          .includes(normalisedQuery),
-      )
-      .sort((left, right) => {
-        const leftStarts = left.label.toLowerCase().startsWith(normalisedQuery);
-        const rightStarts = right.label.toLowerCase().startsWith(normalisedQuery);
-        if (leftStarts !== rightStarts) return leftStarts ? -1 : 1;
-        return (
-          new Date(right.updatedAt).getTime() -
-          new Date(left.updatedAt).getTime()
+    if (!normalizedQuery) {
+      setSuggestions([]);
+      setIsLoading(false);
+      setSearchFailed(false);
+      return;
+    }
+
+    const cached = cacheRef.current.get(normalizedQuery);
+    if (cached) {
+      setSuggestions(cached);
+      setIsLoading(false);
+      setSearchFailed(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(async () => {
+      setIsLoading(true);
+      setSearchFailed(false);
+
+      try {
+        const response = await fetch(
+          `/api/dashboard/search?q=${encodeURIComponent(normalizedQuery)}`,
+          {
+            credentials: "same-origin",
+            signal: controller.signal,
+          },
         );
-      })
-      .slice(0, 7);
-  }, [query, suggestions]);
+
+        if (!response.ok) {
+          throw new Error("Dashboard search failed.");
+        }
+
+        const payload = (await response.json()) as {
+          suggestions?: Dashboard2SearchSuggestion[];
+        };
+        const nextSuggestions = payload.suggestions ?? [];
+        cacheRef.current.set(normalizedQuery, nextSuggestions);
+        setSuggestions(nextSuggestions);
+      } catch (error) {
+        if ((error as Error).name !== "AbortError") {
+          setSuggestions([]);
+          setSearchFailed(true);
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsLoading(false);
+        }
+      }
+    }, 180);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      controller.abort();
+    };
+  }, [query]);
 
   const showSuggestions = isFocused && query.trim().length > 0;
 
@@ -131,12 +169,21 @@ export default function Dashboard2SearchBox({
 
       {showSuggestions ? (
         <div className="absolute left-0 right-0 top-12 z-30 overflow-hidden rounded-2xl border border-white/12 bg-white/[0.10] p-1.5 shadow-[0_24px_60px_-28px_rgba(0,0,0,0.95)] backdrop-blur-xl">
-          {matches.length > 0 ? (
+          {isLoading ? (
+            <div className="rounded-xl px-3 py-4 text-[12px] text-white/58">
+              Searching your workspace...
+            </div>
+          ) : searchFailed ? (
+            <div className="rounded-xl px-3 py-4 text-[12px] text-white/58">
+              Search is temporarily unavailable. Press Enter to search the Vault.
+            </div>
+          ) : suggestions.length > 0 ? (
             <div className="dashboard2-search-scroll max-h-[320px] overflow-y-auto pr-1">
-              {matches.map((item) => (
+              {suggestions.map((item) => (
                 <Link
                   key={`${item.type}-${item.id}`}
                   href={item.href}
+                  prefetch={false}
                   className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-white transition hover:bg-white/[0.10]"
                   onClick={() => setIsFocused(false)}
                 >

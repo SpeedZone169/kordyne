@@ -2,9 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import Dashboard2LogoutButton from "./Dashboard2LogoutButton";
-import Dashboard2SearchBox, {
-  type Dashboard2SearchSuggestion,
-} from "./Dashboard2SearchBox";
+import Dashboard2SearchBox from "./Dashboard2SearchBox";
 import { createClient } from "@/lib/supabase/server";
 
 type IconName =
@@ -108,36 +106,12 @@ type PartSummaryRow = {
   revision: string | null;
 };
 
-type Dashboard2PartSearchRow = PartSummaryRow & {
-  status: string | null;
-  process_type: string | null;
-  material: string | null;
-  updated_at: string | null;
-  created_at: string;
-};
-
 type Dashboard2ProjectSearchRow = {
   id: string;
   name: string;
   project_type: string;
   status: string | null;
   updated_at: string | null;
-  created_at: string;
-};
-
-type Dashboard2ProjectPartLinkRow = {
-  project_id: string;
-  part_id: string;
-  is_primary_part: boolean;
-};
-
-type Dashboard2PartFileRow = {
-  id: string;
-  part_id: string;
-  file_name: string;
-  file_type: string | null;
-  storage_path: string;
-  asset_category: string | null;
   created_at: string;
 };
 
@@ -152,41 +126,6 @@ type Dashboard2RequestSearchRow = {
   updated_at: string | null;
   created_at: string;
 };
-
-function isDashboard2ImageFile(file: Dashboard2PartFileRow) {
-  const fileName = file.file_name.toLowerCase();
-  const fileType = (file.file_type || "").toLowerCase();
-
-  return (
-    file.asset_category?.toLowerCase() === "image" ||
-    fileType.startsWith("image/") ||
-    [".png", ".jpg", ".jpeg", ".webp"].some((extension) =>
-      fileName.endsWith(extension),
-    )
-  );
-}
-
-function dashboard2ThumbnailPreference(file: Dashboard2PartFileRow) {
-  const assetCategory = (file.asset_category || "").toLowerCase();
-  const fileType = (file.file_type || "").toLowerCase();
-  const fileName = file.file_name.toLowerCase();
-  let score = 0;
-
-  if (assetCategory === "image") score += 20;
-  if (fileName.includes("preview")) score += 20;
-  if (fileName.includes("thumbnail")) score += 18;
-  if (fileName.endsWith(".png") || fileType.includes("png")) score += 16;
-  if (
-    fileName.endsWith(".jpg") ||
-    fileName.endsWith(".jpeg") ||
-    fileType.includes("jpeg")
-  ) {
-    score += 14;
-  }
-  if (fileName.endsWith(".webp") || fileType.includes("webp")) score += 4;
-
-  return score;
-}
 
 type Dashboard2InternalJobRow = {
   id: string;
@@ -850,6 +789,7 @@ function SidebarNav() {
 
       <Link
         href="/dashboard"
+        prefetch={false}
         className="relative mx-4 mt-5 flex h-14 items-center overflow-hidden rounded-xl text-white transition-all duration-300 group-hover/sidebar:mx-5"
         aria-label="Kordyne dashboard"
       >
@@ -880,6 +820,7 @@ function SidebarNav() {
           <Link
             key={item.label}
             href={item.href}
+            prefetch={false}
             className={`group flex h-14 w-full items-center justify-center gap-0 rounded-xl px-0 transition-all duration-150 group-hover/sidebar:justify-start group-hover/sidebar:gap-3 group-hover/sidebar:px-3 ${
               index === 0
                 ? "bg-[#00bdde]/16 text-white"
@@ -909,23 +850,22 @@ function TopUtilityBar({
   userName,
   userEmail,
   openActions,
-  searchSuggestions,
 }: {
   userName: string;
   userEmail: string;
   openActions: number;
-  searchSuggestions: Dashboard2SearchSuggestion[];
 }) {
   const initials = getInitials(userName || userEmail);
 
   return (
     <header className="relative z-10 text-white">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <Dashboard2SearchBox suggestions={searchSuggestions} />
+        <Dashboard2SearchBox />
 
         <div className="flex items-center justify-between gap-2 md:justify-end">
           <Link
             href="/dashboard/account"
+            prefetch={false}
             className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/12 bg-white/[0.08] px-3 text-[12px] font-semibold text-white/82 backdrop-blur transition hover:border-[#00bdde]/50 hover:bg-[#00bdde]/14 hover:text-white"
           >
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#00bdde] text-[11px] font-bold text-[#001220]">
@@ -940,6 +880,7 @@ function TopUtilityBar({
           </Link>
           <Link
             href="/dashboard/organization"
+            prefetch={false}
             className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/12 bg-white/[0.08] px-3 text-[12px] font-semibold text-white/82 backdrop-blur transition hover:border-[#00bdde]/50 hover:bg-[#00bdde]/14 hover:text-white"
           >
             <Icon name="settings" className="h-4 w-4" />
@@ -1010,6 +951,7 @@ function ActionInbox({ items }: { items: ActionInboxItem[] }) {
                 {item.secondaryAction ? (
                   <Link
                     href={item.secondaryHref || item.href}
+                    prefetch={false}
                     className="rounded-full border border-white/20 px-2.5 py-1 text-[11px] text-white/80 transition hover:bg-white/10"
                   >
                     {item.secondaryAction}
@@ -1017,6 +959,7 @@ function ActionInbox({ items }: { items: ActionInboxItem[] }) {
                 ) : null}
                 <Link
                   href={item.href}
+                  prefetch={false}
                   className="rounded-full bg-white px-2.5 py-1 text-[11px] text-[#003040] transition hover:bg-white/90"
                 >
                   {item.primaryAction}
@@ -1041,6 +984,7 @@ function QuickAccess() {
           <Link
             key={item.label}
             href={item.href}
+            prefetch={false}
             className="group flex min-h-[76px] items-start gap-2.5 bg-[#001827]/70 px-3 py-3 backdrop-blur-sm transition duration-200 hover:bg-[#00bdde]/12 focus-visible:z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#00bdde]"
           >
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[#00bdde]/20 bg-[#00bdde]/10 text-[#8fd9e7] transition group-hover:border-[#00bdde]/55 group-hover:bg-[#00bdde] group-hover:text-[#003040]">
@@ -1066,13 +1010,11 @@ function CommandHero({
   userName,
   userEmail,
   inboxItems,
-  searchSuggestions,
 }: {
   organizationName: string;
   userName: string;
   userEmail: string;
   inboxItems: ActionInboxItem[];
-  searchSuggestions: Dashboard2SearchSuggestion[];
 }) {
   return (
     <section className="relative overflow-hidden rounded-3xl bg-[#001827] px-10 pb-6 pt-5 text-white shadow-[0_28px_80px_-44px_rgba(0,48,64,0.75)]">
@@ -1091,7 +1033,6 @@ function CommandHero({
         userName={userName}
         userEmail={userEmail}
         openActions={inboxItems.length}
-        searchSuggestions={searchSuggestions}
       />
 
       <div className="relative mt-4 flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
@@ -1109,6 +1050,7 @@ function CommandHero({
                 <Link
                   key={action.label}
                   href={action.href}
+                  prefetch={false}
                   className="inline-flex items-center gap-1.5 rounded-full border border-white/15 px-4 py-2 text-[13px] text-white/80 transition hover:border-transparent hover:bg-[#00bdde] hover:text-[#003040]"
                 >
                   <Icon name={action.icon} className="h-3.5 w-3.5" />
@@ -1179,6 +1121,7 @@ function LatestActivity({ groups }: { groups: ActivityGroup[] }) {
               </div>
               <Link
                 href={group.href}
+                prefetch={false}
                 aria-label={`Open ${group.label}`}
                 className="mt-1 text-[#003040]/35 transition hover:text-[#00a6c4]"
               >
@@ -1192,6 +1135,7 @@ function LatestActivity({ groups }: { groups: ActivityGroup[] }) {
                   <Link
                     key={item.id}
                     href={item.href}
+                    prefetch={false}
                     className="group block border-t border-[#003040]/8 py-3 first:border-t-0 first:pt-0 last:pb-0"
                   >
                     <div className="flex items-start justify-between gap-3">
@@ -1249,6 +1193,7 @@ function WorkspaceSignals({ signals }: { signals: WorkspaceSignal[] }) {
         </div>
         <Link
           href="/dashboard/insights"
+          prefetch={false}
           className="inline-flex items-center gap-1 text-[12px] text-white/45 transition hover:text-[#00bdde]"
         >
           View insights
@@ -1264,6 +1209,7 @@ function WorkspaceSignals({ signals }: { signals: WorkspaceSignal[] }) {
             <Link
               key={signal.key}
               href={signal.href}
+              prefetch={false}
               className="group flex min-h-[92px] gap-3 rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-4 transition hover:border-[#00bdde]/35 hover:bg-[#00bdde]/[0.07]"
             >
               <span
@@ -1317,16 +1263,6 @@ export default async function Dashboard2Page() {
   const typedMembership = membership as MembershipRow | null;
   const organizationId = typedMembership?.organization_id || null;
 
-  const { data: organization } = organizationId
-    ? await supabase
-        .from("organizations")
-        .select("id, name")
-        .eq("id", organizationId)
-        .maybeSingle()
-    : { data: null };
-
-  const typedOrganization = organization as OrganizationRow | null;
-  const organizationName = typedOrganization?.name || "Company";
   const userEmail = user.email || "User";
   const userMetadata = user.user_metadata as Record<string, unknown>;
   const metadataDisplayName =
@@ -1339,315 +1275,198 @@ export default async function Dashboard2Page() {
     metadataDisplayName || (userEmail.includes("@") ? userEmail.split("@")[0] : userEmail);
   const now = new Date();
 
-  const { data: searchPartsRaw } = organizationId
-    ? await supabase
-        .from("parts")
-        .select(
-          "id, name, part_number, revision, status, process_type, material, updated_at, created_at",
-        )
-        .eq("organization_id", organizationId)
-        .order("updated_at", { ascending: false })
-        .limit(30)
-    : { data: [] as Dashboard2PartSearchRow[] };
-
-  const { data: searchProjectsRaw } = organizationId
-    ? await supabase
-        .from("projects")
-        .select("id, name, project_type, status, updated_at, created_at")
-        .eq("organization_id", organizationId)
-        .order("updated_at", { ascending: false })
-        .limit(20)
-    : { data: [] as Dashboard2ProjectSearchRow[] };
-
-  const { data: searchRequestsRaw } = organizationId
-    ? await supabase
-        .from("service_requests")
-        .select(
-          "id, title, requested_item_name, requested_item_reference, status, request_type, priority, updated_at, created_at",
-        )
-        .eq("organization_id", organizationId)
-        .order("updated_at", { ascending: false })
-        .limit(25)
-    : { data: [] as Dashboard2RequestSearchRow[] };
-
-  const searchParts =
-    (searchPartsRaw as Dashboard2PartSearchRow[] | null) ?? [];
-  const searchProjects =
-    (searchProjectsRaw as Dashboard2ProjectSearchRow[] | null) ?? [];
-  const searchProjectIds = searchProjects.map((project) => project.id);
-
-  const { data: searchProjectLinksRaw } =
-    searchProjectIds.length > 0
-      ? await supabase
-          .from("project_part_links")
-          .select("project_id, part_id, is_primary_part")
-          .in("project_id", searchProjectIds)
-      : { data: [] as Dashboard2ProjectPartLinkRow[] };
-
-  const searchProjectLinks =
-    (searchProjectLinksRaw as Dashboard2ProjectPartLinkRow[] | null) ?? [];
-  const projectThumbnailPartId = new Map<string, string>();
-
-  for (const link of searchProjectLinks) {
-    if (
-      link.is_primary_part ||
-      !projectThumbnailPartId.has(link.project_id)
-    ) {
-      projectThumbnailPartId.set(link.project_id, link.part_id);
-    }
-  }
-
-  const searchThumbnailPartIds = Array.from(
-    new Set([
-      ...searchParts.map((part) => part.id),
-      ...projectThumbnailPartId.values(),
-    ]),
-  );
-
-  const { data: searchPartFilesRaw } =
-    searchThumbnailPartIds.length > 0
-      ? await supabase
-          .from("part_files")
+  const [
+    organizationResult,
+    searchProjectsResult,
+    searchRequestsResult,
+    internalJobsResult,
+    scheduleBlocksResult,
+    partFamiliesResult,
+    revisionsResult,
+    requestsCountResult,
+    projectsCountResult,
+    jobsCountResult,
+    scheduleCountResult,
+    serviceRequestsResult,
+    annotationsResult,
+    providerPackagesResult,
+  ] = await Promise.all([
+    organizationId
+      ? supabase
+          .from("organizations")
+          .select("id, name")
+          .eq("id", organizationId)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+    organizationId
+      ? supabase
+          .from("projects")
+          .select("id, name, project_type, status, updated_at, created_at")
+          .eq("organization_id", organizationId)
+          .order("updated_at", { ascending: false })
+          .limit(4)
+      : Promise.resolve({ data: [] as Dashboard2ProjectSearchRow[] }),
+    organizationId
+      ? supabase
+          .from("service_requests")
           .select(
-            "id, part_id, file_name, file_type, storage_path, asset_category, created_at",
+            "id, title, requested_item_name, requested_item_reference, status, request_type, priority, updated_at, created_at",
           )
-          .in("part_id", searchThumbnailPartIds)
-          .order("created_at", { ascending: false })
-      : { data: [] as Dashboard2PartFileRow[] };
+          .eq("organization_id", organizationId)
+          .order("updated_at", { ascending: false })
+          .limit(4)
+      : Promise.resolve({ data: [] as Dashboard2RequestSearchRow[] }),
+    organizationId
+      ? supabase
+          .from("internal_jobs")
+          .select("id, title, service_domain, priority, status, updated_at, created_at")
+          .eq("organization_id", organizationId)
+          .order("updated_at", { ascending: false })
+          .limit(4)
+      : Promise.resolve({ data: [] as Dashboard2InternalJobRow[] }),
+    organizationId
+      ? supabase
+          .from("internal_schedule_blocks")
+          .select("id, block_type, title, starts_at, ends_at, updated_at, created_at")
+          .eq("organization_id", organizationId)
+          .order("updated_at", { ascending: false })
+          .limit(4)
+      : Promise.resolve({ data: [] as Dashboard2ScheduleBlockRow[] }),
+    organizationId
+      ? supabase
+          .from("part_families")
+          .select("id", { count: "exact", head: true })
+          .eq("organization_id", organizationId)
+      : Promise.resolve({ count: 0 }),
+    organizationId
+      ? supabase
+          .from("parts")
+          .select("id", { count: "exact", head: true })
+          .eq("organization_id", organizationId)
+      : Promise.resolve({ count: 0 }),
+    organizationId
+      ? supabase
+          .from("service_requests")
+          .select("id", { count: "exact", head: true })
+          .eq("organization_id", organizationId)
+      : Promise.resolve({ count: 0 }),
+    organizationId
+      ? supabase
+          .from("projects")
+          .select("id", { count: "exact", head: true })
+          .eq("organization_id", organizationId)
+          .eq("project_type", "multi_part_project")
+      : Promise.resolve({ count: 0 }),
+    organizationId
+      ? supabase
+          .from("internal_jobs")
+          .select("id", { count: "exact", head: true })
+          .eq("organization_id", organizationId)
+      : Promise.resolve({ count: 0 }),
+    organizationId
+      ? supabase
+          .from("internal_schedule_blocks")
+          .select("id", { count: "exact", head: true })
+          .eq("organization_id", organizationId)
+      : Promise.resolve({ count: 0 }),
+    organizationId
+      ? supabase
+          .from("service_requests")
+          .select(
+            "id, title, requested_item_name, requested_item_reference, status, priority, due_date, updated_at, created_at",
+          )
+          .eq("organization_id", organizationId)
+          .in("status", [
+            "submitted",
+            "in_review",
+            "awaiting_customer",
+            "approved",
+            "in_progress",
+          ])
+          .order("updated_at", { ascending: false })
+          .limit(40)
+      : Promise.resolve({ data: [] as ServiceRequestActionRow[] }),
+    organizationId
+      ? supabase
+          .from("part_review_annotations")
+          .select(
+            "id, part_id, title, status, severity, category, due_date, updated_at, created_at",
+          )
+          .eq("organization_id", organizationId)
+          .in("status", ["open", "in_review", "reopened"])
+          .order("updated_at", { ascending: false })
+          .limit(20)
+      : Promise.resolve({ data: [] as PartReviewAnnotationActionRow[] }),
+    organizationId
+      ? supabase
+          .from("provider_request_packages")
+          .select(
+            "id, service_request_id, customer_org_id, provider_org_id, package_status, package_title, customer_visible_status, response_deadline, provider_responded_at, awarded_at, updated_at, created_at",
+          )
+          .or(
+            `customer_org_id.eq.${organizationId},provider_org_id.eq.${organizationId}`,
+          )
+          .in("package_status", [
+            "published",
+            "viewed",
+            "awaiting_provider_response",
+            "declined",
+            "quote_submitted",
+            "quote_revised",
+            "issue_raised",
+            "on_hold",
+          ])
+          .order("updated_at", { ascending: false })
+          .limit(40)
+      : Promise.resolve({ data: [] as ProviderPackageActionRow[] }),
+  ]);
 
-  const searchPartFiles = (
-    (searchPartFilesRaw as Dashboard2PartFileRow[] | null) ?? []
-  )
-    .filter(isDashboard2ImageFile)
-    .sort((left, right) => {
-      const scoreDifference =
-        dashboard2ThumbnailPreference(right) -
-        dashboard2ThumbnailPreference(left);
+  const typedOrganization = organizationResult.data as OrganizationRow | null;
+  const organizationName = typedOrganization?.name || "Company";
 
-      if (scoreDifference !== 0) return scoreDifference;
-      return right.created_at.localeCompare(left.created_at);
-    });
-  const thumbnailFileByPartId = new Map<string, Dashboard2PartFileRow>();
+  const searchProjectsRaw = searchProjectsResult.data;
+  const searchRequestsRaw = searchRequestsResult.data;
+  const internalJobsRaw = internalJobsResult.data;
+  const scheduleBlocksRaw = scheduleBlocksResult.data;
 
-  for (const file of searchPartFiles) {
-    if (!thumbnailFileByPartId.has(file.part_id)) {
-      thumbnailFileByPartId.set(file.part_id, file);
-    }
-  }
+  const partFamilyCount = partFamiliesResult.count ?? 0;
+  const revisionCount = revisionsResult.count ?? 0;
+  const requestCount = requestsCountResult.count ?? 0;
+  const multiPartProjectCount = projectsCountResult.count ?? 0;
+  const internalJobCount = jobsCountResult.count ?? 0;
+  const scheduleBlockCount = scheduleCountResult.count ?? 0;
 
-  const thumbnailUrlByPartId = new Map<string, string>();
-  const thumbnailEntries = Array.from(thumbnailFileByPartId.entries());
-
-  if (thumbnailEntries.length > 0) {
-    const { data: signedThumbnailUrls } = await supabase.storage
-      .from("part-files")
-      .createSignedUrls(
-        thumbnailEntries.map(([, file]) => file.storage_path),
-        10 * 60,
-      );
-
-    signedThumbnailUrls?.forEach((signedThumbnail, index) => {
-      const thumbnailEntry = thumbnailEntries[index];
-
-      if (thumbnailEntry && signedThumbnail.signedUrl) {
-        thumbnailUrlByPartId.set(thumbnailEntry[0], signedThumbnail.signedUrl);
-      }
-    });
-  }
-
-  const { data: internalJobsRaw } = organizationId
-    ? await supabase
-        .from("internal_jobs")
-        .select("id, title, service_domain, priority, status, updated_at, created_at")
-        .eq("organization_id", organizationId)
-        .order("updated_at", { ascending: false })
-        .limit(4)
-    : { data: [] as Dashboard2InternalJobRow[] };
-
-  const { data: scheduleBlocksRaw } = organizationId
-    ? await supabase
-        .from("internal_schedule_blocks")
-        .select("id, block_type, title, starts_at, ends_at, updated_at, created_at")
-        .eq("organization_id", organizationId)
-        .order("updated_at", { ascending: false })
-        .limit(4)
-    : { data: [] as Dashboard2ScheduleBlockRow[] };
-
-  let partFamilyCount = 0;
-  let revisionCount = 0;
-  let requestCount = 0;
-  let multiPartProjectCount = 0;
-  let internalJobCount = 0;
-  let scheduleBlockCount = 0;
-
-  if (organizationId) {
-    const [
-      partFamiliesResult,
-      revisionsResult,
-      requestsResult,
-      projectsResult,
-      jobsResult,
-      scheduleResult,
-    ] = await Promise.all([
-      supabase
-        .from("part_families")
-        .select("id", { count: "exact", head: true })
-        .eq("organization_id", organizationId),
-      supabase
-        .from("parts")
-        .select("id", { count: "exact", head: true })
-        .eq("organization_id", organizationId),
-      supabase
-        .from("service_requests")
-        .select("id", { count: "exact", head: true })
-        .eq("organization_id", organizationId),
-      supabase
-        .from("projects")
-        .select("id", { count: "exact", head: true })
-        .eq("organization_id", organizationId)
-        .eq("project_type", "multi_part_project"),
-      supabase
-        .from("internal_jobs")
-        .select("id", { count: "exact", head: true })
-        .eq("organization_id", organizationId),
-      supabase
-        .from("internal_schedule_blocks")
-        .select("id", { count: "exact", head: true })
-        .eq("organization_id", organizationId),
-    ]);
-
-    partFamilyCount = partFamiliesResult.count ?? 0;
-    revisionCount = revisionsResult.count ?? 0;
-    requestCount = requestsResult.count ?? 0;
-    multiPartProjectCount = projectsResult.count ?? 0;
-    internalJobCount = jobsResult.count ?? 0;
-    scheduleBlockCount = scheduleResult.count ?? 0;
-  }
-
-  const searchSuggestions: Dashboard2SearchSuggestion[] = [
-    ...(searchParts.map((part) => ({
-      id: part.id,
-      type: "part" as const,
-      label: part.part_number ? `${part.name} (${part.part_number})` : part.name,
-      subtitle:
-        [
-          part.revision ? `Rev ${part.revision}` : null,
-          part.process_type,
-          part.material,
-          formatLabel(part.status),
-        ]
-          .filter(Boolean)
-          .join(" - ") || "Part Vault",
-      href: `/dashboard/parts/${part.id}`,
-      updatedAt: part.updated_at || part.created_at,
-      thumbnailUrl: thumbnailUrlByPartId.get(part.id) ?? null,
-    }))),
-    ...(searchProjects.map((project) => ({
-      id: project.id,
-      type: "project" as const,
-      label: project.name,
-      subtitle:
-        [
-          project.project_type === "single_part_workspace"
-            ? "Part Workspace"
-            : "Project",
-          formatLabel(project.status),
-        ]
-          .filter(Boolean)
-          .join(" - ") || "Project workspace",
-      href: `/dashboard/projects/${project.id}`,
-      updatedAt: project.updated_at || project.created_at,
-      thumbnailUrl:
-        thumbnailUrlByPartId.get(
-          projectThumbnailPartId.get(project.id) || "",
-        ) ?? null,
-    }))),
-    ...(((searchRequestsRaw ?? []) as Dashboard2RequestSearchRow[]).map((request) => {
-      const label =
-        request.title ||
-        request.requested_item_name ||
-        request.requested_item_reference ||
-        `Request ${request.id.slice(0, 8)}`;
-
-      return {
-        id: request.id,
-        type: "request" as const,
-        label,
-        subtitle:
-          [
-            formatLabel(request.request_type),
-            `${getRequestPriorityLabel(request.priority)} priority`,
-            formatLabel(request.status),
-          ]
-            .filter(Boolean)
-            .join(" - ") || "Service request",
-        href: `/dashboard/requests/${request.id}`,
-        updatedAt: request.updated_at || request.created_at,
-      };
-    })),
-  ]
-    .sort(
-      (left, right) =>
-        new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime(),
-    )
-    .slice(0, 75);
-
-  const { data: serviceRequestsRaw } = organizationId
-    ? await supabase
-        .from("service_requests")
-        .select(
-          "id, title, requested_item_name, requested_item_reference, status, priority, due_date, updated_at, created_at",
-        )
-        .eq("organization_id", organizationId)
-        .in("status", ["submitted", "in_review", "awaiting_customer", "approved", "in_progress"])
-        .order("updated_at", { ascending: false })
-        .limit(40)
-    : { data: [] as ServiceRequestActionRow[] };
+  const serviceRequestsRaw = serviceRequestsResult.data;
+  const annotationsRaw = annotationsResult.data;
+  const providerPackagesRaw = providerPackagesResult.data;
 
   const serviceRequests =
     (serviceRequestsRaw as ServiceRequestActionRow[] | null) ?? [];
 
-  const { data: annotationsRaw } = organizationId
-    ? await supabase
-        .from("part_review_annotations")
-        .select("id, part_id, title, status, severity, category, due_date, updated_at, created_at")
-        .eq("organization_id", organizationId)
-        .in("status", ["open", "in_review", "reopened"])
-        .order("updated_at", { ascending: false })
-        .limit(20)
-    : { data: [] as PartReviewAnnotationActionRow[] };
-
   const annotations =
     (annotationsRaw as PartReviewAnnotationActionRow[] | null) ?? [];
-
-  const { data: providerPackagesRaw } = organizationId
-    ? await supabase
-        .from("provider_request_packages")
-        .select(
-          "id, service_request_id, customer_org_id, provider_org_id, package_status, package_title, customer_visible_status, response_deadline, provider_responded_at, awarded_at, updated_at, created_at",
-        )
-        .or(`customer_org_id.eq.${organizationId},provider_org_id.eq.${organizationId}`)
-        .in("package_status", [
-          "published",
-          "viewed",
-          "awaiting_provider_response",
-          "declined",
-          "quote_submitted",
-          "quote_revised",
-          "issue_raised",
-          "on_hold",
-        ])
-        .order("updated_at", { ascending: false })
-        .limit(40)
-    : { data: [] as ProviderPackageActionRow[] };
 
   const providerPackages =
     (providerPackagesRaw as ProviderPackageActionRow[] | null) ?? [];
   const packageIds = providerPackages.map((pkg) => pkg.id);
+  const partIds = [...new Set(annotations.map((annotation) => annotation.part_id))];
+  const actionOrgIds = [
+    ...new Set(
+      providerPackages.flatMap((pkg) => [
+        pkg.customer_org_id,
+        pkg.provider_org_id,
+      ]),
+    ),
+  ];
 
-  const { data: providerMessagesRaw } =
+  const [
+    providerMessagesResult,
+    providerQuotesResult,
+    partsResult,
+    actionOrganizationsResult,
+  ] = await Promise.all([
     packageIds.length > 0 && organizationId
-      ? await supabase
+      ? supabase
           .from("provider_messages")
           .select(
             "id, provider_request_package_id, sender_org_id, message_type, message_body, is_system, created_at",
@@ -1658,14 +1477,9 @@ export default async function Dashboard2Page() {
           .neq("sender_org_id", organizationId)
           .order("created_at", { ascending: false })
           .limit(30)
-      : { data: [] as ProviderMessageActionRow[] };
-
-  const providerMessages =
-    (providerMessagesRaw as ProviderMessageActionRow[] | null) ?? [];
-
-  const { data: providerQuotesRaw } =
+      : Promise.resolve({ data: [] as ProviderMessageActionRow[] }),
     packageIds.length > 0
-      ? await supabase
+      ? supabase
           .from("provider_quotes")
           .select(
             "id, provider_request_package_id, status, currency_code, total_price, submitted_at, created_at",
@@ -1674,36 +1488,35 @@ export default async function Dashboard2Page() {
           .eq("status", "submitted")
           .order("submitted_at", { ascending: false, nullsFirst: false })
           .limit(30)
-      : { data: [] as ProviderQuoteActionRow[] };
+      : Promise.resolve({ data: [] as ProviderQuoteActionRow[] }),
+    partIds.length > 0
+      ? supabase
+          .from("parts")
+          .select("id, name, part_number, revision")
+          .in("id", partIds)
+      : Promise.resolve({ data: [] as PartSummaryRow[] }),
+    actionOrgIds.length > 0
+      ? supabase
+          .from("organizations")
+          .select("id, name")
+          .in("id", actionOrgIds)
+      : Promise.resolve({ data: [] as OrganizationRow[] }),
+  ]);
+
+  const providerMessagesRaw = providerMessagesResult.data;
+  const providerQuotesRaw = providerQuotesResult.data;
+  const partsRaw = partsResult.data;
+  const actionOrganizationsRaw = actionOrganizationsResult.data;
+
+  const providerMessages =
+    (providerMessagesRaw as ProviderMessageActionRow[] | null) ?? [];
 
   const providerQuotes =
     (providerQuotesRaw as ProviderQuoteActionRow[] | null) ?? [];
 
-  const partIds = [...new Set(annotations.map((annotation) => annotation.part_id))];
-  const { data: partsRaw } =
-    partIds.length > 0
-      ? await supabase
-          .from("parts")
-          .select("id, name, part_number, revision")
-          .in("id", partIds)
-      : { data: [] as PartSummaryRow[] };
-
   const partsById = new Map(
     ((partsRaw ?? []) as PartSummaryRow[]).map((part) => [part.id, part]),
   );
-
-  const actionOrgIds = [
-    ...new Set(
-      providerPackages.flatMap((pkg) => [
-        pkg.customer_org_id,
-        pkg.provider_org_id,
-      ]),
-    ),
-  ];
-  const { data: actionOrganizationsRaw } =
-    actionOrgIds.length > 0
-      ? await supabase.from("organizations").select("id, name").in("id", actionOrgIds)
-      : { data: [] as OrganizationRow[] };
 
   const organizationsById = new Map(
     ((actionOrganizationsRaw ?? []) as OrganizationRow[]).map((org) => [
@@ -1802,7 +1615,6 @@ export default async function Dashboard2Page() {
           userName={userName}
           userEmail={userEmail}
           inboxItems={actionInboxItems}
-          searchSuggestions={searchSuggestions}
         />
         <LatestActivity groups={activityGroups} />
         <WorkspaceSignals signals={workspaceSignals} />
