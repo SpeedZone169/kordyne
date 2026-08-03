@@ -38,7 +38,7 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
     return <>{children}</>;
   }
 
-  if (pathname === "/dashboard/parts") {
+  if (pathname === "/dashboard/parts" || pathname.startsWith("/dashboard/parts/")) {
     return (
       <div className="flex min-h-screen w-full bg-white text-[#003040]">
         <aside className="group/sidebar fixed left-0 top-0 z-[100] flex h-full w-20 flex-col overflow-hidden border-r border-white/10 bg-[#001220] shadow-[8px_0_30px_rgba(0,18,32,0.28)] transition-all duration-300 ease-in-out hover:w-56 hover:shadow-[12px_0_42px_rgba(0,18,32,0.36)]">

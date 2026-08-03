@@ -381,7 +381,7 @@ export default function PartReviewAnnotationsPanel({
   }
 
   return (
-    <aside className="rounded-[14px] border border-slate-200 bg-white shadow-sm">
+    <aside className="rounded-[8px] border border-slate-200 bg-white shadow-sm 2xl:max-h-[clamp(700px,78vh,920px)] 2xl:overflow-y-auto">
       <div className="border-b border-slate-200 bg-slate-50 px-5 py-4">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -416,7 +416,7 @@ export default function PartReviewAnnotationsPanel({
         {pendingAnnotation ? (
           <form
             onSubmit={handleCreateAnnotation}
-            className="rounded-[14px] border border-cyan-200 bg-cyan-50/60 p-4"
+            className="rounded-[8px] border border-cyan-200 bg-cyan-50/60 p-4"
           >
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -677,7 +677,7 @@ export default function PartReviewAnnotationsPanel({
         </div>
 
         {selectedAnnotation ? (
-          <section className="rounded-[14px] border border-slate-200 bg-white">
+          <section className="rounded-[8px] border border-slate-200 bg-white">
             <div className="border-b border-slate-200 p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>

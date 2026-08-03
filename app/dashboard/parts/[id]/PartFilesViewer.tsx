@@ -223,7 +223,7 @@ export default function PartFilesViewer({
 
   if (!files.length) {
     return (
-      <div className="rounded-[28px] border border-dashed border-slate-300 bg-slate-50 p-8 text-sm text-slate-600">
+      <div className="rounded-[8px] border border-dashed border-slate-300 bg-slate-50 p-8 text-sm text-slate-600">
         No files available for preview yet.
       </div>
     );
@@ -237,12 +237,12 @@ export default function PartFilesViewer({
     : [];
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
-      <div className="rounded-[12px] border border-slate-200 bg-slate-50/70 p-3">
-        <div className="mb-4 flex items-center justify-between gap-4 px-2">
+    <div className="grid min-w-0 gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
+      <div className="rounded-[8px] border border-slate-200 bg-slate-50/70 p-2.5 xl:max-h-[clamp(700px,78vh,920px)] xl:overflow-y-auto">
+        <div className="mb-3 flex items-center justify-between gap-3 px-1.5">
           <div>
-            <h3 className="text-lg font-semibold text-slate-950">File rail</h3>
-            <p className="mt-1 text-sm text-slate-600">
+            <h3 className="text-base font-semibold text-slate-950">Files</h3>
+            <p className="mt-1 text-xs leading-5 text-slate-600">
               Select a file to preview in the same page.
             </p>
           </div>
@@ -283,7 +283,7 @@ export default function PartFilesViewer({
                           onManualFileSelect?.();
                           setSelectedFileId(file.id);
                         }}
-                        className={`w-full rounded-[12px] border p-3 text-left transition ${
+                        className={`w-full rounded-[8px] border p-2.5 text-left transition ${
                           isSelected
                             ? "border-slate-900 bg-white shadow-sm"
                             : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
@@ -336,10 +336,10 @@ export default function PartFilesViewer({
         </div>
       </div>
 
-      <div className="rounded-[12px] border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="min-w-0 rounded-[8px] border border-slate-200 bg-white p-3 shadow-sm md:p-4">
         {selectedFile ? (
           <div className="flex h-full flex-col">
-            <div className="flex flex-col gap-4 border-b border-slate-200 pb-5 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex flex-col gap-3 border-b border-slate-200 pb-3 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <h3 className="truncate text-xl font-semibold tracking-tight text-slate-950">
@@ -399,15 +399,15 @@ export default function PartFilesViewer({
               </div>
             </div>
 
-            <div className="mt-5 w-full">
-              <div className="min-h-[560px] overflow-hidden rounded-[24px] border border-slate-200 bg-slate-50">
+            <div className="mt-3 w-full">
+              <div className="h-[520px] overflow-hidden rounded-[8px] border border-slate-200 bg-slate-50 md:h-[clamp(620px,68vh,760px)]">
                 {selectedFile.previewKind === "image" && selectedFile.previewUrl ? (
-                  <div className="flex h-full min-h-[560px] items-center justify-center bg-[radial-gradient(circle_at_top,#f8fafc,#eef2f7)] p-6">
+                  <div className="flex h-full items-center justify-center bg-[radial-gradient(circle_at_top,#f8fafc,#eef2f7)] p-4">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={selectedFile.previewUrl}
                       alt={selectedFile.fileName}
-                      className="h-full max-h-[520px] w-full rounded-2xl border border-slate-200 bg-white object-contain shadow-sm"
+                      className="h-full max-h-full w-full rounded-[8px] border border-slate-200 bg-white object-contain shadow-sm"
                     />
                   </div>
                 ) : null}
@@ -416,7 +416,7 @@ export default function PartFilesViewer({
                   <iframe
                     src={selectedFile.previewUrl}
                     title={selectedFile.fileName}
-                    className="h-[560px] w-full bg-white"
+                    className="h-full min-h-[520px] w-full bg-white md:min-h-[620px]"
                   />
                 ) : null}
 
@@ -452,7 +452,7 @@ export default function PartFilesViewer({
                 {selectedFile.previewKind === "cad" &&
                 !isStlSelected &&
                 !isStepSelected ? (
-                  <div className="flex h-full min-h-[560px] flex-col items-center justify-center bg-[radial-gradient(circle_at_top,#eff6ff,#f8fafc_55%,#ffffff)] px-8 text-center">
+                  <div className="flex h-full min-h-[520px] flex-col items-center justify-center bg-[radial-gradient(circle_at_top,#eff6ff,#f8fafc_55%,#ffffff)] px-8 text-center md:min-h-[620px]">
                     <div className="max-w-xl">
                       <span className="inline-flex rounded-full bg-sky-100 px-3 py-1 text-xs font-medium text-sky-700">
                         3D/CAD surface ready
@@ -472,7 +472,7 @@ export default function PartFilesViewer({
                 ) : null}
 
                 {selectedFile.previewKind === "other" ? (
-                  <div className="flex h-full min-h-[560px] flex-col items-center justify-center bg-[radial-gradient(circle_at_top,#f8fafc,#ffffff)] px-8 text-center">
+                  <div className="flex h-full min-h-[520px] flex-col items-center justify-center bg-[radial-gradient(circle_at_top,#f8fafc,#ffffff)] px-8 text-center md:min-h-[620px]">
                     <div className="max-w-lg">
                       <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
                         Download-only file
@@ -493,8 +493,8 @@ export default function PartFilesViewer({
               </div>
             </div>
 
-            <div className="mt-5 grid gap-3 md:grid-cols-3">
-              <div className="rounded-[20px] border border-slate-200 bg-slate-50 p-4">
+            <div className="mt-3 grid overflow-hidden rounded-[8px] border border-slate-200 bg-slate-50 md:grid-cols-3 md:divide-x md:divide-slate-200">
+              <div className="px-4 py-3">
                 <div className="text-xs uppercase tracking-[0.14em] text-slate-500">
                   Uploaded
                 </div>
@@ -503,7 +503,7 @@ export default function PartFilesViewer({
                 </div>
               </div>
 
-              <div className="rounded-[20px] border border-slate-200 bg-slate-50 p-4">
+              <div className="border-t border-slate-200 px-4 py-3 md:border-t-0">
                 <div className="text-xs uppercase tracking-[0.14em] text-slate-500">
                   Uploaded by
                 </div>
@@ -512,7 +512,7 @@ export default function PartFilesViewer({
                 </div>
               </div>
 
-              <div className="rounded-[20px] border border-slate-200 bg-slate-50 p-4">
+              <div className="border-t border-slate-200 px-4 py-3 md:border-t-0">
                 <div className="text-xs uppercase tracking-[0.14em] text-slate-500">
                   Category
                 </div>

@@ -320,7 +320,7 @@ export default function CreateRevisionButton({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex rounded-2xl border border-gray-300 px-5 py-3 text-sm font-medium text-gray-900 transition hover:bg-gray-50"
+        className="inline-flex rounded-[8px] border border-[#00bdde] bg-[#00bdde] px-4 py-2 text-sm font-semibold text-[#001827] transition hover:bg-[#42d5ec]"
       >
         Create New Revision
       </button>

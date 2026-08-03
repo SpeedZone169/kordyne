@@ -521,7 +521,7 @@ export default function StlPreview({
   }, [fileId, fileName, url]);
 
   return (
-    <div className="relative h-[560px] w-full overflow-hidden rounded-[24px] border border-slate-200 bg-[radial-gradient(circle_at_top,#eff6ff,#f8fafc_55%,#ffffff)]">
+    <div className="relative h-full min-h-[520px] w-full overflow-hidden rounded-[8px] border border-slate-200 bg-[radial-gradient(circle_at_top,#eff6ff,#f8fafc_55%,#ffffff)] md:min-h-[620px]">
       <div className="absolute left-4 right-4 top-4 z-10 flex flex-wrap items-center justify-between gap-2">
         <div className="rounded-full border border-slate-200 bg-white/90 px-3 py-1.5 text-xs font-bold text-slate-700 shadow-sm backdrop-blur">
           STL review viewer
@@ -596,7 +596,7 @@ export default function StlPreview({
       ) : null}
 
       {annotationMode ? (
-        <div className="absolute bottom-4 left-4 right-4 z-10 rounded-[14px] border border-cyan-200 bg-white/95 px-4 py-3 text-sm text-slate-700 shadow-sm backdrop-blur">
+        <div className="absolute bottom-4 left-4 right-4 z-10 rounded-[8px] border border-cyan-200 bg-white/95 px-4 py-3 text-sm text-slate-700 shadow-sm backdrop-blur">
           Click the STL mesh surface to place a revision-scoped annotation.
           Press Escape to cancel.
         </div>
@@ -604,7 +604,7 @@ export default function StlPreview({
 
       {status !== "ready" ? (
         <div className="absolute inset-0 flex items-center justify-center p-6">
-          <div className="max-w-lg rounded-[24px] border border-slate-200 bg-white/95 p-6 text-center shadow-sm backdrop-blur">
+          <div className="max-w-lg rounded-[8px] border border-slate-200 bg-white/95 p-6 text-center shadow-sm backdrop-blur">
             <div className="text-sm font-semibold text-slate-900">
               {status === "error" ? "Preview unavailable" : "Loading STL model"}
             </div>

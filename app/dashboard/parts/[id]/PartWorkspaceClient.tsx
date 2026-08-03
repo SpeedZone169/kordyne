@@ -93,7 +93,7 @@ export default function PartWorkspaceClient({
   return (
     <section
       id="part-workspace"
-      className="mt-5 rounded-[12px] border border-slate-200 bg-white p-4 shadow-sm"
+      className="min-w-0"
     >
       <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
@@ -141,7 +141,7 @@ export default function PartWorkspaceClient({
         </div>
       ) : null}
 
-      <div className="grid gap-5 2xl:grid-cols-[minmax(0,1fr)_460px]">
+      <div className="grid min-w-0 gap-4 2xl:grid-cols-[minmax(0,1fr)_360px]">
         <PartFilesViewer
           files={files}
           annotations={viewerAnnotations}
