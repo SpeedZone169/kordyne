@@ -251,7 +251,6 @@ export default function Client({ nextPath, portal }: Props) {
         </label>
 
         <div className={styles.formOptions}>
-          <span>Secure session</span>
           <Link href="/forgot-password">Forgot password?</Link>
         </div>
 

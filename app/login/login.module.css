@@ -279,25 +279,11 @@
   display: flex;
   min-height: 18px;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 16px;
   color: rgba(255, 255, 255, 0.82);
   font-size: 11px;
   line-height: 16px;
-}
-
-.formOptions span {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.formOptions span::before {
-  width: 10px;
-  height: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.8);
-  border-radius: 3px;
-  content: "";
 }
 
 .formOptions a {
